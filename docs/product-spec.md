@@ -8,8 +8,16 @@ This is the entry-point product spec for Ultra. It describes the overall product
 
 Supporting specs:
 
+- [chat-contract.md](/Users/tony/Projects/ultra/docs/chat-contract.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
+- [thread-event-schema.md](/Users/tony/Projects/ultra/docs/thread-event-schema.md)
 - [editor-checkout-model.md](/Users/tony/Projects/ultra/docs/editor-checkout-model.md)
+- [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md)
+- [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
+- [sqlite-schema.md](/Users/tony/Projects/ultra/docs/sqlite-schema.md)
+- [ui-layout-and-navigation.md](/Users/tony/Projects/ultra/docs/ui-layout-and-navigation.md)
+- [browser-surface.md](/Users/tony/Projects/ultra/docs/browser-surface.md)
+- [artifact-sharing.md](/Users/tony/Projects/ultra/docs/artifact-sharing.md)
 
 ## Product Summary
 
@@ -17,10 +25,17 @@ Ultra is a chat-first desktop environment for software engineering.
 
 It is designed for a single engineer working on real repositories who wants to plan, break down, launch, supervise, review, and test software work from one place. Ultra should feel like a command center for engineering work, with code editing and debugging available as a dedicated editing surface.
 
-Ultra has two primary pages:
+Ultra has three primary pages:
 
 - `Chat page`: planning, research, ticket intake, specs, and execution thread creation
 - `Editor page`: file editing, diffs, terminal, run/debug, and review against a selected checkout
+- `Browser page`: dedicated manual testing and browsing
+
+Top-level navigation between these pages should be a simple pill-style switcher at the top of the app:
+
+- `Chat`
+- `Editor`
+- `Browser`
 
 ## Product Thesis
 
@@ -174,6 +189,30 @@ The editor page has one active editor target at a time. That target can be the m
 - The user should rarely need to think about raw worktree mechanics
 - The UI should expose progress, state, and health without drowning the user in process noise
 - Advanced behavior should be configurable, but the default path should stay simple
+- Ultra app chrome is dark-only
+
+## Theme and Customization Policy
+
+Ultra should ship with a dark theme and should not support:
+
+- light mode
+- theme toggling
+- multiple built-in app themes
+- user-defined app chrome themes
+
+The intended feel is dark, but not oppressively dark. The app should be comfortable for mainstream users, not only dark-mode maximalists.
+
+### Editor Exception
+
+The Editor page embeds a Code-OSS-style editing environment.
+
+Inside that editor environment:
+
+- users may choose their own editor/workbench theme
+- users may customize editor hotkeys through settings
+- users may use compatible editor/theme plugins
+
+This customization boundary applies to the editor environment, not the Ultra app shell.
 
 ## Execution Model
 
@@ -217,6 +256,7 @@ The exact packaging/runtime architecture is still being refined, but the product
 - a desktop app experience
 - a chat-first command-center UI
 - a code editing environment with strong diff, terminal, and run/debug support
+- a first-class browser surface for manual QA
 - a backend/runtime layer capable of supervising threads and coordinators reliably
 
 ## What Ultra Must Feel Like
@@ -233,6 +273,7 @@ It should not feel like:
 - a generic editor with a chat sidebar
 - a thin wrapper around terminal agents
 - a project management tool with code attached
+- a theme-heavy customization playground
 
 ## v1 Priorities
 
