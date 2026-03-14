@@ -1,0 +1,1 @@
+{"type":"convention","content":"Root .gitignore should preserve git-native project folders (.canopy, .mulch, .seeds, .overstory metadata) and ignore only local runtime files plus standard Electron/Node build artifacts.","classification":"tactical","recorded_at":"2026-03-14T14:53:53.332Z","id":"mx-15cb21"}
