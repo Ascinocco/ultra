@@ -107,6 +107,7 @@ The initial schema should be grouped into:
 - thread agents and approvals
 - editor targets and runtime file sync
 - runtime supervision
+- browser
 - artifacts
 - layout and schema migration metadata
 
@@ -404,6 +405,28 @@ Indexes:
 
 - `idx_thread_agents_thread_status` on (`thread_id`, `status`)
 
+### `thread_file_changes`
+
+Cached changed-file summary for thread review and file surfaces.
+
+Columns:
+
+- `thread_id` TEXT NOT NULL REFERENCES `threads`(`thread_id`) ON DELETE CASCADE
+- `path` TEXT NOT NULL
+- `change_type` TEXT NOT NULL
+- `old_path` TEXT
+- `additions` INTEGER
+- `deletions` INTEGER
+- `updated_at` TEXT NOT NULL
+
+Primary key:
+
+- (`thread_id`, `path`)
+
+Indexes:
+
+- `idx_thread_file_changes_thread` on (`thread_id`, `updated_at` DESC)
+
 ### `approvals`
 
 Thread-specific approval records.
@@ -534,6 +557,58 @@ Notes:
 
 - `project_id` may be NULL for global components such as `ov watch`
 
+## Browser
+
+### `browser_profiles`
+
+Persistent manual browser profile records.
+
+Columns:
+
+- `profile_id` TEXT PRIMARY KEY
+- `scope` TEXT NOT NULL
+- `display_name` TEXT NOT NULL
+- `storage_path` TEXT NOT NULL
+- `created_at` TEXT NOT NULL
+- `updated_at` TEXT NOT NULL
+
+### `browser_bookmarks`
+
+Manual browser bookmarks.
+
+Columns:
+
+- `bookmark_id` TEXT PRIMARY KEY
+- `profile_id` TEXT NOT NULL REFERENCES `browser_profiles`(`profile_id`) ON DELETE CASCADE
+- `title` TEXT NOT NULL
+- `url` TEXT NOT NULL
+- `position` INTEGER
+- `created_at` TEXT NOT NULL
+- `updated_at` TEXT NOT NULL
+
+Indexes:
+
+- `idx_browser_bookmarks_profile_position` on (`profile_id`, `position`)
+
+### `browser_sessions`
+
+Tracked manual or automation browser sessions.
+
+Columns:
+
+- `browser_session_id` TEXT PRIMARY KEY
+- `profile_id` TEXT REFERENCES `browser_profiles`(`profile_id`) ON DELETE SET NULL
+- `thread_id` TEXT REFERENCES `threads`(`thread_id`) ON DELETE SET NULL
+- `session_type` TEXT NOT NULL
+- `status` TEXT NOT NULL
+- `started_at` TEXT NOT NULL
+- `ended_at` TEXT
+- `metadata_json` TEXT
+
+Indexes:
+
+- `idx_browser_sessions_thread` on (`thread_id`, `started_at` DESC)
+
 ### `runtime_health_checks`
 
 Time-series health checks and watchdog observations.
@@ -573,6 +648,23 @@ Columns:
 Indexes:
 
 - `idx_artifacts_thread_created` on (`thread_id`, `created_at`)
+
+### `artifact_shares`
+
+Tracks explicit user-mediated sharing of artifacts into chats or threads.
+
+Columns:
+
+- `share_id` TEXT PRIMARY KEY
+- `artifact_id` TEXT NOT NULL REFERENCES `artifacts`(`artifact_id`) ON DELETE CASCADE
+- `destination_type` TEXT NOT NULL
+- `destination_id` TEXT NOT NULL
+- `shared_by` TEXT
+- `shared_at` TEXT NOT NULL
+
+Indexes:
+
+- `idx_artifact_shares_destination` on (`destination_type`, `destination_id`, `shared_at` DESC)
 
 ## Layout and App Metadata
 

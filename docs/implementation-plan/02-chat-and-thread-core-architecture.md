@@ -62,6 +62,7 @@ Do not let one become an informal alias for the other.
 - spec generation
 - plan/spec approval state
 - direct user interaction
+- direct coding in the active checkout
 - thread creation requests
 
 ### Thread Responsibilities
@@ -166,6 +167,29 @@ Do not add internal sub-model roles in Milestone 2.
 
 One chat, one active config, one conversation contract.
 
+## Direct Chat Coding Architecture
+
+Milestone 2 should implement a minimal but real direct-coding path for chats.
+
+### Rule
+
+Direct coding remains chat-local unless the user explicitly promotes it into a thread.
+
+### Required Behaviors
+
+- chat runtime operates against the current active checkout context
+- chat can produce file edits and command executions through the configured runtime
+- chat-local coding history remains part of chat transcript state
+- later promotion into a thread is an explicit backend operation
+
+### Backend Boundary
+
+Use one narrow service boundary for runtime-backed chat actions:
+
+- `ChatRuntimeAdapter`
+
+That adapter should expose structured action results back into the chat transcript rather than leaking raw provider-specific behavior into frontend state.
+
 ## Chat Persistence Architecture
 
 Chats need durable history and compaction-aware session tracking.
@@ -241,6 +265,7 @@ Thread creation should be implemented as an explicit backend operation, not as a
 Recommended IPC command:
 
 - `chats.start_thread`
+- `chats.promote_work_to_thread`
 
 ### Data Written Atomically
 
@@ -306,9 +331,11 @@ Implement the next IPC slice for:
 - `chats.get_messages`
 - `chats.update_config`
 - `chats.send_message`
+- `chats.get_runtime_context`
 - `chats.approve_plan`
 - `chats.approve_specs`
 - `chats.start_thread`
+- `chats.promote_work_to_thread`
 - `threads.list_by_project`
 - `threads.list_by_chat`
 - `threads.get`
@@ -356,6 +383,8 @@ The `threads` snapshot table should be updated at least for:
 - `summary`
 - `last_event_sequence`
 - `last_activity_at`
+
+Chat-side direct coding should not require a thread record unless explicitly promoted.
 
 ## Live Update Architecture
 

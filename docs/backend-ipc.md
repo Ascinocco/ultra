@@ -204,6 +204,7 @@ The v1 IPC should expose these namespaces:
 - `chats.*`
 - `threads.*`
 - `editor.*`
+- `browser.*`
 - `runtime.*`
 - `approvals.*`
 - `artifacts.*`
@@ -267,6 +268,7 @@ Recommended commands:
 - `chats.approve_plan`
 - `chats.approve_specs`
 - `chats.start_thread`
+- `chats.promote_work_to_thread`
 
 Recommended queries:
 
@@ -275,6 +277,7 @@ Recommended queries:
 - `chats.get_messages`
 - `chats.get_session`
 - `chats.get_references`
+- `chats.get_runtime_context`
 
 Recommended subscriptions:
 
@@ -314,6 +317,7 @@ Recommended queries:
 - `threads.list_by_chat`
 - `threads.get`
 - `threads.get_events`
+- `threads.get_changed_files`
 - `threads.get_agents`
 - `threads.get_logs`
 - `threads.get_approvals`
@@ -324,6 +328,34 @@ Recommended subscriptions:
 - `threads.events`
 - `threads.agents`
 - `threads.logs`
+
+## `browser.*`
+
+Purpose:
+
+- Browser page state
+- side browser state
+- navigation
+- bookmarks
+
+Recommended commands:
+
+- `browser.navigate`
+- `browser.set_side_open`
+- `browser.set_side_destination`
+- `browser.create_bookmark`
+- `browser.delete_bookmark`
+
+Recommended queries:
+
+- `browser.get_state`
+- `browser.list_bookmarks`
+- `browser.get_side_state`
+
+Recommended subscriptions:
+
+- `browser.state_updated`
+- `browser.bookmarks_updated`
 
 ### Replay Requirement
 
@@ -431,10 +463,19 @@ Recommended queries:
 
 - `artifacts.list_by_thread`
 - `artifacts.get`
+- `artifacts.list_by_chat`
 
 Recommended subscriptions:
 
 - `artifacts.updated`
+
+Recommended commands:
+
+- `artifacts.capture_browser`
+- `artifacts.capture_runtime`
+- `artifacts.share_to_chat`
+- `artifacts.share_to_thread`
+- `artifacts.share_all_context`
 
 ## Snapshot vs Stream Boundaries
 

@@ -20,6 +20,7 @@ If this milestone is weak, the product is weak.
 - active chat pane
 - chat persistence
 - chat runtime config controls
+- direct chat coding in the active checkout
 - plan approval block UI
 - spec approval block UI
 - explicit `start work` flow
@@ -35,6 +36,7 @@ If this milestone is weak, the product is weak.
 - pinned, renamed, archived chat behavior
 - per-chat provider/model/thinking/perms config
 - chat transcript persistence
+- direct chat coding path in the active checkout
 - explicit plan approval interaction
 - explicit spec approval interaction
 - `start work` confirmation
@@ -53,12 +55,14 @@ If this milestone is weak, the product is weak.
 
 - one active model/runtime config per chat
 - chat can later do direct coding, but this milestone should first prove planning and thread creation cleanly
+- direct coding should be minimal but real in this milestone so the product contract is not deferred indefinitely
 - thread snapshots and thread events are separate
 - timeline is milestone-oriented, not raw-log-oriented
 
 ## Exit Criteria
 
 - a user can create a chat, get to plan approval, get to spec approval, confirm start work, and see a new thread appear
+- a user can use a chat for direct coding work in the active checkout without creating a thread
 - thread detail loads from persisted state and live events
 - multiple chats can coexist without state corruption
 

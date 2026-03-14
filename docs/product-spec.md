@@ -19,6 +19,7 @@ Supporting specs:
 - [browser-surface.md](/Users/tony/Projects/ultra/docs/browser-surface.md)
 - [artifact-sharing.md](/Users/tony/Projects/ultra/docs/artifact-sharing.md)
 - [implementation-plan/implementation-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/implementation-plan.md)
+- [wiring/wiring.md](/Users/tony/Projects/ultra/docs/wiring/wiring.md)
 
 ## Product Summary
 

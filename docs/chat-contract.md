@@ -159,6 +159,22 @@ Ultra should not automatically inject:
 - all project chats
 - all project tickets
 
+### Runtime Context
+
+Project runtime state should not be injected into every turn by default.
+
+However, when the user asks the main chat to inspect or control runtime behavior, the backend should be able to retrieve and attach a focused runtime context bundle on demand.
+
+That bundle may include:
+
+- aggregate project runtime health
+- coordinator status
+- `ov watch` status
+- watchdog status
+- relevant degraded reasons
+
+This keeps normal chat context lean while still enabling chat-driven runtime control.
+
 ### Compaction Behavior
 
 When a chat grows too large:

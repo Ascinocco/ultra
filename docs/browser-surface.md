@@ -254,6 +254,5 @@ These should be validated with prototypes early, before they are assumed to be l
 ## Open Follow-Ups
 
 1. exact browser embedding/runtime approach
-2. exact extension compatibility strategy
-3. exact password/autofill integration strategy
-4. exact automation browser artifact model
+2. exact automation browser artifact model
+3. bookmark scope and persistence details
