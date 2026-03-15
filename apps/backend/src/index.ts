@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url"
 import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
 
+import { ChatService } from "./chats/chat-service.js"
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { ProjectService } from "./projects/project-service.js"
 import {
@@ -35,6 +36,7 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
 
   if (socketPath) {
     socketRuntime = await startSocketServer(socketPath, {
+      chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
       systemService: new SystemService(),
     })

@@ -1,0 +1,467 @@
+import { randomUUID } from "node:crypto"
+import type { DatabaseSync, SQLInputValue } from "node:sqlite"
+import type {
+  ChatId,
+  ChatSessionSnapshot,
+  ChatSnapshot,
+  ChatSummary,
+  ChatsListResult,
+  ProjectId,
+} from "@ultra/shared"
+
+import { IpcProtocolError } from "../ipc/errors.js"
+
+type ChatRow = {
+  id: string
+  project_id: string
+  title: string
+  status: "active" | "archived"
+  provider: "codex"
+  model: string
+  thinking_level: string
+  permission_level: "supervised" | "full_access"
+  is_pinned: number
+  pinned_at: string | null
+  archived_at: string | null
+  last_compacted_at: string | null
+  current_session_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+type ChatSessionRow = {
+  id: string
+  chat_id: string
+  sequence_number: number
+  started_at: string
+  ended_at: string | null
+  compaction_source_session_id: string | null
+  compaction_summary: string | null
+  continuation_prompt: string | null
+}
+
+type ChatMessageRow = {
+  id: string
+  chat_id: string
+  session_id: string
+  role: string
+  message_type: string
+  content_markdown: string | null
+  structured_payload_json: string | null
+  provider_message_id: string | null
+  created_at: string
+}
+
+type ChatThreadRefRow = {
+  chat_id: string
+  thread_id: string
+  reference_type: string
+  created_at: string
+}
+
+type ChatChatRefRow = {
+  source_chat_id: string
+  target_chat_id: string
+  reference_type: string
+  created_at: string
+}
+
+export type ChatMessageSnapshot = {
+  id: string
+  chatId: string
+  sessionId: string
+  role: string
+  messageType: string
+  contentMarkdown: string | null
+  structuredPayloadJson: string | null
+  providerMessageId: string | null
+  createdAt: string
+}
+
+export type ChatThreadRefSnapshot = {
+  chatId: string
+  threadId: string
+  referenceType: string
+  createdAt: string
+}
+
+export type ChatChatRefSnapshot = {
+  sourceChatId: string
+  targetChatId: string
+  referenceType: string
+  createdAt: string
+}
+
+const DEFAULT_CHAT_TITLE = "Untitled Chat"
+const DEFAULT_CHAT_PROVIDER = "codex"
+const DEFAULT_CHAT_MODEL = "gpt-5.4"
+const DEFAULT_CHAT_THINKING_LEVEL = "default"
+const DEFAULT_CHAT_PERMISSION_LEVEL = "supervised"
+
+const CHAT_SELECT_COLUMNS = `
+  SELECT
+    id,
+    project_id,
+    title,
+    status,
+    provider,
+    model,
+    thinking_level,
+    permission_level,
+    is_pinned,
+    pinned_at,
+    archived_at,
+    last_compacted_at,
+    current_session_id,
+    created_at,
+    updated_at
+  FROM chats
+`
+
+function readChatRow(statementResult: unknown): ChatRow | null {
+  if (!statementResult || typeof statementResult !== "object") {
+    return null
+  }
+
+  return statementResult as ChatRow
+}
+
+function mapChatRow(row: ChatRow): ChatSnapshot {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    title: row.title,
+    status: row.status,
+    provider: row.provider,
+    model: row.model,
+    thinkingLevel: row.thinking_level,
+    permissionLevel: row.permission_level,
+    isPinned: row.is_pinned === 1,
+    pinnedAt: row.pinned_at,
+    archivedAt: row.archived_at,
+    lastCompactedAt: row.last_compacted_at,
+    currentSessionId: row.current_session_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapChatSessionRow(row: ChatSessionRow): ChatSessionSnapshot {
+  return {
+    id: row.id,
+    chatId: row.chat_id,
+    sequenceNumber: row.sequence_number,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    compactionSourceSessionId: row.compaction_source_session_id,
+    compactionSummary: row.compaction_summary,
+    continuationPrompt: row.continuation_prompt,
+  }
+}
+
+function mapChatMessageRow(row: ChatMessageRow): ChatMessageSnapshot {
+  return {
+    id: row.id,
+    chatId: row.chat_id,
+    sessionId: row.session_id,
+    role: row.role,
+    messageType: row.message_type,
+    contentMarkdown: row.content_markdown,
+    structuredPayloadJson: row.structured_payload_json,
+    providerMessageId: row.provider_message_id,
+    createdAt: row.created_at,
+  }
+}
+
+function mapChatThreadRefRow(row: ChatThreadRefRow): ChatThreadRefSnapshot {
+  return {
+    chatId: row.chat_id,
+    threadId: row.thread_id,
+    referenceType: row.reference_type,
+    createdAt: row.created_at,
+  }
+}
+
+function mapChatChatRefRow(row: ChatChatRefRow): ChatChatRefSnapshot {
+  return {
+    sourceChatId: row.source_chat_id,
+    targetChatId: row.target_chat_id,
+    referenceType: row.reference_type,
+    createdAt: row.created_at,
+  }
+}
+
+export class ChatService {
+  constructor(
+    private readonly database: DatabaseSync,
+    private readonly now: () => string = () => new Date().toISOString(),
+  ) {}
+
+  create(projectId: ProjectId): ChatSnapshot {
+    this.assertProjectExists(projectId)
+
+    const timestamp = this.now()
+    const chatId = `chat_${randomUUID()}`
+    const sessionId = `chat_sess_${randomUUID()}`
+
+    this.database.exec("BEGIN")
+
+    try {
+      this.database
+        .prepare(
+          `
+            INSERT INTO chats (
+              id,
+              project_id,
+              title,
+              status,
+              provider,
+              model,
+              thinking_level,
+              permission_level,
+              is_pinned,
+              pinned_at,
+              archived_at,
+              last_compacted_at,
+              current_session_id,
+              created_at,
+              updated_at
+            ) VALUES (?, ?, ?, 'active', ?, ?, ?, ?, 0, NULL, NULL, NULL, NULL, ?, ?)
+          `,
+        )
+        .run(
+          chatId,
+          projectId,
+          DEFAULT_CHAT_TITLE,
+          DEFAULT_CHAT_PROVIDER,
+          DEFAULT_CHAT_MODEL,
+          DEFAULT_CHAT_THINKING_LEVEL,
+          DEFAULT_CHAT_PERMISSION_LEVEL,
+          timestamp,
+          timestamp,
+        )
+
+      this.database
+        .prepare(
+          `
+            INSERT INTO chat_sessions (
+              id,
+              chat_id,
+              sequence_number,
+              started_at,
+              ended_at,
+              compaction_source_session_id,
+              compaction_summary,
+              continuation_prompt
+            ) VALUES (?, ?, 1, ?, NULL, NULL, NULL, NULL)
+          `,
+        )
+        .run(sessionId, chatId, timestamp)
+
+      this.database
+        .prepare("UPDATE chats SET current_session_id = ? WHERE id = ?")
+        .run(sessionId, chatId)
+
+      this.database.exec("COMMIT")
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
+    }
+
+    return this.get(chatId)
+  }
+
+  list(projectId: ProjectId): ChatsListResult {
+    this.assertProjectExists(projectId)
+
+    const rows = this.database
+      .prepare(
+        `
+          ${CHAT_SELECT_COLUMNS}
+          WHERE project_id = ?
+          ORDER BY is_pinned DESC, updated_at DESC
+        `,
+      )
+      .all(projectId) as ChatRow[]
+
+    return {
+      chats: rows.map((row) => mapChatRow(row) satisfies ChatSummary),
+    }
+  }
+
+  get(chatId: ChatId): ChatSnapshot {
+    const chat = readChatRow(
+      this.database.prepare(`${CHAT_SELECT_COLUMNS} WHERE id = ?`).get(chatId),
+    )
+
+    if (!chat) {
+      throw new IpcProtocolError("not_found", `Chat not found: ${chatId}`)
+    }
+
+    return mapChatRow(chat)
+  }
+
+  rename(chatId: ChatId, title: string): ChatSnapshot {
+    const normalizedTitle = title.trim()
+
+    if (normalizedTitle.length === 0) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Chat title must not be empty.",
+      )
+    }
+
+    this.updateChat(chatId, {
+      sql: "UPDATE chats SET title = ?, updated_at = ? WHERE id = ?",
+      params: [normalizedTitle, this.now(), chatId],
+    })
+
+    return this.get(chatId)
+  }
+
+  pin(chatId: ChatId): ChatSnapshot {
+    const timestamp = this.now()
+    this.updateChat(chatId, {
+      sql: "UPDATE chats SET is_pinned = 1, pinned_at = ?, updated_at = ? WHERE id = ?",
+      params: [timestamp, timestamp, chatId],
+    })
+
+    return this.get(chatId)
+  }
+
+  unpin(chatId: ChatId): ChatSnapshot {
+    const timestamp = this.now()
+    this.updateChat(chatId, {
+      sql: "UPDATE chats SET is_pinned = 0, pinned_at = NULL, updated_at = ? WHERE id = ?",
+      params: [timestamp, chatId],
+    })
+
+    return this.get(chatId)
+  }
+
+  archive(chatId: ChatId): ChatSnapshot {
+    const timestamp = this.now()
+    this.updateChat(chatId, {
+      sql: "UPDATE chats SET status = 'archived', archived_at = ?, updated_at = ? WHERE id = ?",
+      params: [timestamp, timestamp, chatId],
+    })
+
+    return this.get(chatId)
+  }
+
+  restore(chatId: ChatId): ChatSnapshot {
+    const timestamp = this.now()
+    this.updateChat(chatId, {
+      sql: "UPDATE chats SET status = 'active', archived_at = NULL, updated_at = ? WHERE id = ?",
+      params: [timestamp, chatId],
+    })
+
+    return this.get(chatId)
+  }
+
+  listSessions(chatId: ChatId): ChatSessionSnapshot[] {
+    this.get(chatId)
+
+    return this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            chat_id,
+            sequence_number,
+            started_at,
+            ended_at,
+            compaction_source_session_id,
+            compaction_summary,
+            continuation_prompt
+          FROM chat_sessions
+          WHERE chat_id = ?
+          ORDER BY sequence_number ASC
+        `,
+      )
+      .all(chatId)
+      .map((row) => row as ChatSessionRow)
+      .map(mapChatSessionRow)
+  }
+
+  listMessages(chatId: ChatId): ChatMessageSnapshot[] {
+    this.get(chatId)
+
+    return this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            chat_id,
+            session_id,
+            role,
+            message_type,
+            content_markdown,
+            structured_payload_json,
+            provider_message_id,
+            created_at
+          FROM chat_messages
+          WHERE chat_id = ?
+          ORDER BY created_at ASC
+        `,
+      )
+      .all(chatId)
+      .map((row) => row as ChatMessageRow)
+      .map(mapChatMessageRow)
+  }
+
+  listThreadRefs(chatId: ChatId): ChatThreadRefSnapshot[] {
+    this.get(chatId)
+
+    return this.database
+      .prepare(
+        `
+          SELECT chat_id, thread_id, reference_type, created_at
+          FROM chat_thread_refs
+          WHERE chat_id = ?
+          ORDER BY created_at ASC
+        `,
+      )
+      .all(chatId)
+      .map((row) => row as ChatThreadRefRow)
+      .map(mapChatThreadRefRow)
+  }
+
+  listChatRefs(chatId: ChatId): ChatChatRefSnapshot[] {
+    this.get(chatId)
+
+    return this.database
+      .prepare(
+        `
+          SELECT source_chat_id, target_chat_id, reference_type, created_at
+          FROM chat_chat_refs
+          WHERE source_chat_id = ?
+          ORDER BY created_at ASC
+        `,
+      )
+      .all(chatId)
+      .map((row) => row as ChatChatRefRow)
+      .map(mapChatChatRefRow)
+  }
+
+  private assertProjectExists(projectId: ProjectId): void {
+    const project = this.database
+      .prepare("SELECT id FROM projects WHERE id = ?")
+      .get(projectId)
+
+    if (!project) {
+      throw new IpcProtocolError("not_found", `Project not found: ${projectId}`)
+    }
+  }
+
+  private updateChat(
+    chatId: ChatId,
+    statement: { sql: string; params: SQLInputValue[] },
+  ): void {
+    const result = this.database.prepare(statement.sql).run(...statement.params)
+
+    if (result.changes === 0) {
+      throw new IpcProtocolError("not_found", `Chat not found: ${chatId}`)
+    }
+  }
+}

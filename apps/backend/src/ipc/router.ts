@@ -4,6 +4,14 @@ import type {
   SuccessResponseEnvelope,
 } from "@ultra/shared"
 import {
+  chatsArchiveInputSchema,
+  chatsCreateInputSchema,
+  chatsGetInputSchema,
+  chatsListInputSchema,
+  chatsPinInputSchema,
+  chatsRenameInputSchema,
+  chatsRestoreInputSchema,
+  chatsUnpinInputSchema,
   IPC_PROTOCOL_VERSION,
   parseEnvironmentReadinessSnapshot,
   parseIpcRequestEnvelope,
@@ -18,6 +26,7 @@ import {
   systemPingQuerySchema,
   systemRecheckEnvironmentCommandSchema,
 } from "@ultra/shared"
+import type { ChatService } from "../chats/chat-service.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { SystemService } from "../system/system-service.js"
 import { createErrorResponse, IpcProtocolError } from "./errors.js"
@@ -121,6 +130,7 @@ function assertCommandRequest(
 export async function routeIpcRequest(
   raw: unknown,
   services: {
+    chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
   },
@@ -197,6 +207,79 @@ export async function routeIpcRequest(
         return createSuccessResponse(
           listQuery.request_id,
           services.projectService.list(),
+        )
+      }
+      case "chats.create": {
+        const createCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          createCommand.request_id,
+          services.chatService.create(
+            chatsCreateInputSchema.parse(createCommand.payload).project_id,
+          ),
+        )
+      }
+      case "chats.list": {
+        const listQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          listQuery.request_id,
+          services.chatService.list(
+            chatsListInputSchema.parse(listQuery.payload).project_id,
+          ),
+        )
+      }
+      case "chats.get": {
+        const getQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          getQuery.request_id,
+          services.chatService.get(
+            chatsGetInputSchema.parse(getQuery.payload).chat_id,
+          ),
+        )
+      }
+      case "chats.rename": {
+        const renameCommand = assertCommandRequest(request)
+        const { chat_id, title } = chatsRenameInputSchema.parse(
+          renameCommand.payload,
+        )
+        return createSuccessResponse(
+          renameCommand.request_id,
+          services.chatService.rename(chat_id, title),
+        )
+      }
+      case "chats.pin": {
+        const pinCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          pinCommand.request_id,
+          services.chatService.pin(
+            chatsPinInputSchema.parse(pinCommand.payload).chat_id,
+          ),
+        )
+      }
+      case "chats.unpin": {
+        const unpinCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          unpinCommand.request_id,
+          services.chatService.unpin(
+            chatsUnpinInputSchema.parse(unpinCommand.payload).chat_id,
+          ),
+        )
+      }
+      case "chats.archive": {
+        const archiveCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          archiveCommand.request_id,
+          services.chatService.archive(
+            chatsArchiveInputSchema.parse(archiveCommand.payload).chat_id,
+          ),
+        )
+      }
+      case "chats.restore": {
+        const restoreCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          restoreCommand.request_id,
+          services.chatService.restore(
+            chatsRestoreInputSchema.parse(restoreCommand.payload).chat_id,
+          ),
         )
       }
       case "projects.get_layout": {

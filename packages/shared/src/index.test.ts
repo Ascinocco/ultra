@@ -4,6 +4,8 @@ import {
   APP_NAME,
   buildPlaceholderProjectLabel,
   IPC_PROTOCOL_VERSION,
+  parseChatSnapshot,
+  parseChatsListResult,
   parseCommandRequest,
   parseEnvironmentReadinessSnapshot,
   parseIpcResponseEnvelope,
@@ -61,6 +63,20 @@ describe("shared contracts", () => {
     })
 
     expect(command.name).toBe("projects.open")
+  })
+
+  it("parses a valid command envelope for chats.create", () => {
+    const command = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_create",
+      type: "command",
+      name: "chats.create",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+
+    expect(command.name).toBe("chats.create")
   })
 
   it("parses the system hello result contract", () => {
@@ -164,6 +180,54 @@ describe("shared contracts", () => {
     })
 
     expect(result.projects).toHaveLength(1)
+  })
+
+  it("parses chat snapshots", () => {
+    const snapshot = parseChatSnapshot({
+      id: "chat_123",
+      projectId: "proj_123",
+      title: "Untitled Chat",
+      status: "active",
+      provider: "codex",
+      model: "gpt-5.4",
+      thinkingLevel: "default",
+      permissionLevel: "supervised",
+      isPinned: false,
+      pinnedAt: null,
+      archivedAt: null,
+      lastCompactedAt: null,
+      currentSessionId: "chat_sess_123",
+      createdAt: "2026-03-14T12:00:00Z",
+      updatedAt: "2026-03-14T12:00:00Z",
+    })
+
+    expect(snapshot.model).toBe("gpt-5.4")
+  })
+
+  it("parses chat list results", () => {
+    const result = parseChatsListResult({
+      chats: [
+        {
+          id: "chat_123",
+          projectId: "proj_123",
+          title: "Untitled Chat",
+          status: "active",
+          provider: "codex",
+          model: "gpt-5.4",
+          thinkingLevel: "default",
+          permissionLevel: "supervised",
+          isPinned: true,
+          pinnedAt: "2026-03-14T12:01:00Z",
+          archivedAt: null,
+          lastCompactedAt: null,
+          currentSessionId: "chat_sess_123",
+          createdAt: "2026-03-14T12:00:00Z",
+          updatedAt: "2026-03-14T12:01:00Z",
+        },
+      ],
+    })
+
+    expect(result.chats).toHaveLength(1)
   })
 
   it("accepts the milestone one project layout state", () => {

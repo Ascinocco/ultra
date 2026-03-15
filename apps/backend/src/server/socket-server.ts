@@ -6,6 +6,7 @@ import type {
   SuccessResponseEnvelope,
 } from "@ultra/shared"
 
+import type { ChatService } from "../chats/chat-service.js"
 import { routeIpcRequest } from "../ipc/router.js"
 import type { ProjectService } from "../projects/project-service.js"
 import { SystemService } from "../system/system-service.js"
@@ -35,6 +36,7 @@ async function removeStaleSocket(socketPath: string): Promise<void> {
 export async function startSocketServer(
   socketPath: string,
   services: {
+    chatService: ChatService
     systemService?: SystemService
     projectService: ProjectService
   },
@@ -62,7 +64,11 @@ export async function startSocketServer(
 
         void handleLine(
           rawLine,
-          { systemService, projectService: services.projectService },
+          {
+            chatService: services.chatService,
+            systemService,
+            projectService: services.projectService,
+          },
           socket,
           logger,
         )
@@ -89,6 +95,7 @@ export async function startSocketServer(
 async function handleLine(
   rawLine: string,
   services: {
+    chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
   },
