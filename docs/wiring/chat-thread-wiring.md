@@ -7,9 +7,10 @@ This document covers:
 - chat lifecycle
 - chat messaging
 - direct chat coding
-- plan/spec approvals
+- plan and spec approvals
 - thread creation
 - thread selection and updates
+- sandbox and terminal transitions that originate from thread UI
 
 ## Flow: Create Chat
 
@@ -27,14 +28,9 @@ Backend:
 - create `chats` row
 - create initial `chat_sessions` row
 
-DB:
-
-- `chats`
-- `chat_sessions`
-
 Store updates:
 
-- append chat ID to `chatListsByProject`
+- append chat ID to the active project's chat list
 - set `activeChatId`
 
 ## Flow: Send Chat Message
@@ -54,11 +50,6 @@ Backend:
 - invoke `ChatRuntimeAdapter`
 - persist assistant response or structured proposal
 
-DB:
-
-- `chat_messages`
-- `chat_sessions`
-
 Store updates:
 
 - append user and assistant message IDs to the active chat transcript
@@ -69,134 +60,20 @@ User action:
 
 - ask chat to make code changes or run commands
 
-Frontend:
-
-- no separate mode switch required
-
 IPC:
 
 - `chats.send_message`
 
 Backend:
 
-- resolve active worktree context
+- resolve active sandbox context
 - route request through `ChatRuntimeAdapter`
-- if needed, launch or reuse the selected CLI runtime process and communicate over stdio
-- persist structured action/result messages
+- persist structured action and result messages
 - create milestone checkpoints when applicable
-
-DB:
-
-- `chat_messages`
-- `chat_action_checkpoints`
-
-Store updates:
-
-- append coding action/result messages to transcript
 
 Important rule:
 
 - no thread is created automatically
-
-## Flow: Select Thread Worktree
-
-User action:
-
-- choose a thread worktree from thread UI or the global worktree selector
-
-IPC:
-
-- `worktrees.set_active`
-
-Backend:
-
-- resolve the thread's concrete worktree
-- persist it as the active worktree for the project
-- refresh runtime sync status if needed
-
-DB:
-
-- worktree context records
-- `project_layout_state`
-- worktree runtime sync records
-
-Store updates:
-
-- set active worktree
-- keep selected thread
-- refresh runtime sync state
-
-## Flow: Open Terminal From Thread
-
-User action:
-
-- click `Open Terminal` from thread UI
-
-IPC:
-
-- `terminal.open`
-
-Backend:
-
-- resolve the selected thread worktree
-- ensure runtime files are synced if needed
-- create or focus a terminal session in that worktree
-
-DB:
-
-- terminal session records if persisted
-- worktree runtime sync records
-
-Store updates:
-
-- open terminal drawer
-- focus terminal session
-
-## Flow: Approve Plan
-
-User action:
-
-- approve the proposed plan block
-
-IPC:
-
-- `chats.approve_plan`
-
-Backend:
-
-- validate plan proposal exists and spec approval has not bypassed it
-- persist approval message
-
-DB:
-
-- `chat_messages`
-
-Store updates:
-
-- mark plan proposal as approved in transcript UI
-
-## Flow: Approve Specs
-
-User action:
-
-- approve the proposed spec block
-
-IPC:
-
-- `chats.approve_specs`
-
-Backend:
-
-- validate plan approval already exists
-- persist spec approval message
-
-DB:
-
-- `chat_messages`
-
-Store updates:
-
-- mark spec proposal as approved in transcript UI
 
 ## Flow: Start Thread
 
@@ -214,137 +91,106 @@ Backend:
 - create thread snapshot
 - create thread refs/spec refs/ticket refs
 - append `thread.created`
-- publish thread update and thread event
-
-DB:
-
-- `threads`
-- `chat_thread_refs`
-- `thread_specs`
-- `thread_ticket_refs`
-- `thread_events`
+- start coordinator-backed execution for that thread
 
 Store updates:
 
-- append thread to `threadListsByProject`
-- append thread to `threadListsByChat`
+- append thread to project and chat thread lists
 - set or refresh `selectedThreadId`
-- append initial thread event to `threadEventsByThread`
+- append initial thread event
 
-## Flow: Promote Chat Work To Thread
-
-User action:
-
-- explicitly promote chat-local coding work into a thread
-
-IPC:
-
-- `chats.promote_work_to_thread`
-
-Backend:
-
-- gather relevant chat context and attachments
-- create thread snapshot
-- append `thread.created`
-- link source chat to thread
-- attach selected checkpoints
-- attach spec refs and seed refs
-
-DB:
-
-- `threads`
-- `chat_thread_refs`
-- `thread_events`
-- `chat_action_checkpoints`
-
-Store updates:
-
-- same as normal thread creation
-
-## Flow: Select Thread
+## Flow: Select Thread Sandbox
 
 User action:
 
-- click a thread card
+- choose a thread sandbox from thread UI or the global sandbox selector
 
 IPC:
 
-- `threads.get`
-- `threads.get_messages`
-- `threads.get_events`
-- `threads.get_agents`
-- `threads.get_approvals`
-- subscribe to `threads.messages`
-- subscribe to `threads.events`
+- `sandboxes.set_active`
 
 Backend:
 
-- load thread snapshot and recent projections
-
-DB:
-
-- `threads`
-- `thread_messages`
-- `thread_events`
-- `thread_agents`
-- `approvals`
+- resolve the thread's concrete sandbox
+- persist it as the active sandbox for the project
+- refresh runtime sync status if needed
 
 Store updates:
 
-- set `selectedThreadId`
-- hydrate thread detail slices
+- set active sandbox
+- keep selected thread
+- refresh runtime sync state
 
-## Flow: Send Coordinator Message
+## Flow: Open Terminal From Thread
 
 User action:
 
-- send a message from the thread coordinator input
+- click `Open Terminal` from thread UI
 
 IPC:
 
-- `threads.send_message`
+- `terminal.open`
 
 Backend:
 
-- validate thread exists
-- persist the user thread message
-- forward message to the coordinator runtime
-- persist assistant/coordinator replies as they arrive
-
-DB:
-
-- `thread_messages`
+- resolve the selected thread sandbox
+- ensure runtime files are synced if needed
+- create or focus a terminal session in that sandbox
 
 Store updates:
 
-- append outbound and inbound messages under the selected thread
+- open terminal drawer
+- focus terminal session
 
-## Flow: Live Thread Update
+## Flow: Request Changes
 
-Trigger:
+User action:
 
-- backend emits a thread update or event
+- click `Request Changes` from thread UI or chat review actions
 
 IPC:
 
-- `threads.updated`
-- `threads.messages`
-- `threads.events`
+- `threads.request_changes`
 
 Backend:
 
-- append event
-- update thread projection
-
-DB:
-
-- `thread_messages`
-- `thread_events`
-- `threads`
+- validate reviewable thread state
+- append review event
+- move thread back toward active execution
 
 Store updates:
 
-- patch thread snapshot
-- append any new thread messages
-- append event by `thread_id`
-- refresh visible thread card if needed
+- refresh thread snapshot
+- append thread event
+
+## Flow: Approve
+
+User action:
+
+- click `Approve`
+
+IPC:
+
+- `threads.approve`
+
+Backend:
+
+- validate reviewable thread state
+- append approval event
+- mark thread approved
+
+Store updates:
+
+- refresh thread snapshot
+- append thread event
+
+## Shell Composition Rule
+
+The wiring model assumes:
+
+- left sidebar = projects and chats
+- center pane = active chat
+- right pane = thread list and thread detail
+- bottom drawer = terminal
+
+Thread actions should enhance that shell, not open a separate execution page.

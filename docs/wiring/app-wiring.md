@@ -7,7 +7,8 @@ This document covers global app-shell flows:
 - app startup
 - backend connection
 - project open
-- worktree selection
+- active project and chat restoration
+- sandbox selection
 - terminal drawer visibility
 - layout persistence
 
@@ -36,22 +37,18 @@ Backend:
 - run migrations
 - respond with protocol and capability info
 
-DB:
-
-- `schema_migrations`
-- `projects`
-- `project_layout_state`
-
 Store updates:
 
 - set backend connection state
-- set project-scoped shell state from last persisted layout if available
+- hydrate project list
+- restore last active project if available
+- restore project-scoped shell state from persisted layout if available
 
 ## Flow: Open Project
 
 User action:
 
-- open/select a project path
+- open or select a project path
 
 Frontend:
 
@@ -61,56 +58,76 @@ IPC:
 
 - `projects.open`
 - `projects.get_layout`
+- `chats.list`
 
 Backend:
 
 - canonicalize path
 - determine project key
-- create/update `projects` row
-- read/create `project_layout_state`
+- create or update `projects` row
+- read or create `project_layout_state`
+- return project-scoped chat context
 
-DB:
+Store updates:
 
-- `projects`
-- `project_layout_state`
+- append or update project summary
+- set `activeProjectId`
+- hydrate project layout
+- hydrate or refresh chat list
+
+UI updates:
+
+- show the project in the left sidebar
+- render the project's chats in the sidebar
+- restore the active chat if available
+
+## Flow: Switch Project
+
+User action:
+
+- select another project from the left sidebar
+
+IPC:
+
+- `projects.get`
+- `projects.get_layout`
+- `chats.list`
+- `threads.list`
 
 Store updates:
 
 - set `activeProjectId`
-- hydrate project summary
-- hydrate project layout
+- hydrate project-specific chat, thread, and layout state
 
 UI updates:
 
-- show project identity in app frame
-- render project-scoped shell state for the project
+- swap sidebar chats to the selected project
+- update the center chat pane
+- update the right thread pane
+- preserve project-scoped terminal drawer state
 
-## Flow: Top Bar Worktree And Terminal Controls
+## Flow: Top Bar Sandbox And Terminal Controls
 
 User action:
 
-- choose a worktree or click `Open Terminal`
+- choose a sandbox or click `Open Terminal`
 
 Frontend:
 
-- update active worktree or terminal drawer state in store
+- update active sandbox or terminal drawer state in store
 
 IPC:
 
-- `worktrees.set_active`
+- `sandboxes.set_active`
 - `projects.set_layout`
 
 Backend:
 
-- persist updated worktree and layout state
-
-DB:
-
-- `project_layout_state`
+- persist updated sandbox and layout state
 
 UI updates:
 
-- reflect the selected worktree
+- reflect the selected sandbox
 - open or focus the terminal drawer when requested
 
 ## Flow: Restore Layout
@@ -127,11 +144,13 @@ Backend:
 
 - return persisted layout state
 
-DB:
-
-- `project_layout_state`
-
 Store updates:
 
-- restore pane collapse state
-- restore active chat, selected thread, last active worktree, and terminal drawer state when available
+- restore selected thread
+- restore active chat
+- restore active sandbox
+- restore terminal drawer state when available
+
+### Layout Rule
+
+The shell no longer restores obsolete editor or browser page state in the v1 direction.

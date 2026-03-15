@@ -21,7 +21,7 @@ The browser is a convenience capability, not the core product loop.
 
 ## Deliverables
 
-- user can hand off to the system browser or preferred editor from the active worktree context
+- user can hand off to the system browser or preferred editor from the active sandbox context
 - runtime artifacts can be shared into chats and threads
 - `Share All Context` works for terminal/runtime-centered debugging
 - any future browser convenience surface remains optional and downstream of the handoff model
@@ -42,7 +42,7 @@ The browser is a convenience capability, not the core product loop.
 
 ## Exit Criteria
 
-- user can hand off to browser/editor/GitHub from Ultra with the correct worktree context
+- user can hand off to browser/editor/GitHub from Ultra with the correct sandbox context
 - user can share runtime artifacts into a chosen chat or thread
 - `Share All Context` can bundle the useful terminal/runtime debugging state
 

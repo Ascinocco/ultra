@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft v0.1
+Draft v0.2
 
 This is the entry-point product spec for Ultra. It describes the overall product shape, user workflow, primary abstractions, and the current v1 direction. Detailed subsystem behavior lives in supporting docs.
 
@@ -28,15 +28,15 @@ Supporting specs:
 
 Ultra is a chat-first desktop environment for software engineering.
 
-It is designed for a single engineer working on real repositories who wants to plan, break down, launch, supervise, review, and test software work from one place. Ultra should feel like a command center for engineering work, with the testing loop anchored by a worktree-aware terminal instead of a heavyweight embedded IDE.
+It is designed for a single engineer working across real repositories who wants to plan, break down, launch, supervise, test, and approve software work from one place. Ultra should feel like a command center for engineering work, with the testing loop anchored by a chat-page terminal and a hidden sandbox model instead of a heavyweight embedded IDE.
 
 Ultra's v1 product surface is centered on one primary workspace:
 
-- `Chat workspace`: planning, research, ticket intake, specs, execution thread creation, thread supervision, worktree selection, terminal use, and approval actions
+- `Chat workspace`: planning, research, ticket intake, spec review, execution thread creation, thread supervision, sandbox selection, terminal use, and approval actions
 
 Supporting surfaces remain lightweight:
 
-- `System & Tools`: operational and readiness settings
+- `System & Tools`
 - external handoff to the user's preferred editor, GitHub review surface, or browser when needed
 
 ## Product Thesis
@@ -44,39 +44,50 @@ Supporting surfaces remain lightweight:
 Existing coding tools are usually optimized for either:
 
 - editing code with AI attached as a side panel
-- raw terminal-driven agent execution with weak review and workspace UX
+- raw terminal-driven agent execution with weak project, thread, and review UX
 
 Ultra should do something more opinionated:
 
 - make chat the primary planning interface
+- make projects and chats durable everyday objects instead of one-project-per-window state
 - make execution visible and inspectable through threads
-- make local testing and debugging happen through a worktree-aware terminal loop
-- keep the user inside one product for the core path from idea to tested changes, while allowing external handoff for full diff review or browser work when needed
+- make local testing and debugging happen through a sandbox-aware terminal loop
+- hide internal orchestration details like worktrees and worker fan-out behind simple project, chat, thread, and terminal concepts
 
 ## Target User
 
-- Single-user software engineers
+- single-user software engineers
 - macOS and Linux desktop users
-- People working in real local repos
-- Users comfortable with AI-assisted and agentic workflows
-- Users who want to supervise autonomous work, not just autocomplete code
+- people working in real local repos
+- users comfortable with AI-assisted and agentic workflows
+- users who want to supervise autonomous work, not just autocomplete code
 
 ## Non-Goals
 
-- Multi-user collaboration in v1
-- Web app
+- multi-user collaboration in v1
+- web app
 - Windows support in v1
-- Requiring an embedded editor in v1
-- Requiring an embedded browser in v1
-- Building a custom terminal emulator
-- Surfacing internal Overstory/Seeds mechanics as the primary UX
-- Owning MCP configuration for the user
+- requiring an embedded editor in v1
+- requiring an embedded browser in v1
+- building a custom terminal emulator
+- surfacing worktrees as a primary user-facing concept
+- surfacing internal Overstory/Seeds mechanics as the main UX
+- owning MCP configuration for the user
 
 ## Core Product Objects
 
 ### Project
 
-A project is the user’s local codebase and the root scope for chats, threads, worktree contexts, and backend supervision.
+A project is a local codebase and the root scope for:
+
+- chats
+- threads
+- sandbox contexts
+- terminal sessions
+- runtime supervision
+- layout state
+
+Ultra supports many projects in the sidebar. The user should not need one app instance per project.
 
 ### Chat
 
@@ -87,7 +98,7 @@ Chats are used for:
 - planning
 - ticket intake
 - research
-- external context gathering through the user’s chosen CLI/tooling stack
+- external context gathering through the user's chosen CLI/tooling stack
 - plan review and approval
 - direct CLI-style coding interaction when desired
 
@@ -102,98 +113,101 @@ A thread owns:
 - execution context
 - spec references
 - coordinator conversation
-- worktree
-- branch
+- branch metadata
+- sandbox association
 - review lifecycle
 - publish lifecycle
 - activity history
 
 Threads are the main unit of autonomous work in Ultra.
 
-### Worktree Context
+### Sandbox Context
 
-A worktree context is the concrete checkout path Ultra is currently targeting for testing and review.
+A sandbox context is the concrete checkout Ultra is currently targeting for testing and review.
 
-The active worktree context determines:
+The active sandbox determines:
 
 - terminal cwd
 - saved command root
 - runtime file sync behavior
-- thread-aware review actions
+- thread-aware approval actions
 - external handoff target
+
+The user-facing concept is `sandbox`, not `worktree`.
+Internally, a sandbox may be backed by the project root or an Overstory-managed worktree.
 
 ## User Experience Overview
 
 ### Chat Page
 
-The default home of the product is a 3-pane command center.
+The default home of the product is a chat-first command center.
 
-#### Left Rail
+#### Left Sidebar
 
-- project chats
-- pinned chats
-- archived chats
+- multiple projects
+- chats for the active project
+- pinned or recent chats
+- archived chat access
 
-#### Left Main Pane
+#### Main Chat Pane
 
-- active top-level chat
+- active chat transcript
 - plan/spec discussion
 - direct CLI-style interaction when needed
-- worktree-aware terminal launch and review decisions when needed
+- thread-aware review actions
+- terminal drawer anchored to the bottom of the page
 
-#### Right Top Pane
+#### Right Thread Pane
 
-- infinitely scrollable list of execution threads
+- infinitely scrollable list of execution threads for the active chat or project scope
 - thread cards with status and health
 - expandable thread detail with coordinator interaction
 
-#### Right Bottom Pane
-
-- live swarm/coordinator activity
-- worker progress
-- logs
-- approvals
-- operational health indicators
+There is no dedicated bottom-right runtime pane in the v1 direction.
+Runtime and execution detail should live inside the thread panel and terminal drawer instead.
 
 ### Terminal Workflow
 
 The terminal workflow is the place for:
 
-- selecting the right worktree
+- selecting the right sandbox
 - syncing runtime files such as `.env`
 - opening or reusing a terminal in the correct cwd
 - running tests, dev servers, lint, and build commands
 - deciding whether to request changes or approve a thread
 
-The active worktree context can be the main checkout or a thread worktree.
+The active sandbox can be the main project checkout or a thread sandbox.
 This workflow lives inside the main chat workspace instead of a separate Editor page.
 
 ## Core Workflow
 
-1. User opens a project in Ultra.
-2. User works in a project chat to discuss a task, ticket, bug, or feature.
-3. Chat pulls in relevant context using the user’s chosen toolchain where appropriate.
+1. User opens Ultra and sees many projects in the sidebar.
+2. User selects a project and works in one of its chats.
+3. Chat pulls in relevant context using the user's chosen toolchain where appropriate.
 4. Chat proposes a plan.
 5. User reviews and approves the plan.
 6. Chat proposes a spec breakdown.
 7. User reviews and approves the specs.
 8. User chooses to start work.
-9. Ultra creates a thread and starts execution through the coordinator.
-10. The thread appears in the right pane with live status and coordinator interaction.
-11. When review is ready, the user selects the relevant thread worktree.
-12. Ultra syncs runtime files and opens or reuses a terminal in that worktree.
-13. User tests, debugs, and either requests changes or approves.
-14. After approval, Ultra finalizes publish actions according to project policy.
+9. Ultra creates a thread and starts execution through the project coordinator.
+10. Overstory-backed workers execute behind that thread, but the user stays focused on the chat and thread surfaces.
+11. The thread appears in the right pane with live status and coordinator interaction.
+12. When review is ready, the user selects the relevant sandbox from thread UI or the top bar.
+13. Ultra syncs runtime files and opens or reuses a terminal in that sandbox.
+14. User tests, debugs, and either requests changes or approves.
+15. After approval, Ultra finalizes publish actions according to project policy.
 
 ## Product Principles
 
-- Chat-first, not sidebar-assistant-first
-- Threads are the visible unit of autonomous execution
-- Testing and debugging should happen in a worktree-aware terminal workflow
-- The user should not need to recreate env files or remember the right cwd for a thread worktree
+- chat-first, not sidebar-assistant-first
+- projects and chats are first-class everyday objects
+- threads are the visible unit of autonomous execution
+- Overstory remains the default execution backend for thread work, but it stays behind the product boundary
+- testing and debugging should happen through a sandbox-aware terminal workflow
+- the user should not need to recreate env files or remember the right cwd for a thread sandbox
 - Ultra should keep the user inside one shell for the core test-and-approve loop while staying pragmatic about external handoff
-- The UI should expose progress, state, and health without drowning the user in process noise
-- Advanced behavior should be configurable, but the default path should stay simple
+- the UI should expose progress, state, and health without drowning the user in process noise
+- advanced orchestration should be observable, not vocabulary the user has to learn
 - Ultra app chrome is dark-only
 
 ## Theme and Customization Policy
@@ -205,8 +219,6 @@ Ultra should ship with a dark theme and should not support:
 - multiple built-in app themes
 - user-defined app chrome themes
 
-The intended feel is dark, but not oppressively dark. The app should be comfortable for mainstream users, not only dark-mode maximalists.
-
 ### External Tool Exception
 
 When Ultra hands off to an external editor or browser, those tools keep their own theming and keybinding models.
@@ -215,85 +227,62 @@ This customization boundary applies to the external tool, not the Ultra app shel
 
 ## Execution Model
 
-- One project has many chats
-- One project can have many threads
-- Threads are created from approved chat work
-- Thread identity remains stable even if the coordinator restarts
-- One project has one top-level coordinator
+- one user workspace can have many projects
+- one project has many chats
+- one project can have many threads
+- threads are created from approved chat work
+- thread identity remains stable even if the coordinator restarts
+- one project has one top-level coordinator
 - Overstory may fan out as many workers as it wants behind that coordinator
-- Ultra monitors coordinator/watch health rather than micromanaging worker scheduling
+- Ultra monitors coordinator and worker health through thread projections rather than exposing raw orchestration primitives as the main UX
 
 ## Review Model
 
-- Autonomous work should converge to `awaiting_review`
-- A reviewable worktree and branch must exist for the thread
-- The user selects that worktree in Ultra and tests it from the integrated terminal workflow
-- Thread-specific review actions belong primarily in thread UI
-- The main chat can still trigger related actions when useful
-- Approval completes the thread
-- Publish is a separate lifecycle that usually happens after approval
+- autonomous work should converge to `awaiting_review`
+- a reviewable sandbox and branch must exist for the thread
+- the user selects that sandbox in Ultra and tests it from the integrated terminal workflow
+- thread-specific review actions belong primarily in thread UI
+- the main chat can still trigger related actions when useful
+- approval completes the thread
+- publish is a separate lifecycle that usually happens after approval
 
-## Worktree Terminal Model
+## Sandbox Terminal Model
 
-- Ultra has a single active worktree context per project
-- A worktree context is a concrete checkout path
-- Branch is visible metadata, not the primary selector object
-- New terminals open in the active worktree path
-- Saved commands use the active worktree path
-- Runtime files such as `.env` are mirrored into the active worktree by default
-- External editor or GitHub handoff should target the active worktree when relevant
+- Ultra has a single active sandbox per project
+- a sandbox is a concrete checkout path with project and optional thread metadata
+- branch is visible metadata, not the primary selector object
+- new terminals open in the active sandbox path
+- saved commands use the active sandbox path
+- runtime files such as `.env` are mirrored into the active sandbox by default
+- external editor or GitHub handoff should target the active sandbox when relevant
 
 ## Integration Model
 
 - Ultra does not own MCP configuration in the current direction
-- Users configure external context and tooling through their chosen CLI environment
+- users configure external context and tooling through their chosen CLI environment
 - Ultra focuses on orchestrating the workflow and providing a coherent product experience on top
 
 ## Technical Direction
 
-The exact packaging/runtime architecture is still being refined, but the product direction assumes:
+The current v1 direction assumes:
 
 - a desktop app experience
 - a chat-first command-center UI
-- a worktree-aware terminal workflow for local testing
+- multiple projects in one shell
+- a right-side thread panel tied to the active chat context
+- a sandbox-aware terminal workflow for local testing
+- Overstory as the default backend for thread execution
 - external handoff for full editor, diff, and browser tasks when needed
 - local speech-to-text input for chat surfaces
-- ephemeral file upload for chat surfaces
-- a backend/runtime layer capable of supervising threads and coordinators reliably
 
-## What Ultra Must Feel Like
+## Summary
 
-Ultra should feel like:
+Ultra v1 is not a browser, not an IDE, and not a thin wrapper around raw agent terminals.
 
-- a command center for engineering work
-- a place where planning and execution are clearly separated
-- a place where autonomous work is visible, steerable, and reviewable
-- a place where the user can move from intent to testing without leaving the product
+It is a chat-centered engineering workspace where:
 
-It should not feel like:
-
-- a generic editor with a chat sidebar
-- a thin wrapper around terminal agents
-- a project management tool with code attached
-- a theme-heavy customization playground
-
-## v1 Priorities
-
-1. Chat page with multi-chat support
-2. Thread creation and supervision
-3. Coordinator conversation inside thread detail
-4. Worktree selector and integrated terminal drawer
-5. Runtime file sync and saved test/dev commands for the active worktree
-6. Basic publish flow with draft PR support
-7. Health indicators for backend, coordinator, and watch processes
-
-## Open Areas
-
-These areas still need their own detailed specs:
-
-- chat contract
-- thread event schema
-- coordinator runtime and watchdog model
-- publish policy and branch/PR templates
-- runtime file sync details
-- packaging and distribution model
+- projects organize the user’s local work
+- chats frame and coordinate tasks
+- threads supervise autonomous execution
+- sandboxes hide checkout complexity
+- the terminal drawer closes the loop between generated changes and local testing

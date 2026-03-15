@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft v0.1
+Draft v0.2
 
 This document defines the initial SQLite persistence model for Ultra.
 
@@ -30,7 +30,7 @@ SQLite is the source of truth for Ultra-local state.
 SQLite is not the source of truth for:
 
 - the git repository itself
-- worktree file contents
+- sandbox checkout file contents
 - external provider state
 - user-managed CLI configuration
 
@@ -51,7 +51,7 @@ Ultra should not treat the database as canonical for:
 
 - source files
 - branch contents
-- worktree contents
+- sandbox contents
 - thread specs stored in the repo
 
 ### DB-Owned Truth
@@ -62,7 +62,7 @@ Ultra should treat the database as canonical for:
 - thread identity and snapshots
 - thread event history
 - runtime health records
-- worktree context state
+- sandbox context state
 - terminal/runtime sync state
 - layout state
 - approvals
@@ -110,7 +110,7 @@ The initial schema should be grouped into:
 - threads
 - thread events and logs
 - thread agents and approvals
-- worktree contexts and runtime file sync
+- sandbox contexts and runtime file sync
 - runtime supervision
 - optional future browser conveniences
 - artifacts
@@ -297,7 +297,7 @@ Columns:
 - `ov_project_id` TEXT
 - `ov_coordinator_id` TEXT
 - `ov_thread_key` TEXT
-- `worktree_id` TEXT REFERENCES `worktree_contexts`(`worktree_id`) ON DELETE SET NULL
+- `sandbox_id` TEXT REFERENCES `sandbox_contexts`(`sandbox_id`) ON DELETE SET NULL
 - `branch_name` TEXT
 - `base_branch` TEXT
 - `latest_commit_sha` TEXT
@@ -498,20 +498,23 @@ Indexes:
 - `idx_approvals_thread_status` on (`thread_id`, `status`)
 - `idx_approvals_project_status` on (`project_id`, `status`)
 
-## Worktree Contexts and Runtime Files
+## Sandbox Contexts and Runtime Files
 
-### `worktree_contexts`
+### `sandbox_contexts`
 
 Concrete checkout paths available in the chat-plus-terminal workflow.
 
+The product calls these `sandboxes`.
+In implementation, a sandbox may still be backed by a worktree.
+
 Columns:
 
-- `worktree_id` TEXT PRIMARY KEY
+- `sandbox_id` TEXT PRIMARY KEY
 - `project_id` TEXT NOT NULL REFERENCES `projects`(`project_id`) ON DELETE CASCADE
 - `thread_id` TEXT REFERENCES `threads`(`thread_id`) ON DELETE SET NULL
 - `path` TEXT NOT NULL UNIQUE
 - `display_name` TEXT NOT NULL
-- `target_type` TEXT NOT NULL
+- `sandbox_type` TEXT NOT NULL
 - `branch_name` TEXT
 - `base_branch` TEXT
 - `is_main_checkout` INTEGER NOT NULL DEFAULT 0
@@ -521,12 +524,12 @@ Columns:
 
 Indexes:
 
-- `idx_worktree_contexts_project_used` on (`project_id`, `last_used_at` DESC)
-- `idx_worktree_contexts_project_type` on (`project_id`, `target_type`)
+- `idx_sandbox_contexts_project_used` on (`project_id`, `last_used_at` DESC)
+- `idx_sandbox_contexts_project_type` on (`project_id`, `sandbox_type`)
 
 ### `project_runtime_profiles`
 
-Project-scoped runtime file and env behavior for worktree contexts.
+Project-scoped runtime file and env behavior for sandbox contexts.
 
 Columns:
 
@@ -536,14 +539,14 @@ Columns:
 - `created_at` TEXT NOT NULL
 - `updated_at` TEXT NOT NULL
 
-### `worktree_runtime_syncs`
+### `sandbox_runtime_syncs`
 
-Tracks runtime file sync state per worktree.
+Tracks runtime file sync state per sandbox.
 
 Columns:
 
 - `sync_id` TEXT PRIMARY KEY
-- `worktree_id` TEXT NOT NULL REFERENCES `worktree_contexts`(`worktree_id`) ON DELETE CASCADE
+- `sandbox_id` TEXT NOT NULL REFERENCES `sandbox_contexts`(`sandbox_id`) ON DELETE CASCADE
 - `project_id` TEXT NOT NULL REFERENCES `projects`(`project_id`) ON DELETE CASCADE
 - `sync_mode` TEXT NOT NULL DEFAULT 'managed_copy'
 - `status` TEXT NOT NULL
@@ -555,7 +558,7 @@ Columns:
 
 Indexes:
 
-- `idx_worktree_runtime_syncs_worktree` on (`worktree_id`)
+- `idx_sandbox_runtime_syncs_sandbox` on (`sandbox_id`)
 
 ## Runtime Supervision
 
@@ -729,11 +732,9 @@ Columns:
 - `project_id` TEXT PRIMARY KEY REFERENCES `projects`(`project_id`) ON DELETE CASCADE
 - `active_chat_id` TEXT REFERENCES `chats`(`chat_id`) ON DELETE SET NULL
 - `selected_thread_id` TEXT REFERENCES `threads`(`thread_id`) ON DELETE SET NULL
-- `last_active_worktree_id` TEXT REFERENCES `worktree_contexts`(`worktree_id`) ON DELETE SET NULL
-- `right_top_collapsed` INTEGER NOT NULL DEFAULT 0
-- `right_bottom_collapsed` INTEGER NOT NULL DEFAULT 0
-- `selected_right_pane_tab` TEXT
-- `selected_bottom_pane_tab` TEXT
+- `last_active_sandbox_id` TEXT REFERENCES `sandbox_contexts`(`sandbox_id`) ON DELETE SET NULL
+- `thread_pane_collapsed` INTEGER NOT NULL DEFAULT 0
+- `selected_thread_pane_tab` TEXT
 - `terminal_drawer_open` INTEGER NOT NULL DEFAULT 0
 - `created_at` TEXT NOT NULL
 - `updated_at` TEXT NOT NULL
@@ -783,7 +784,7 @@ Some tables are primary records, while others are projections updated from event
 
 - `thread_agents`
 - `project_runtimes`
-- `worktree_runtime_syncs`
+- `sandbox_runtime_syncs`
 - `project_layout_state`
 
 The backend rebuilds eligible projections from durable history during recovery or migration when necessary.
@@ -799,7 +800,7 @@ If implementation needs a narrower first slice, these tables are the true minimu
 - `chat_messages`
 - `threads`
 - `thread_events`
-- `worktree_contexts`
+- `sandbox_contexts`
 - `project_runtime_profiles`
 - `runtime_components`
 - `project_layout_state`

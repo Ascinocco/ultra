@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft v0.1
+Draft v0.2
 
 This document is the entry point for the Ultra implementation plan.
 
@@ -21,7 +21,7 @@ This keeps planning modular and makes it easier to iterate without rewriting one
 2. [02-chat-and-thread-core.md](/Users/tony/Projects/ultra/docs/implementation-plan/02-chat-and-thread-core.md)
    Architecture: [02-chat-and-thread-core-architecture.md](/Users/tony/Projects/ultra/docs/implementation-plan/02-chat-and-thread-core-architecture.md)
    Sprint plan: [02-chat-and-thread-core-sprint-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/02-chat-and-thread-core-sprint-plan.md)
-3. [03-editor-review-loop.md](/Users/tony/Projects/ultra/docs/implementation-plan/03-editor-review-loop.md) - Worktree Terminal Workflow
+3. [03-editor-review-loop.md](/Users/tony/Projects/ultra/docs/implementation-plan/03-editor-review-loop.md) - Sandbox Terminal Workflow
    Architecture: [03-editor-review-loop-architecture.md](/Users/tony/Projects/ultra/docs/implementation-plan/03-editor-review-loop-architecture.md)
    Sprint plan: [03-editor-review-loop-sprint-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/03-editor-review-loop-sprint-plan.md)
 4. [04-runtime-supervision.md](/Users/tony/Projects/ultra/docs/implementation-plan/04-runtime-supervision.md)
@@ -50,10 +50,10 @@ Ultra now has enough product definition that implementation planning should move
 These milestones are ordered to maximize learning and minimize rework:
 
 1. establish shell, backend, IPC, persistence, and state model
-2. prove chat and thread creation
-3. prove the worktree-aware terminal and testing loop
-4. harden runtime supervision
-5. add external QA/artifact handoff only after the core workflow is stable
+2. prove multi-project chat and thread creation
+3. prove the sandbox-aware terminal and testing loop
+4. harden runtime supervision around Overstory-backed thread execution
+5. add external QA and artifact handoff only after the core workflow is stable
 6. finish publish flow and operational hardening
 
 ## Deliverable Pattern

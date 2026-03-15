@@ -1,50 +1,43 @@
-# Ultra Worktree Terminal Wiring
+# Ultra Sandbox Terminal Wiring
 
 ## Scope
 
 This document covers:
 
-- selecting an active worktree
+- selecting an active sandbox
 - runtime file sync
 - opening the integrated terminal
 - running saved commands
 - request changes and approve actions
-- external handoff from the active worktree
+- external handoff from the active sandbox
 
-## Flow: Select Active Worktree
+## Flow: Select Active Sandbox
 
 User action:
 
-- choose a worktree from the top bar or thread UI
+- choose a sandbox from the top bar or thread UI
 
 IPC:
 
-- `worktrees.set_active`
-- `worktrees.get_active`
+- `sandboxes.set_active`
+- `sandboxes.get_active`
 
 Backend:
 
-- resolve the selected worktree
-- persist active worktree for the project
+- resolve the selected sandbox
+- persist active sandbox for the project
 - trigger runtime sync status refresh if required
-
-DB:
-
-- `threads`
-- worktree context records
-- `project_layout_state`
-- runtime sync records
 
 Store updates:
 
-- set active worktree for project
+- set active sandbox for project
 - update runtime sync status
 
 ## Flow: Sync Runtime Files
 
 Trigger:
 
-- worktree activation or explicit refresh
+- sandbox activation or explicit refresh
 
 IPC:
 
@@ -55,11 +48,6 @@ Backend:
 - read runtime profile
 - copy configured files such as `.env`
 - record sync result
-
-DB:
-
-- runtime profile tables
-- runtime sync records
 
 Store updates:
 
@@ -77,14 +65,9 @@ IPC:
 
 Backend:
 
-- resolve active worktree
+- resolve active sandbox
 - ensure runtime sync is current enough for launch
-- create or focus a terminal session for that worktree
-
-DB:
-
-- terminal session records if persisted
-- `project_layout_state`
+- create or focus a terminal session for that sandbox
 
 Store updates:
 
@@ -103,14 +86,9 @@ IPC:
 
 Backend:
 
-- resolve active worktree
+- resolve active sandbox
 - ensure runtime sync is current enough for launch
 - start the saved command in the correct cwd
-
-DB:
-
-- terminal session records if persisted
-- saved command history if tracked
 
 Store updates:
 
@@ -133,11 +111,6 @@ Backend:
 - append review and execution events
 - update thread snapshot back toward active execution
 
-DB:
-
-- `thread_events`
-- `threads`
-
 Store updates:
 
 - patch thread snapshot
@@ -156,13 +129,8 @@ IPC:
 Backend:
 
 - validate thread is reviewable
-- append approval/completion events
-- update thread snapshot to approved/completed
-
-DB:
-
-- `thread_events`
-- `threads`
+- append approval and completion events
+- update thread snapshot to approved or completed
 
 Store updates:
 
@@ -177,19 +145,15 @@ User action:
 
 IPC:
 
-- `handoff.open_editor`
-- `handoff.open_github`
-- `handoff.open_browser`
+- `handoff.open_in_editor`
+- `handoff.open_in_github`
+- `handoff.open_in_browser`
 
 Backend:
 
-- resolve active worktree and related branch/thread context
+- resolve active sandbox and related branch/thread context
 - construct handoff target
 - invoke the external tool
-
-DB:
-
-- none required by default beyond reading current project/worktree/thread state
 
 Store updates:
 

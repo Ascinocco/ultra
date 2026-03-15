@@ -20,7 +20,7 @@ IPC:
 
 Backend:
 
-- resolve the active project/worktree/thread context
+- resolve the active project/sandbox/thread context
 - construct the target URL or local app URL
 - invoke the system browser
 
@@ -44,7 +44,7 @@ IPC:
 
 Backend:
 
-- resolve the active worktree path
+- resolve the active sandbox path
 - invoke the configured or default editor handoff
 
 DB:
@@ -67,7 +67,7 @@ IPC:
 
 Backend:
 
-- resolve branch, PR, or repository context from the active worktree or selected thread
+- resolve branch, PR, or repository context from the active sandbox or selected thread
 - invoke the external Git hosting URL
 
 DB:

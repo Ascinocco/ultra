@@ -20,7 +20,7 @@ Deliver reliable external handoff and artifact sharing so Ultra can stay focused
 
 Milestone 5 is done when:
 
-- handoff to browser/editor/GitHub is available from the correct worktree context
+- handoff to browser/editor/GitHub is available from the correct sandbox context
 - runtime artifacts can be shared into chats and threads
 - `Share All Context` works for terminal/runtime debugging
 - any optional browser helpers remain clearly secondary to the core workflow
@@ -31,14 +31,14 @@ Milestone 5 is done when:
 
 Goal:
 
-Create stable external handoff actions from the active worktree context.
+Create stable external handoff actions from the active sandbox context.
 
 Tasks:
 
 - build `Open in Editor`
 - build `Open in Browser`
 - build `Open in GitHub`
-- ensure each action resolves from the active project/worktree/thread context
+- ensure each action resolves from the active project/sandbox/thread context
 
 Exit criteria:
 
@@ -151,7 +151,7 @@ Do not start heavyweight browser embedding work before the handoff model proves 
 
 Use these checks before calling the milestone done:
 
-- can I open the active worktree in my external editor?
+- can I open the active sandbox in my external editor?
 - can I open the relevant branch or PR in GitHub?
 - can I share terminal/runtime output into a chat?
 - can I share terminal/runtime output into a thread?
@@ -162,7 +162,7 @@ Use these checks before calling the milestone done:
 
 ### 1. Context Loss
 
-If handoff actions do not carry the correct worktree or branch context, users will stop trusting them.
+If handoff actions do not carry the correct sandbox or branch context, users will stop trusting them.
 
 ### 2. Oversharing
 

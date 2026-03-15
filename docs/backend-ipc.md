@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft v0.1
+Draft v0.2
 
 This document defines the internal IPC contract between the Ultra frontend application and the Ultra backend.
 
@@ -21,7 +21,7 @@ Ultra needs a backend IPC that is:
 
 - private to the Ultra app
 - simple to implement in v1
-- structured enough to support multiple chats, multiple threads, and live runtime state
+- structured enough to support multiple projects, multiple chats, multiple threads, and live runtime state
 - durable enough to support replay and recovery
 
 This IPC is not a public API in v1.
@@ -30,9 +30,9 @@ This IPC is not a public API in v1.
 
 The IPC is used by:
 
-- the chat page frontend
-- the thread pane frontend
-- the worktree selector and terminal drawer
+- the multi-project chat shell frontend
+- the right-side thread pane frontend
+- the sandbox selector and terminal drawer
 - internal app surfaces that need project runtime state
 
 It is not designed as a public SDK or CLI interface.
@@ -40,13 +40,6 @@ It is not designed as a public SDK or CLI interface.
 ## Transport
 
 Use a Unix domain socket with JSON message envelopes.
-
-### Why
-
-- local-only communication
-- simple Bun/TypeScript implementation
-- no need for HTTP routing overhead in v1
-- easy to secure with user-level socket permissions
 
 ## Protocol Model
 
@@ -58,7 +51,7 @@ Use a hybrid protocol:
 
 ### Product Rule
 
-Do not model the app around one large `active chat` payload.
+Do not model the app around one giant `active workspace` payload.
 
 The backend should expose domain-oriented resources. The frontend should compose them into UI state.
 
@@ -82,101 +75,6 @@ The backend responds with:
 - capability flags
 - session ID
 
-### Version Rule
-
-If protocol versions are incompatible, the backend must reject the session explicitly.
-
-## Envelope Types
-
-### Command Request
-
-```json
-{
-  "protocol_version": "1.0",
-  "request_id": "req_123",
-  "type": "command",
-  "name": "threads.approve",
-  "payload": {
-    "thread_id": "thread_123"
-  }
-}
-```
-
-### Query Request
-
-```json
-{
-  "protocol_version": "1.0",
-  "request_id": "req_124",
-  "type": "query",
-  "name": "threads.get",
-  "payload": {
-    "thread_id": "thread_123"
-  }
-}
-```
-
-### Subscription Request
-
-```json
-{
-  "protocol_version": "1.0",
-  "request_id": "req_125",
-  "type": "subscribe",
-  "name": "threads.events",
-  "payload": {
-    "thread_id": "thread_123",
-    "from_sequence": 42
-  }
-}
-```
-
-### Success Response
-
-```json
-{
-  "protocol_version": "1.0",
-  "request_id": "req_123",
-  "type": "response",
-  "ok": true,
-  "result": {
-    "status": "accepted",
-    "operation_id": "op_789"
-  }
-}
-```
-
-### Error Response
-
-```json
-{
-  "protocol_version": "1.0",
-  "request_id": "req_123",
-  "type": "response",
-  "ok": false,
-  "error": {
-    "code": "thread_not_found",
-    "message": "Thread does not exist"
-  }
-}
-```
-
-### Subscription Event
-
-```json
-{
-  "protocol_version": "1.0",
-  "type": "event",
-  "subscription_id": "sub_456",
-  "event_name": "threads.event",
-  "payload": {
-    "thread_id": "thread_123",
-    "sequence_number": 43,
-    "event_type": "thread.approved"
-  }
-}
-```
-
 ## Async Operation Model
 
 Commands that may take time should return quickly with:
@@ -189,9 +87,9 @@ Progress and completion should then flow through subscriptions and updated snaps
 ### Why
 
 - thread creation is async
-- publish is async
+- thread execution is async
 - runtime recovery is async
-- worktree sync and terminal launch may be async
+- sandbox sync and terminal launch may be async
 
 Do not block IPC calls waiting for long-running operations to finish.
 
@@ -203,7 +101,7 @@ The v1 IPC should expose these namespaces:
 - `projects.*`
 - `chats.*`
 - `threads.*`
-- `worktrees.*`
+- `sandboxes.*`
 - `terminal.*`
 - `handoff.*`
 - `voice.*`
@@ -211,20 +109,6 @@ The v1 IPC should expose these namespaces:
 - `runtime.*`
 - `approvals.*`
 - `artifacts.*`
-
-## `system.*`
-
-Purpose:
-
-- handshake
-- backend info
-- capability negotiation
-
-Recommended methods:
-
-- `system.hello`
-- `system.get_backend_info`
-- `system.ping`
 
 ## `projects.*`
 
@@ -243,11 +127,6 @@ Recommended methods:
 - `projects.get_layout`
 - `projects.set_layout`
 
-Recommended project subscriptions:
-
-- `projects.updated`
-- `projects.layout_updated`
-
 ## `chats.*`
 
 Purpose:
@@ -255,475 +134,125 @@ Purpose:
 - chat lifecycle
 - chat messaging
 - chat config
-- plan/spec approvals
+- plan and spec approvals
 - thread creation initiation
 
-Recommended commands:
-
-- `chats.create`
-- `chats.rename`
-- `chats.pin`
-- `chats.unpin`
-- `chats.archive`
-- `chats.restore`
-- `chats.update_config`
-- `chats.send_message`
-- `chats.approve_plan`
-- `chats.approve_specs`
-- `chats.start_thread`
-- `chats.promote_work_to_thread`
-
-Recommended queries:
+Recommended methods:
 
 - `chats.list`
 - `chats.get`
+- `chats.create`
+- `chats.rename`
+- `chats.archive`
+- `chats.restore`
+- `chats.send_message`
 - `chats.get_messages`
-- `chats.get_session`
-- `chats.get_references`
-- `chats.get_runtime_context`
-
-Recommended subscriptions:
-
-- `chats.updated`
-- `chats.messages`
-- `chats.references`
-
-### Chat Config Payload
-
-`chats.update_config` should support:
-
-- `provider`
-- `model`
-- `thinking_level`
-- `permission_level`
-
-`thinking_level` should be provider-specific in value space, even if Ultra presents it in a normalized control.
-
-`permission_level` should use the Ultra-owned enum:
-
-- `supervised`
-- `full_access`
-
-### Promotion Payload
-
-`chats.promote_work_to_thread` should support:
-
-- `chat_id`
-- `source_message_ids`
-- `checkpoint_ids`
-- `promotion_summary`
-- `spec_refs`
-- `seed_refs`
-- `adopt_existing_checkout`
+- `chats.approve_plan`
+- `chats.approve_specs`
+- `chats.start_thread`
 
 ## `threads.*`
 
 Purpose:
 
-- thread snapshots
-- thread actions
-- coordinator chat
-- event history
+- execution thread lifecycle
+- execution visibility
+- coordinator interaction
+- review actions
 
-Recommended commands:
+Recommended methods:
 
-- `threads.send_message`
-- `threads.request_changes`
-- `threads.approve`
-- `threads.publish`
-
-Recommended queries:
-
-- `threads.list_by_project`
-- `threads.list_by_chat`
+- `threads.list`
 - `threads.get`
 - `threads.get_messages`
 - `threads.get_events`
 - `threads.get_agents`
-- `threads.get_logs`
-- `threads.get_approvals`
+- `threads.send_message`
+- `threads.request_changes`
+- `threads.approve`
 
-Recommended subscriptions:
+Important rule:
 
-- `threads.updated`
-- `threads.messages`
-- `threads.events`
-- `threads.agents`
-- `threads.logs`
+- threads are the user-facing execution stream
+- coordinator and Overstory mechanics remain behind the thread projection boundary
 
-## `worktrees.*`
+## `sandboxes.*`
 
 Purpose:
 
-- active worktree selection
-- per-project worktree summaries
-- thread worktree resolution
+- resolve which concrete checkout Ultra is targeting
+- hide worktree mechanics behind a simpler shell concept
+- make terminal and runtime sync deterministic
 
-Recommended commands:
+Recommended methods:
 
-- `worktrees.set_active`
-
-Recommended queries:
-
-- `worktrees.list`
-- `worktrees.get_active`
-
-Recommended subscriptions:
-
-- `worktrees.updated`
-- `worktrees.active_updated`
-
-## `voice.*`
-
-Purpose:
-
-- microphone capture lifecycle
-- local transcription
-- draft insertion support
-
-Recommended commands:
-
-- `voice.start_capture`
-- `voice.stop_capture`
-- `voice.cancel_capture`
-
-Recommended subscriptions:
-
-- `voice.capture_updated`
-- `voice.transcription_ready`
-- `voice.transcription_failed`
+- `sandboxes.list`
+- `sandboxes.get_active`
+- `sandboxes.set_active`
+- `sandboxes.get_runtime_sync`
 
 ### Product Rule
 
-Voice transcription inserts draft text for a chat or thread input. It does not directly submit a chat message.
+The frontend should talk in terms of `sandboxes`, not `worktrees`.
 
-## `attachments.*`
+Internally, a sandbox may be:
 
-Purpose:
-
-- staged user file uploads
-- attachment lifecycle for chat/thread drafts
-
-Recommended commands:
-
-- `attachments.stage_files`
-- `attachments.remove_staged_file`
-- `attachments.clear_staged_files`
-
-Recommended queries:
-
-- `attachments.list_staged`
-
-Recommended subscriptions:
-
-- `attachments.staged_updated`
-
-### Product Rule
-
-Attachments are transient staged inputs. They are not a long-term storage system in v1.
-
-### Replay Requirement
-
-`threads.events` must support replay from a checkpoint.
-
-Minimum replay fields:
-
-- `thread_id`
-- `from_sequence`
-
-If no checkpoint is provided, the backend may stream from the current tip or a recent default window.
+- the main project checkout
+- an Overstory-managed thread worktree
 
 ## `terminal.*`
 
 Purpose:
 
-- terminal launch and session management
-- saved command execution
-- runtime file sync
+- open or focus a terminal session for the active sandbox
+- run saved commands
+- surface session metadata and sync state
 
-Recommended commands:
+Recommended methods:
 
 - `terminal.open`
-- `terminal.run_saved_command`
-- `terminal.sync_runtime_files`
-
-Recommended queries:
-
 - `terminal.list_sessions`
+- `terminal.run_saved_command`
 - `terminal.get_runtime_profile`
-- `terminal.get_saved_commands`
-
-Recommended subscriptions:
-
-- `terminal.sessions_updated`
-- `terminal.runtime_sync_updated`
+- `terminal.sync_runtime_files`
 
 ## `handoff.*`
 
 Purpose:
 
-- external editor/browser/GitHub handoff from the active worktree context
+- external editor handoff
+- GitHub handoff
+- browser handoff
 
-Recommended commands:
+Recommended methods:
 
-- `handoff.open_editor`
-- `handoff.open_browser`
-- `handoff.open_github`
+- `handoff.open_in_editor`
+- `handoff.open_in_github`
+- `handoff.open_in_browser`
 
-## `runtime.*`
+## Subscription Model
 
-Purpose:
+Subscriptions should focus on durable user-facing domains:
 
-- project runtime health
-- coordinator/watch/watchdog state
-- chat-driven runtime actions
-
-The backend-to-coordinator transport for project coordinators is specified separately in [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md). The `runtime.*` IPC surface remains the app-facing control layer above that contract.
-
-Recommended commands:
-
-- `runtime.restart_coordinator`
-- `runtime.restart_watchdog`
-- `runtime.retry_thread`
-- `runtime.pause_project_runtime`
-- `runtime.resume_project_runtime`
-
-Recommended queries:
-
-- `runtime.get_project_health`
-- `runtime.get_project_runtime`
-- `runtime.get_components`
-
-Recommended subscriptions:
-
-- `runtime.health_updated`
-- `runtime.component_updated`
-- `runtime.project_runtime_updated`
-
-### Product Rule
-
-These commands may exist in IPC even if the user reaches them only through main chat UX.
-
-The backend still needs explicit operations to execute.
-
-## `approvals.*`
-
-Purpose:
-
-- thread-specific approval state and resolution
-
-Recommended commands:
-
-- `approvals.resolve`
-
-Recommended queries:
-
-- `approvals.list_by_thread`
-- `approvals.get`
-
-Recommended subscriptions:
-
+- `projects.updated`
+- `projects.layout_updated`
+- `chats.updated`
+- `chats.messages`
+- `threads.updated`
+- `threads.messages`
+- `threads.events`
+- `runtime.updated`
 - `approvals.updated`
 
-## `artifacts.*`
+Sandbox changes may flow through direct queries or through project and thread updates.
 
-Purpose:
+## Shell Composition Rule
 
-- thread-associated generated outputs
-- reviewable assets
-- publish artifacts
+The frontend shell should derive this shape from IPC:
 
-Recommended queries:
+- left sidebar: projects and chats
+- center pane: active chat
+- right pane: threads
+- bottom drawer: terminal
 
-- `artifacts.list_by_thread`
-- `artifacts.get`
-- `artifacts.list_by_chat`
-
-Recommended subscriptions:
-
-- `artifacts.updated`
-
-Recommended commands:
-
-- `artifacts.capture_browser`
-- `artifacts.capture_runtime`
-- `artifacts.share_to_chat`
-- `artifacts.share_to_thread`
-- `artifacts.share_all_context`
-
-## Snapshot vs Stream Boundaries
-
-Use this rule consistently:
-
-- snapshots for current state
-- event streams for evolving state
-- large raw logs fetched separately
-
-### Snapshots
-
-The following should always have direct query access:
-
-- project summaries
-- chat summaries
-- chat config
-- thread snapshots
-- runtime health
-- worktree contexts
-- terminal session summaries
-- terminal runtime sync state
-
-### Streams
-
-The following should have live subscription streams:
-
-- chat messages
-- thread events
-- thread agent activity
-- thread logs
-- runtime health updates
-- worktree and terminal runtime sync changes
-
-## Error Model
-
-Use structured error responses.
-
-Recommended error fields:
-
-- `code`
-- `message`
-- `details`
-- `retryable`
-
-Recommended error codes:
-
-- `invalid_request`
-- `unsupported_protocol_version`
-- `not_found`
-- `conflict`
-- `invalid_state_transition`
-- `permission_denied`
-- `runtime_unavailable`
-- `timeout`
-- `internal_error`
-
-## Frontend State Model
-
-The frontend should use a normalized domain store.
-
-Do not store all nested app state inside one `activeChat` object.
-
-### Recommended Zustand Shape
-
-```ts
-type AppState = {
-  activeProjectId: string | null;
-  activeChatId: string | null;
-  selectedThreadId: string | null;
-  projects: Record<string, ProjectSnapshot>;
-  chats: Record<string, ChatSnapshot>;
-  chatListsByProject: Record<string, string[]>;
-  threads: Record<string, ThreadSnapshot>;
-  threadListsByChat: Record<string, string[]>;
-  threadEventsByThread: Record<string, ThreadEvent[]>;
-  runtimeByProject: Record<string, ProjectRuntimeSnapshot>;
-  worktreesByProject: Record<string, WorktreeProjectState>;
-  terminalByProject: Record<string, TerminalProjectState>;
-  layoutByProject: Record<string, ProjectLayoutState>;
-};
-```
-
-### Layout State
-
-Per-project layout state should include:
-
-- `rightTopCollapsed`
-- `rightBottomCollapsed`
-- `selectedRightPaneTab`
-- `selectedBottomPaneTab`
-- `lastActiveWorktreeId`
-- `terminalDrawerOpen`
-
-This supports the collapsible thread/status panels you want without coupling layout to chat state.
-
-## Recommended Subscription Topology
-
-On project open:
-
-- query project snapshot
-- query chat list
-- query thread list
-- query runtime snapshot
-- query worktree snapshot
-- subscribe to project/runtime updates
-
-On chat select:
-
-- query chat details/messages
-- subscribe to chat message stream
-- subscribe to chat reference updates
-
-On thread select:
-
-- query thread snapshot
-- query recent events
-- query agents
-- query approvals
-- subscribe to thread events from latest known sequence
-- subscribe to thread agents/logs as needed
-
-This keeps the UI responsive without over-fetching everything all the time.
-
-## Security Model
-
-The IPC is local and user-scoped.
-
-### v1 Security Rules
-
-- socket path must be user-private
-- only the current user account should be able to connect
-- backend should reject unknown protocol versions
-- no additional auth layer is required in v1
-
-## Minimal v1 Method Set
-
-If implementation needs to start narrower, these are the essential methods:
-
-- `system.hello`
-- `projects.open`
-- `projects.get`
-- `chats.list`
-- `chats.create`
-- `chats.send_message`
-- `chats.update_config`
-- `chats.approve_plan`
-- `chats.approve_specs`
-- `chats.start_thread`
-- `threads.list_by_chat`
-- `threads.get`
-- `threads.events`
-- `threads.send_message`
-- `threads.request_changes`
-- `threads.approve`
-- `threads.publish`
-- `worktrees.list`
-- `worktrees.set_active`
-- `terminal.open`
-- `terminal.run_saved_command`
-- `terminal.sync_runtime_files`
-- `handoff.open_editor`
-- `runtime.get_project_health`
-- `runtime.health_updated`
-
-## Locked Decisions
-
-1. IPC is private to the Ultra app in v1
-2. Transport is Unix domain socket plus JSON envelopes
-3. Protocol shape is command/query/subscription
-4. Async commands return `operation_id`
-5. Thread subscriptions support replay from checkpoint
-6. Runtime control actions exist as backend commands even if exposed only through chat
-7. Frontend state should be normalized rather than centered on one nested active-chat object
-8. Shared validation schemas for all payloads live in the shared package and are consumed by both frontend and backend
-9. Worktree selection, terminal launch, and external handoff remain true backend operations in v1; the frontend never bypasses the backend with direct UI bridge commands
-10. Large log queries use cursor-based pagination keyed by thread and log cursor
-11. Frontend query results are cached per project in the normalized store until invalidated by subscriptions or explicit project switch
+The backend should support this composition directly instead of assuming one-project-per-window routing.

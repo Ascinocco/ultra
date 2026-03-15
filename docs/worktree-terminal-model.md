@@ -1,8 +1,8 @@
-# Ultra Worktree Terminal Model
+# Ultra Sandbox Terminal Model
 
 ## Status
 
-Draft v0.1
+Draft v0.2
 
 Related specs:
 
@@ -10,13 +10,13 @@ Related specs:
 - [ui-layout-and-navigation.md](/Users/tony/Projects/ultra/docs/ui-layout-and-navigation.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 
-This document defines how Ultra should handle worktree selection, terminal sessions, runtime file sync, and external handoff during the testing and approval loop.
+This document defines how Ultra should handle sandbox selection, terminal sessions, runtime file sync, and external handoff during the testing and approval loop.
 
 ## Purpose
 
 Ultra's core testing loop is not "open a full editor." It is:
 
-1. select the right project or thread worktree
+1. select the right project or thread sandbox
 2. make sure the right runtime files are present
 3. open or reuse a terminal already pointed at that context
 4. run tests and dev commands
@@ -26,39 +26,39 @@ The product should make that loop fast and obvious from the main chat workspace.
 
 ## Core Principle
 
-Ultra always has one active worktree context per project.
+Ultra always has one active sandbox context per project.
 
-An active worktree context is a concrete filesystem path paired with the metadata needed to operate safely inside it:
+An active sandbox context is a concrete filesystem path paired with the metadata needed to operate safely inside it:
 
 - project
 - optional thread
 - branch
-- target kind
+- sandbox kind
 - runtime sync status
 
-The terminal, saved commands, and approval loop all follow this active worktree context.
+The terminal, saved commands, and approval loop all follow this active sandbox context.
 
-## Worktree Context
+## Sandbox Context
 
 ### Definition
 
-A worktree context is a concrete checkout of a project that Ultra can target for testing and review.
+A sandbox context is a concrete checkout of a project that Ultra can target for testing and review.
 
-In v1, a worktree context may be:
+In v1, a sandbox may be:
 
 - the main project checkout
-- a thread-owned worktree
+- a thread-owned sandbox backed by an Overstory-managed worktree
 
-Review-specific duplicate worktrees and multi-target editor layouts are out of scope.
+The user should not need to know whether the sandbox is implemented by the root checkout or a worktree. Ultra owns that complexity.
 
 ### Required Fields
 
-- `worktree_id`
+- `sandbox_id`
 - `project_id`
 - `thread_id`
 - `path`
 - `display_name`
-- `target_type`
+- `sandbox_type`
 - `branch_name`
 - `base_branch`
 - `is_main_checkout`
@@ -67,19 +67,19 @@ Review-specific duplicate worktrees and multi-target editor layouts are out of s
 
 ## Selection Model
 
-The user should be able to switch the active worktree from the shell without opening a second page.
+The user should be able to switch the active sandbox from the shell without opening a second page.
 
 Primary selectors should appear in:
 
 - the top bar
-- thread-level actions when a thread has a dedicated worktree
+- thread-level actions when a thread has a dedicated sandbox
 - the terminal drawer header
 
 ### Product Rule
 
-Users should not need to manually recreate a worktree as a separate project just to test changes.
+Users should not need to manually recreate a sandbox as a separate project just to test changes.
 
-Ultra owns the "which checkout am I operating in?" decision through a clear worktree selector.
+Ultra owns the "which checkout am I operating in?" decision through a clear sandbox selector.
 
 ## Terminal Model
 
@@ -88,11 +88,11 @@ The integrated terminal is part of the main chat workspace, not a separate edito
 ### Required Behaviors
 
 - `Open Terminal` is available from the top bar
-- the chat page includes a terminal drawer or pane
-- new terminals start with `cwd = active worktree path`
-- terminals are clearly labeled by worktree and thread when applicable
-- switching the active worktree does not forcibly move existing terminals
-- opening a terminal from a thread should prefer that thread's worktree
+- the chat page includes a terminal drawer or bottom pane
+- new terminals start with `cwd = active sandbox path`
+- terminals are clearly labeled by project, sandbox, and thread when applicable
+- switching the active sandbox does not forcibly move existing terminals
+- opening a terminal from a thread should prefer that thread's sandbox
 
 ### Product Goal
 
@@ -102,13 +102,13 @@ The user should be able to move from "agent made changes" to "I am testing those
 
 Many projects require file-based runtime configuration such as `.env`.
 
-Ultra should support project-level runtime file sync into the active worktree context.
+Ultra should support project-level runtime file sync into the active sandbox context.
 
 ### v1 Default
 
 - runtime file list defaults to `.env`
 - sync mode defaults to managed copy
-- target activation or terminal launch can trigger sync when needed
+- sandbox activation or terminal launch can trigger sync when needed
 - sync status is visible before the user runs commands
 
 ### User Controls
@@ -119,7 +119,7 @@ Ultra should support project-level runtime file sync into the active worktree co
 
 ## Saved Commands
 
-The worktree workflow should expose a small set of repeatable commands for the active context.
+The sandbox workflow should expose a small set of repeatable commands for the active context.
 
 Examples:
 
@@ -128,20 +128,34 @@ Examples:
 - `lint`
 - `build`
 
-These commands should always run against the active worktree path and inherit the synced runtime files for that worktree.
+These commands should always run against the active sandbox path and inherit the synced runtime files for that sandbox.
+
+## Threads and Overstory
+
+Threads remain the execution stream for approved work.
+
+In the current direction:
+
+- a thread is created from approved chat work
+- the project coordinator launches Overstory-backed execution for that thread
+- Ultra projects that execution back into the right-side thread panel
+- the terminal drawer attaches to the main project checkout or the active thread sandbox
+
+Overstory remains the default execution backend.
+It is not the primary user-facing concept.
 
 ## Review and Approval Flow
 
 Recommended v1 flow:
 
 1. thread reaches a reviewable state
-2. user selects the thread's worktree
+2. user selects the thread's sandbox
 3. Ultra syncs runtime files such as `.env`
-4. user opens or reuses a terminal in that worktree
+4. user opens or reuses a terminal in that sandbox
 5. user runs tests or local verification commands
 6. user requests changes or approves from thread-aware UI in the chat workspace
 
-This keeps the review loop centered on worktree selection, terminal readiness, and thread state transitions rather than an embedded editor.
+This keeps the review loop centered on sandbox selection, terminal readiness, and thread state transitions rather than an embedded editor.
 
 ## External Handoff
 
@@ -153,7 +167,7 @@ External handoff remains acceptable for:
 - opening files in a user-chosen editor
 - browser-based manual QA
 
-The core in-product responsibility is to make the local testing loop fast and worktree-aware.
+The core in-product responsibility is to make the local testing loop fast and sandbox-aware.
 
 ## Non-Goals
 
@@ -161,3 +175,4 @@ The core in-product responsibility is to make the local testing loop fast and wo
 - embedded browser as a v1 requirement
 - custom diff review UI
 - branch-as-primary navigation
+- exposing raw worktree management as a top-level UX

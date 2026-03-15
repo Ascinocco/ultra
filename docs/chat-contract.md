@@ -215,10 +215,10 @@ This is intentional.
 
 ### Direct Coding Rules
 
-- direct coding work happens in the active checkout
+- direct coding work happens in the active sandbox
 - the chat starts on the main checkout by default
-- the chat may move to a branch or worktree if the user instructs it to
-- the chat may open files, diffs, terminals, or editor targets as part of the workflow
+- the chat may move to another sandbox if the user instructs it to
+- the chat may open terminals or external handoff targets as part of the workflow
 - the user decides whether chat-local work stays chat-local or is promoted into a thread
 
 ### Promotion to Thread
@@ -242,7 +242,7 @@ Recommended checkpoint moments:
 - meaningful file changes
 - commands run
 - branch creation or checkout changes
-- worktree changes
+- sandbox changes
 - test/build result milestones
 - explicit user-requested save points
 
@@ -262,7 +262,7 @@ Recommended fields:
 - `session_id`
 - `active_target_path`
 - `branch_name`
-- `worktree_path`
+- `sandbox_path`
 - `action_type`
 - `affected_paths`
 - `command_metadata`
@@ -294,9 +294,9 @@ Do not blindly copy the full chat transcript into the thread context.
 
 ### Checkout Adoption Rule
 
-If chat-local work is already happening in a dedicated branch or worktree, Ultra may adopt that checkout into the new thread.
+If chat-local work is already happening in a dedicated branch or sandbox, Ultra may adopt that checkout into the new thread.
 
-If chat-local work is happening on the main checkout, Ultra should fork the work into a proper thread-owned worktree during promotion.
+If chat-local work is happening on the main checkout, Ultra should fork the work into a proper thread-owned sandbox during promotion.
 
 This keeps thread checkout ownership clean.
 

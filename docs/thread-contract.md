@@ -23,7 +23,7 @@ A thread is the execution home for:
 
 - spec set
 - coordinator conversation
-- worktree
+- sandbox
 - branch
 - commit/publish policy
 - review lifecycle
@@ -60,7 +60,7 @@ Each thread may link to:
 
 - one or more specs
 - one or more external ticket references
-- one worktree
+- one primary sandbox
 - one branch
 - one draft PR
 
@@ -95,8 +95,8 @@ Recommended external tracking fields:
 Recommended execution fields:
 
 - `spec_ids`
-- `worktree_id`
-- `worktree_path`
+- `sandbox_id`
+- `sandbox_path`
 - `branch_name`
 - `base_branch`
 - `commit_policy`
@@ -139,7 +139,7 @@ Use 3 parallel state axes instead of one overloaded status field.
 Definitions:
 
 - `queued`: thread exists but coordinator work has not started yet
-- `starting`: worktree, specs, coordinator, or watch processes are being prepared
+- `starting`: sandbox, specs, coordinator, or watch processes are being prepared
 - `running`: coordinator is active and work is progressing
 - `blocked`: execution cannot proceed without user input, dependency resolution, credentials, or a failed prerequisite
 - `awaiting_review`: implementation work is ready for user testing and review
@@ -204,9 +204,9 @@ Recommended default behavior:
 
 - auto-commit locally when implementation reaches review readiness
 - move thread to `awaiting_review`
-- ensure a reviewable branch exists in a run worktree
-- let the user open the worktree or branch in the editor page
-- let the user run tests, inspect diffs, and ask for changes
+- ensure a reviewable branch exists in a run sandbox
+- let the user select that sandbox in Ultra
+- let the user run tests from the terminal drawer and ask for changes
 - after approval, mark the thread `completed`
 - by default, then publish branch and open draft PR
 - keep publish state separate from completion state
@@ -221,14 +221,14 @@ Configurable per project:
 
 Do not mark a thread `completed` before review is resolved. `awaiting_review` should be the practical end of autonomous execution. Completion happens after user approval, while publish remains a separate state axis.
 
-## Review Checkout Model
+## Review Sandbox Model
 
 When a thread reaches `awaiting_review`, the following should be true:
 
-- a dedicated run worktree exists
-- the worktree contains the implementation changes
+- a dedicated run sandbox exists
+- the sandbox contains the implementation changes
 - a branch exists for the thread
-- the user can open that worktree directly in the editor page
+- the user can select that sandbox directly in Ultra
 
 Important git constraint:
 
@@ -236,15 +236,15 @@ Important git constraint:
 
 That means the primary review action should be:
 
-- open the thread worktree in the editor page
+- select the thread sandbox and open the integrated terminal in Ultra
 
 If the user wants the branch in their main project checkout, Ultra should offer explicit actions such as:
 
-- create a separate review worktree
+- create a separate review sandbox
 - merge or cherry-pick the thread branch into the main checkout
-- switch the main checkout only after the execution worktree releases the branch
+- switch the main checkout only after the execution sandbox releases the branch
 
-Ultra should not assume the main checkout can directly switch to the same active branch while the run worktree still owns it.
+Ultra should not assume the main checkout can directly switch to the same active branch while the run sandbox still owns it.
 
 ## Thread UI Contract
 
@@ -284,7 +284,7 @@ A persistent coordinator input sits at the bottom and remains available after co
 - `Overview` shows high-level progress, latest summary, linked specs, branch, PR, and current next action
 - `Timeline` shows structured thread events in chronological order
 - `Agents` shows coordinator and worker activity scoped only to the selected thread
-- `Files` shows changed files, diffs, and worktree actions
+- `Files` shows changed files, diffs, and sandbox actions
 - `Approvals` shows pending and completed approval actions
 - `Logs` shows raw process output and diagnostics
 
@@ -304,7 +304,7 @@ Minimum event types:
 - `thread.summary_updated`
 - `thread.approval_requested`
 - `thread.approval_resolved`
-- `thread.worktree_ready`
+- `thread.sandbox_ready`
 - `thread.branch_created`
 - `thread.commit_created`
 - `thread.pr_opened`
@@ -360,7 +360,7 @@ Health records should include:
 ## Locked Decisions
 
 1. A thread keeps a stable identity even if the coordinator process restarts, and restart events appear in the timeline
-2. `awaiting_review` requires a branch in a dedicated worktree with reviewable changes
+2. `awaiting_review` requires a branch in a dedicated sandbox with reviewable changes
 3. A thread becomes `completed` after the user approves the work
 4. Default publish flow is post-approval branch push plus draft PR creation
 5. `changes_requested` returns the same thread to `running`

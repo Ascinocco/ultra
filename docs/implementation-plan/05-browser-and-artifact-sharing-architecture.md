@@ -20,7 +20,7 @@ Milestone 5 extends Ultra from planning, execution, testing, and approval into e
 
 By the end of this milestone, Ultra should support:
 
-- opening the right browser, editor, or GitHub surface from the active worktree context
+- opening the right browser, editor, or GitHub surface from the active sandbox context
 - capturing runtime and terminal artifacts
 - explicitly sharing those artifacts into chats and threads
 
@@ -78,7 +78,7 @@ Owns:
 
 ### Rule
 
-All handoff actions should derive from the active project/worktree/thread context before launching the external target.
+All handoff actions should derive from the active project/sandbox/thread context before launching the external target.
 
 ## Frontend Architecture
 
@@ -109,7 +109,7 @@ Milestone 5 backend should add:
 
 `ExternalHandoffService`:
 
-- resolve the active worktree and related branch/thread context
+- resolve the active sandbox and related branch/thread context
 - construct editor/browser/GitHub launch targets
 - invoke OS-level open behavior or configured integrations
 
@@ -163,7 +163,7 @@ The `Share All Context` path should create a combined bundle containing:
 - relevant terminal output
 - runtime health context
 - selected thread metadata
-- any related worktree status needed for debugging
+- any related sandbox status needed for debugging
 
 ### Design Rule
 

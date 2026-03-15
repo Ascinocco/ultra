@@ -14,7 +14,7 @@ These documents exist to answer the question:
 
 - [app-wiring.md](/Users/tony/Projects/ultra/docs/wiring/app-wiring.md)
 - [chat-thread-wiring.md](/Users/tony/Projects/ultra/docs/wiring/chat-thread-wiring.md)
-- [editor-review-wiring.md](/Users/tony/Projects/ultra/docs/wiring/editor-review-wiring.md) — worktree selection, integrated terminal, review actions, and external handoff
+- [editor-review-wiring.md](/Users/tony/Projects/ultra/docs/wiring/editor-review-wiring.md) — sandbox selection, integrated terminal, review actions, and external handoff
 - [runtime-wiring.md](/Users/tony/Projects/ultra/docs/wiring/runtime-wiring.md)
 - [browser-artifact-wiring.md](/Users/tony/Projects/ultra/docs/wiring/browser-artifact-wiring.md) — external browser/editor/GitHub handoff and artifact sharing
 - [voice-input-wiring.md](/Users/tony/Projects/ultra/docs/wiring/voice-input-wiring.md)

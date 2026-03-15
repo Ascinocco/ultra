@@ -176,8 +176,8 @@ It should not show every raw output fragment.
 
 ### 6. Checkout and Git
 
-- `thread.worktree_created`
-- `thread.worktree_ready`
+- `thread.sandbox_created`
+- `thread.sandbox_ready`
 - `thread.branch_created`
 - `thread.commit_created`
 - `thread.checkout_open_requested`
@@ -258,8 +258,8 @@ Emitted when the thread reaches review readiness.
 
 Payload:
 
-- `worktree_id`
-- `worktree_path`
+- `sandbox_id`
+- `sandbox_path`
 - `branch_name`
 - `base_branch`
 - `commit_id`
@@ -434,7 +434,7 @@ Minimum snapshot fields driven by events:
 - latest publish state
 - latest summary
 - latest health status
-- current branch/worktree
+- current branch/sandbox
 - latest review-ready commit
 - latest PR metadata
 - restart count
@@ -471,7 +471,7 @@ Example happy-path sequence:
 
 1. `thread.created`
 2. `thread.execution_state_changed` to `starting`
-3. `thread.worktree_created`
+3. `thread.sandbox_created`
 4. `thread.branch_created`
 5. `thread.execution_state_changed` to `running`
 6. `thread.agent_started`
