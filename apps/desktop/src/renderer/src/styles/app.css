@@ -22,9 +22,8 @@ button {
 /* ── App Shell ─────────────────────────────────────────────── */
 
 .app-shell {
-  min-height: 100vh;
-  padding: 0 20px 20px;
-  padding-top: 60px; /* title bar height (52px) + 8px gap */
+  height: 100vh;
+  padding-top: 52px; /* title bar height */
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   box-sizing: border-box;
@@ -32,6 +31,7 @@ button {
 
 .app-shell__body {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .readiness-gate {
@@ -448,7 +448,7 @@ button {
 /* ── Page Shells ───────────────────────────────────────────── */
 
 .page-shell {
-  min-height: calc(100vh - 80px); /* 60px top padding + 20px bottom padding */
+  min-height: 0; /* allow grid child to shrink; parent grid stretches it */
 }
 
 .page-shell--hidden {
@@ -461,16 +461,15 @@ button {
 
 .chat-frame {
   background: var(--surface-2);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-xl);
+  border-top: 1px solid var(--panel-border);
   overflow: hidden;
-  min-height: 100%;
+  height: 100%;
 }
 
 .chat-frame__grid {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr) minmax(320px, 0.95fr);
-  min-height: 100%;
+  height: 100%;
 }
 
 .chat-frame__rail {
