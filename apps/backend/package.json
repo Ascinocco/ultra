@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check package.json tsconfig.json tsconfig.build.json src",
-    "test": "vitest run src/index.test.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@ultra/shared": "workspace:*"

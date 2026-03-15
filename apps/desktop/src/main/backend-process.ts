@@ -30,7 +30,11 @@ type BackendProcessManagerOptions = {
   logger?: Logger
 }
 
-const READY_MARKERS = ["backend scaffold ready", "backend ready"]
+const READY_MARKERS = [
+  "backend scaffold ready",
+  "backend ready",
+  "listening on socket",
+]
 
 export class BackendProcessManager {
   private readonly config: BackendLaunchConfig
@@ -148,6 +152,9 @@ export class BackendProcessManager {
         phase: "failed",
         connectionStatus: "disconnected",
         message: `Backend failed to launch: ${messageText}`,
+        sessionId: null,
+        backendVersion: null,
+        capabilities: null,
         pid: null,
       })
 
@@ -205,6 +212,9 @@ export class BackendProcessManager {
         phase: "failed",
         connectionStatus: "disconnected",
         message: `Backend process error: ${messageText}`,
+        sessionId: null,
+        backendVersion: null,
+        capabilities: null,
         pid: null,
       })
 
@@ -231,8 +241,14 @@ export class BackendProcessManager {
     this.clearReadinessTimer()
     this.updateStatus({
       phase: "running",
-      connectionStatus: "connected",
-      message,
+      connectionStatus: "connecting",
+      message:
+        message === "Local backend running."
+          ? "Waiting for backend handshake…"
+          : message,
+      sessionId: null,
+      backendVersion: null,
+      capabilities: null,
       pid: this.child.pid ?? null,
       socketPath: this.config.socketPath,
     })
@@ -249,6 +265,9 @@ export class BackendProcessManager {
         phase: "stopped",
         connectionStatus: "disconnected",
         message: "Local backend stopped.",
+        sessionId: null,
+        backendVersion: null,
+        capabilities: null,
         pid: null,
         lastExitCode: code,
         lastSignal: signal,
@@ -267,6 +286,9 @@ export class BackendProcessManager {
         phase: "failed",
         connectionStatus: "disconnected",
         message: `Backend exited unexpectedly and retries were exhausted. ${reason}`,
+        sessionId: null,
+        backendVersion: null,
+        capabilities: null,
         pid: null,
         restartCount: Math.min(
           nextRestartCount,
@@ -283,6 +305,9 @@ export class BackendProcessManager {
       phase: "degraded",
       connectionStatus: "degraded",
       message: `Backend exited unexpectedly. Restarting (${nextRestartCount}/${this.config.maxRestartAttempts})…`,
+      sessionId: null,
+      backendVersion: null,
+      capabilities: null,
       pid: null,
       restartCount: nextRestartCount,
       lastExitCode: code,

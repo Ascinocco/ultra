@@ -1,6 +1,11 @@
 import { fileURLToPath } from "node:url"
 import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
 
+import {
+  type SocketServerRuntime,
+  startSocketServer,
+} from "./server/socket-server.js"
+
 export function createBackendBanner(): string {
   const target = buildPlaceholderProjectLabel(APP_NAME)
   return `${APP_NAME} backend scaffold ready for ${target}`
@@ -8,23 +13,27 @@ export function createBackendBanner(): string {
 
 export type BackendRuntime = {
   socketPath: string | null
-  stop: () => void
+  stop: () => Promise<void>
 }
 
-export function startBackendScaffold(): BackendRuntime {
+export async function startBackendScaffold(): Promise<BackendRuntime> {
   const socketPath = process.env.ULTRA_SOCKET_PATH ?? null
-  const keepAlive = setInterval(() => undefined, 60_000)
+  let socketRuntime: SocketServerRuntime | null = null
 
   console.log(createBackendBanner())
 
   if (socketPath) {
-    console.log(`[backend] socket path reserved at ${socketPath}`)
+    socketRuntime = await startSocketServer(socketPath)
+  } else {
+    console.log(
+      "[backend] no ULTRA_SOCKET_PATH provided; socket server disabled",
+    )
   }
 
   return {
     socketPath,
-    stop: () => {
-      clearInterval(keepAlive)
+    stop: async () => {
+      await socketRuntime?.close()
     },
   }
 }
@@ -33,13 +42,21 @@ const entryPath = process.argv[1]
 const currentPath = fileURLToPath(import.meta.url)
 
 if (entryPath && currentPath === entryPath) {
-  const runtime = startBackendScaffold()
+  let runtime: BackendRuntime | null = null
 
-  const shutdown = () => {
-    runtime.stop()
+  const shutdown = async () => {
+    await runtime?.stop()
     process.exit(0)
   }
 
-  process.once("SIGINT", shutdown)
-  process.once("SIGTERM", shutdown)
+  void startBackendScaffold().then((resolvedRuntime) => {
+    runtime = resolvedRuntime
+
+    process.once("SIGINT", () => {
+      void shutdown()
+    })
+    process.once("SIGTERM", () => {
+      void shutdown()
+    })
+  })
 }
