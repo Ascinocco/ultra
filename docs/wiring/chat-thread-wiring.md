@@ -79,7 +79,7 @@ IPC:
 
 Backend:
 
-- resolve active checkout context
+- resolve active worktree context
 - route request through `ChatRuntimeAdapter`
 - if needed, launch or reuse the selected CLI runtime process and communicate over stdio
 - persist structured action/result messages
@@ -97,6 +97,60 @@ Store updates:
 Important rule:
 
 - no thread is created automatically
+
+## Flow: Select Thread Worktree
+
+User action:
+
+- choose a thread worktree from thread UI or the global worktree selector
+
+IPC:
+
+- `worktrees.set_active`
+
+Backend:
+
+- resolve the thread's concrete worktree
+- persist it as the active worktree for the project
+- refresh runtime sync status if needed
+
+DB:
+
+- worktree context records
+- `project_layout_state`
+- worktree runtime sync records
+
+Store updates:
+
+- set active worktree
+- keep selected thread
+- refresh runtime sync state
+
+## Flow: Open Terminal From Thread
+
+User action:
+
+- click `Open Terminal` from thread UI
+
+IPC:
+
+- `terminal.open`
+
+Backend:
+
+- resolve the selected thread worktree
+- ensure runtime files are synced if needed
+- create or focus a terminal session in that worktree
+
+DB:
+
+- terminal session records if persisted
+- worktree runtime sync records
+
+Store updates:
+
+- open terminal drawer
+- focus terminal session
 
 ## Flow: Approve Plan
 

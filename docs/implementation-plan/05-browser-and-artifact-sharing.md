@@ -1,61 +1,53 @@
-# Milestone 5: Browser and Artifact Sharing
+# Milestone 5: External QA and Artifact Handoff
 
 ## Goal
 
-Add the manual Browser page, side browser in Chat/Editor, isolated automation browser path for QA, and explicit artifact sharing into chats and threads.
+Add pragmatic external QA and artifact handoff so the user can move from Ultra's chat and terminal workflow into external browser, editor, and GitHub surfaces when needed without losing context.
 
 ## Why Fifth
 
-The browser is valuable, but it should come after the core planning, execution, and review loop is already working.
+External QA and artifact handoff are valuable, but they should come after the core planning, execution, testing, and approval loop is already working.
 
-Artifact sharing is the bridge that makes browser and manual debugging useful without violating privacy boundaries.
-
-The manual browser is a convenience feature, not a core programmable agent surface.
+The browser is a convenience capability, not the core product loop.
 
 ## Scope
 
-- Browser top pill page
-- side browser in Chat and Editor
-- persistent manual browser profile
-- isolated automation browser model for thread QA
-- browser actions such as `Open Current App in Browser`
-- artifact sharing controls
+- external handoff actions such as `Open in Browser`, `Open in Editor`, and `Open in GitHub`
+- artifact sharing from terminal/runtime surfaces into chats and threads
+- optional browser or QA helpers only after the handoff path is stable
 - destination picker behavior
 - `Share All`
-- combined browser plus runtime context share
+- combined runtime plus artifact context share
 
 ## Deliverables
 
-- dedicated Browser page
-- resizable side browser
-- persistent manual browser session
-- isolated automation browser sessions for QA runs
-- share browser/page/log/network data into chats and threads
-- share terminal/debug output into chats and threads
-- combined `Share All Context` flow
+- user can hand off to the system browser or preferred editor from the active worktree context
+- runtime artifacts can be shared into chats and threads
+- `Share All Context` works for terminal/runtime-centered debugging
+- any future browser convenience surface remains optional and downstream of the handoff model
 
 ## Out of Scope
 
-- advanced browser extension compatibility
-- password manager integrations
+- requiring an embedded Browser page
+- requiring an embedded side browser
 - deeply complex browser profile management
+- in-product diff review
 
 ## Technical Decisions To Respect
 
-- manual browser and automation browser are separate systems
-- agents never access the manual browser directly
+- external handoff is acceptable and preferred over heavyweight embedding in v1
 - artifact sharing is explicit and user-mediated
-- split view defaults to the current visible context
+- browser and editor convenience features should not reshape the core chat-plus-terminal architecture
+- split views or embedded surfaces are optional follow-ons, not milestone prerequisites
 
 ## Exit Criteria
 
-- user can browse manually inside Ultra
-- user can open a side browser from Chat or Editor
-- user can share browser and runtime artifacts into a chosen chat or thread
-- thread QA can attach browser automation artifacts without touching the manual browser
+- user can hand off to browser/editor/GitHub from Ultra with the correct worktree context
+- user can share runtime artifacts into a chosen chat or thread
+- `Share All Context` can bundle the useful terminal/runtime debugging state
 
 ## Main Risks
 
-- browser embedding ergonomics
-- privacy boundary leaks between manual and automation browser contexts
+- context loss during handoff
 - oversized artifacts flooding chat/thread context
+- accidental product creep back toward heavyweight embedded browser/editor surfaces

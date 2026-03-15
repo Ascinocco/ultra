@@ -21,13 +21,13 @@ This keeps planning modular and makes it easier to iterate without rewriting one
 2. [02-chat-and-thread-core.md](/Users/tony/Projects/ultra/docs/implementation-plan/02-chat-and-thread-core.md)
    Architecture: [02-chat-and-thread-core-architecture.md](/Users/tony/Projects/ultra/docs/implementation-plan/02-chat-and-thread-core-architecture.md)
    Sprint plan: [02-chat-and-thread-core-sprint-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/02-chat-and-thread-core-sprint-plan.md)
-3. [03-editor-review-loop.md](/Users/tony/Projects/ultra/docs/implementation-plan/03-editor-review-loop.md)
+3. [03-editor-review-loop.md](/Users/tony/Projects/ultra/docs/implementation-plan/03-editor-review-loop.md) - Worktree Terminal Workflow
    Architecture: [03-editor-review-loop-architecture.md](/Users/tony/Projects/ultra/docs/implementation-plan/03-editor-review-loop-architecture.md)
    Sprint plan: [03-editor-review-loop-sprint-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/03-editor-review-loop-sprint-plan.md)
 4. [04-runtime-supervision.md](/Users/tony/Projects/ultra/docs/implementation-plan/04-runtime-supervision.md)
    Architecture: [04-runtime-supervision-architecture.md](/Users/tony/Projects/ultra/docs/implementation-plan/04-runtime-supervision-architecture.md)
    Sprint plan: [04-runtime-supervision-sprint-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/04-runtime-supervision-sprint-plan.md)
-5. [05-browser-and-artifact-sharing.md](/Users/tony/Projects/ultra/docs/implementation-plan/05-browser-and-artifact-sharing.md)
+5. [05-browser-and-artifact-sharing.md](/Users/tony/Projects/ultra/docs/implementation-plan/05-browser-and-artifact-sharing.md) - External QA and Artifact Handoff
    Architecture: [05-browser-and-artifact-sharing-architecture.md](/Users/tony/Projects/ultra/docs/implementation-plan/05-browser-and-artifact-sharing-architecture.md)
    Sprint plan: [05-browser-and-artifact-sharing-sprint-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/05-browser-and-artifact-sharing-sprint-plan.md)
 6. [06-publish-and-hardening.md](/Users/tony/Projects/ultra/docs/implementation-plan/06-publish-and-hardening.md)
@@ -51,9 +51,9 @@ These milestones are ordered to maximize learning and minimize rework:
 
 1. establish shell, backend, IPC, persistence, and state model
 2. prove chat and thread creation
-3. prove review and editing loop
+3. prove the worktree-aware terminal and testing loop
 4. harden runtime supervision
-5. add browser and artifact sharing
+5. add external QA/artifact handoff only after the core workflow is stable
 6. finish publish flow and operational hardening
 
 ## Deliverable Pattern

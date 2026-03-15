@@ -9,7 +9,13 @@ Related specs:
 - [product-spec.md](/Users/tony/Projects/ultra/docs/product-spec.md)
 - [electron-host-boundaries.md](/Users/tony/Projects/ultra/docs/electron-host-boundaries.md)
 
-This document defines how the Ultra editor page should handle repositories, worktrees, branches, terminals, runtime files, and run/debug behavior for thread review and manual coding.
+This document records the earlier editor-page-centered checkout model for Ultra.
+
+Current roadmap note:
+
+- the active near-term direction is the [worktree-terminal-model.md](/Users/tony/Projects/ultra/docs/worktree-terminal-model.md)
+- embedded editor work is deferred behind the chat-plus-terminal loop
+- treat this document as historical or future-facing reference rather than the current v1 execution plan
 
 ## Purpose
 

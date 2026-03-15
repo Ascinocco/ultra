@@ -4,7 +4,13 @@
 
 Draft v0.1
 
-This document defines the browser surfaces in Ultra for manual testing and agent-driven QA.
+This document records the longer-term browser surfaces in Ultra for manual testing and agent-driven QA.
+
+Current roadmap note:
+
+- embedded browser work is deferred beyond the core v1 chat-plus-terminal loop
+- external browser handoff is the active near-term product direction
+- treat this document as a later-phase reference, not the current primary roadmap
 
 Related specs:
 
@@ -16,7 +22,7 @@ Related specs:
 
 ## Purpose
 
-Ultra should be an all-in-one development and QA environment for agentic software engineering.
+Ultra may eventually add richer in-product browser surfaces for manual testing and agent-driven QA.
 
 To support that, Ultra needs:
 

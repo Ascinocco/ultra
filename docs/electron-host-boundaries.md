@@ -4,178 +4,177 @@
 
 Draft v0.1
 
-This document defines the boundaries around the embedded Electron-hosted surfaces in Ultra.
+This document defines the Electron boundary lines around Ultra's shell-owned surfaces, integrated terminal workflow, and external tool handoff.
 
 Related specs:
 
 - [product-spec.md](/Users/tony/Projects/ultra/docs/product-spec.md)
-- [editor-checkout-model.md](/Users/tony/Projects/ultra/docs/editor-checkout-model.md)
-- [browser-surface.md](/Users/tony/Projects/ultra/docs/browser-surface.md)
+- [worktree-terminal-model.md](/Users/tony/Projects/ultra/docs/worktree-terminal-model.md)
 - [artifact-sharing.md](/Users/tony/Projects/ultra/docs/artifact-sharing.md)
 
 ## Purpose
 
-Ultra uses Electron-hosted embedded surfaces for two distinct product areas:
-
-- the Code-OSS workbench in the Editor page
-- the persistent manual browser in the Browser page and side browser
+Ultra no longer treats embedded editor and browser hosts as the center of the v1 product.
 
 This doc exists to answer:
 
-`What does each embedded surface own, and what must stay in the Ultra shell/backend instead?`
+`What should Electron own directly, what should stay in the Ultra shell/backend, and what should be handed off to external tools?`
 
 ## Core Rule
 
-Embedded hosts are presentation and tool-integration surfaces.
+Electron-hosted surfaces are shell integration boundaries.
 
-They are not the product workflow brain.
+They are not the workflow brain.
 
 Workflow state, durable records, and lifecycle policy remain in the Ultra app shell and backend.
 
-## Embedded Surfaces
+## Primary Shell-Owned Surfaces
 
-### 1. Editor Workbench Host
+### 1. Chat Workspace Shell
 
-The Editor page embeds a dedicated Code-OSS workbench surface inside a dedicated Electron `WebContentsView`.
+The BrowserWindow-rendered shell owns:
+
+- project identity
+- worktree selection
+- thread selection
+- runtime health presentation
+- terminal drawer visibility
+- review actions
+
+### 2. Integrated Terminal Surface
+
+Ultra may embed or host a terminal surface inside the chat workspace, but that surface exists only to present and interact with terminal sessions that the backend/context model already owns.
 
 This surface exists for:
 
-- file editing
-- code navigation
-- diffs
-- terminals
-- run/debug
+- terminal session display
+- command input
+- saved command launch
+- output visibility during testing and review
 
-### 2. Manual Browser Host
+### 3. External Handoff
 
-The manual browser is hosted in an Electron `WebContentsView` backed by the persistent `persist:manual-browser` session partition.
+Electron also owns the OS-level handoff path for:
 
-This surface exists for:
-
-- manual QA
-- authenticated browsing
-- docs lookup
-- persistent browser continuity inside Ultra
+- opening the active worktree in an external editor
+- opening the relevant branch or PR in GitHub
+- opening a target URL in the system browser
 
 ## What The Ultra Shell Owns
 
 The Ultra shell and backend own:
 
 - current project and layout state
-- active editor target selection
+- active worktree selection
 - thread selection and review state
 - runtime file sync policy
+- terminal session lifecycle policy
+- saved command definitions
 - publish and approval flows
 - artifact capture and share destinations
-- manual versus automation browser separation rules
 
-## What The Editor Host Owns
+## What The Terminal Surface Owns
 
-The embedded Code-OSS surface owns:
+The integrated terminal surface owns:
 
-- rendering the workbench UI
-- opening workspaces and files
-- rendering diffs
-- hosting terminals and debug surfaces
+- rendering terminal sessions
+- accepting user terminal input
+- presenting output and session labels
 
 ### Rule
 
-The editor host must not decide:
+The terminal surface must not decide:
 
+- active worktree identity
+- runtime sync policy
 - review state
 - thread state transitions
 - publish state
-- runtime sync policy
-- project layout persistence
 
-## What The Manual Browser Host Owns
+Those remain backend and shell concerns.
 
-The manual browser host owns:
+## What External Handoff Owns
 
-- browsing chrome
-- navigation state inside the browser surface
-- persistent manual session/profile continuity
-- downloads and page-level browsing behavior
+External tools own their own local UI and behavior once Ultra opens them.
+
+Examples:
+
+- editor file navigation and editing
+- GitHub diff review
+- browser navigation and QA outside Ultra
 
 ### Rule
 
-The manual browser host must not become the automation browser.
+Handoff should preserve context, not absorb workflow state back into the external tool.
 
-Agents and backend automation never reuse the manual browser partition.
+Ultra opens the right path, branch, PR, or URL. It does not let external tools become the durable source of project workflow state.
 
-## Editor Host Adapter Boundary
+## Terminal Adapter Boundary
 
-The Editor page should talk to the embedded workbench through a narrow `EditorHostAdapter`.
+The chat workspace should talk to terminal integration through a narrow terminal adapter boundary.
 
-Recommended adapter surface:
+Recommended surface:
 
-- `open_workspace(path)`
-- `open_file(path)`
-- `open_diff(left_path, right_path)`
-- `open_changed_files(paths[])`
-- `create_terminal(cwd, label)`
-- `run_debug(profile_id?)`
+- `open_session(cwd, label)`
+- `focus_session(session_id)`
+- `run_saved_command(command_id, cwd)`
+- `list_sessions()`
+- `close_session(session_id)`
 
 ### Design Rule
 
-If a workflow concept does not belong to that list, it probably belongs in the Ultra shell/backend instead of the host adapter.
+If a workflow concept does not belong to that list, it probably belongs in the Ultra shell/backend instead of the terminal adapter.
 
-## Manual Browser Host Boundary
+## External Handoff Boundary
 
-The manual browser host should stay intentionally thin.
+The external handoff layer should stay intentionally thin.
 
 Responsibilities:
 
-- render the current page
-- navigate to URLs
-- expose browser state needed by the Browser page and side browser
-- preserve the persistent manual profile
+- resolve active worktree and thread context
+- construct editor/browser/GitHub launch targets
+- invoke the OS or configured external tool
 
 It should not own:
 
-- artifact destination logic
-- thread-scoped automation sessions
-- runtime/debug share logic
+- approval state
+- diff-review state
+- runtime sync policy
+- chat or thread persistence
 
-## Automation Boundary
+## Deferred Embedded Surfaces
 
-Automation browser work is not an Electron host responsibility.
-
-It remains backend-owned and Playwright-backed, using thread-scoped isolated profiles.
+Embedded editor and browser experiments may still exist as reference work, but they are deferred behind the core chat-plus-terminal loop.
 
 ### Rule
 
-There is no shared cookie jar, session partition, or credential state between:
-
-- the manual browser host
-- automation browser runs
+Do not make embedded Code-OSS or an embedded manual browser a prerequisite for the near-term roadmap.
 
 ## Security and Data Boundaries
 
-### Manual Browser
+### Terminal Sessions
 
-Sensitive local state may exist in the manual browser profile:
+Terminal sessions may expose sensitive local state such as:
 
-- cookies
-- site data
-- credentials
-- browsing history
+- environment variables
+- secrets loaded from runtime files
+- command history
 
-That state is user-private and must not be exposed to agents.
+That state should stay user-scoped and only be captured into artifacts through explicit product actions.
 
-### Editor Workbench
+### External Tools
 
-The editor workbench may host user-selected themes, extensions, and keybindings within the workbench boundary.
+External editors, browsers, and GitHub surfaces keep their own state and credentials.
 
-That customization does not extend to the Ultra shell itself.
+Ultra should not assume visibility into those stores.
 
 ## Failure Handling
 
-If an embedded host fails:
+If a terminal integration or external handoff fails:
 
 - the Ultra shell should remain alive
 - the product should show a recoverable error state
-- the failure should not corrupt core project, thread, or chat state
+- the failure should not corrupt project, chat, or thread records
 
 ### Rule
 
@@ -185,8 +184,8 @@ Host failure is an integration failure, not a reason to lose product records.
 
 Without these boundaries:
 
-- Code-OSS would start absorbing workflow state that belongs to Ultra
-- the manual browser could accidentally bleed into automation flows
-- implementation decisions would drift toward convenience instead of product correctness
+- an embedded editor could start absorbing workflow state that belongs to Ultra
+- browser work could expand into a parallel product instead of a handoff utility
+- terminal integration could become an opaque side effect rather than a worktree-aware workflow tool
 
-These host boundaries keep Electron embedding useful without letting it take over the architecture.
+These boundaries keep Electron integration useful without letting it take over the product architecture.

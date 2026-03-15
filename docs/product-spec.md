@@ -12,13 +12,12 @@ Supporting specs:
 - [cli-runtime-contract.md](/Users/tony/Projects/ultra/docs/cli-runtime-contract.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [thread-event-schema.md](/Users/tony/Projects/ultra/docs/thread-event-schema.md)
-- [editor-checkout-model.md](/Users/tony/Projects/ultra/docs/editor-checkout-model.md)
+- [worktree-terminal-model.md](/Users/tony/Projects/ultra/docs/worktree-terminal-model.md)
 - [electron-host-boundaries.md](/Users/tony/Projects/ultra/docs/electron-host-boundaries.md)
 - [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md)
 - [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
 - [sqlite-schema.md](/Users/tony/Projects/ultra/docs/sqlite-schema.md)
 - [ui-layout-and-navigation.md](/Users/tony/Projects/ultra/docs/ui-layout-and-navigation.md)
-- [browser-surface.md](/Users/tony/Projects/ultra/docs/browser-surface.md)
 - [artifact-sharing.md](/Users/tony/Projects/ultra/docs/artifact-sharing.md)
 - [voice-input.md](/Users/tony/Projects/ultra/docs/voice-input.md)
 - [file-attachments.md](/Users/tony/Projects/ultra/docs/file-attachments.md)
@@ -29,19 +28,16 @@ Supporting specs:
 
 Ultra is a chat-first desktop environment for software engineering.
 
-It is designed for a single engineer working on real repositories who wants to plan, break down, launch, supervise, review, and test software work from one place. Ultra should feel like a command center for engineering work, with code editing and debugging available as a dedicated editing surface.
+It is designed for a single engineer working on real repositories who wants to plan, break down, launch, supervise, review, and test software work from one place. Ultra should feel like a command center for engineering work, with the testing loop anchored by a worktree-aware terminal instead of a heavyweight embedded IDE.
 
-Ultra has three primary pages:
+Ultra's v1 product surface is centered on one primary workspace:
 
-- `Chat page`: planning, research, ticket intake, specs, and execution thread creation
-- `Editor page`: file editing, diffs, terminal, run/debug, and review against a selected checkout
-- `Browser page`: dedicated manual testing and browsing
+- `Chat workspace`: planning, research, ticket intake, specs, execution thread creation, thread supervision, worktree selection, terminal use, and approval actions
 
-Top-level navigation between these pages should be a simple pill-style switcher at the top of the app:
+Supporting surfaces remain lightweight:
 
-- `Chat`
-- `Editor`
-- `Browser`
+- `System & Tools`: operational and readiness settings
+- external handoff to the user's preferred editor, GitHub review surface, or browser when needed
 
 ## Product Thesis
 
@@ -54,8 +50,8 @@ Ultra should do something more opinionated:
 
 - make chat the primary planning interface
 - make execution visible and inspectable through threads
-- make editing, testing, and debugging happen in a dedicated editor environment
-- keep the user inside one product for the full loop from idea to draft PR
+- make local testing and debugging happen through a worktree-aware terminal loop
+- keep the user inside one product for the core path from idea to tested changes, while allowing external handoff for full diff review or browser work when needed
 
 ## Target User
 
@@ -70,7 +66,8 @@ Ultra should do something more opinionated:
 - Multi-user collaboration in v1
 - Web app
 - Windows support in v1
-- Building a custom editor engine
+- Requiring an embedded editor in v1
+- Requiring an embedded browser in v1
 - Building a custom terminal emulator
 - Surfacing internal Overstory/Seeds mechanics as the primary UX
 - Owning MCP configuration for the user
@@ -79,7 +76,7 @@ Ultra should do something more opinionated:
 
 ### Project
 
-A project is the user’s local codebase and the root scope for chats, threads, editor targets, and backend supervision.
+A project is the user’s local codebase and the root scope for chats, threads, worktree contexts, and backend supervision.
 
 ### Chat
 
@@ -113,17 +110,17 @@ A thread owns:
 
 Threads are the main unit of autonomous work in Ultra.
 
-### Editor Target
+### Worktree Context
 
-An editor target is a concrete checkout path opened in the editor page.
+A worktree context is the concrete checkout path Ultra is currently targeting for testing and review.
 
-The active editor target determines:
+The active worktree context determines:
 
-- file explorer contents
 - terminal cwd
-- run/debug root
-- diff and git context
+- saved command root
 - runtime file sync behavior
+- thread-aware review actions
+- external handoff target
 
 ## User Experience Overview
 
@@ -142,6 +139,7 @@ The default home of the product is a 3-pane command center.
 - active top-level chat
 - plan/spec discussion
 - direct CLI-style interaction when needed
+- worktree-aware terminal launch and review decisions when needed
 
 #### Right Top Pane
 
@@ -157,18 +155,18 @@ The default home of the product is a 3-pane command center.
 - approvals
 - operational health indicators
 
-### Editor Page
+### Terminal Workflow
 
-The editor page is the place for:
+The terminal workflow is the place for:
 
-- code navigation
-- file editing
-- diff review
-- terminal work
-- running tests
-- debugging applications
+- selecting the right worktree
+- syncing runtime files such as `.env`
+- opening or reusing a terminal in the correct cwd
+- running tests, dev servers, lint, and build commands
+- deciding whether to request changes or approve a thread
 
-The editor page has one active editor target at a time. That target can be the main checkout or a thread/review worktree.
+The active worktree context can be the main checkout or a thread worktree.
+This workflow lives inside the main chat workspace instead of a separate Editor page.
 
 ## Core Workflow
 
@@ -182,17 +180,18 @@ The editor page has one active editor target at a time. That target can be the m
 8. User chooses to start work.
 9. Ultra creates a thread and starts execution through the coordinator.
 10. The thread appears in the right pane with live status and coordinator interaction.
-11. When review is ready, the user opens the thread in the editor page.
-12. User tests, debugs, inspects diffs, and either requests changes or approves.
-13. After approval, Ultra finalizes publish actions according to project policy.
+11. When review is ready, the user selects the relevant thread worktree.
+12. Ultra syncs runtime files and opens or reuses a terminal in that worktree.
+13. User tests, debugs, and either requests changes or approves.
+14. After approval, Ultra finalizes publish actions according to project policy.
 
 ## Product Principles
 
 - Chat-first, not sidebar-assistant-first
 - Threads are the visible unit of autonomous execution
-- Editing and debugging happen in a dedicated editor surface
-- Review should happen inside Ultra, not by asking the user to juggle external tools
-- The user should rarely need to think about raw worktree mechanics
+- Testing and debugging should happen in a worktree-aware terminal workflow
+- The user should not need to recreate env files or remember the right cwd for a thread worktree
+- Ultra should keep the user inside one shell for the core test-and-approve loop while staying pragmatic about external handoff
 - The UI should expose progress, state, and health without drowning the user in process noise
 - Advanced behavior should be configurable, but the default path should stay simple
 - Ultra app chrome is dark-only
@@ -208,17 +207,11 @@ Ultra should ship with a dark theme and should not support:
 
 The intended feel is dark, but not oppressively dark. The app should be comfortable for mainstream users, not only dark-mode maximalists.
 
-### Editor Exception
+### External Tool Exception
 
-The Editor page embeds a Code-OSS-style editing environment.
+When Ultra hands off to an external editor or browser, those tools keep their own theming and keybinding models.
 
-Inside that editor environment:
-
-- users may choose their own editor/workbench theme
-- users may customize editor hotkeys through settings
-- users may use compatible editor/theme plugins
-
-This customization boundary applies to the editor environment, not the Ultra app shell.
+This customization boundary applies to the external tool, not the Ultra app shell.
 
 ## Execution Model
 
@@ -234,20 +227,21 @@ This customization boundary applies to the editor environment, not the Ultra app
 
 - Autonomous work should converge to `awaiting_review`
 - A reviewable worktree and branch must exist for the thread
-- The user opens the thread in the editor page for testing and inspection
+- The user selects that worktree in Ultra and tests it from the integrated terminal workflow
 - Thread-specific review actions belong primarily in thread UI
 - The main chat can still trigger related actions when useful
 - Approval completes the thread
 - Publish is a separate lifecycle that usually happens after approval
 
-## Editor Model
+## Worktree Terminal Model
 
-- The editor page has a single active editor target
-- An editor target is a concrete checkout path
-- Branch is visible metadata, not the primary editor object
-- New terminals open in the active target path
-- Run/debug actions use the active target path
-- Runtime files such as `.env` are mirrored into the active target by default
+- Ultra has a single active worktree context per project
+- A worktree context is a concrete checkout path
+- Branch is visible metadata, not the primary selector object
+- New terminals open in the active worktree path
+- Saved commands use the active worktree path
+- Runtime files such as `.env` are mirrored into the active worktree by default
+- External editor or GitHub handoff should target the active worktree when relevant
 
 ## Integration Model
 
@@ -261,8 +255,8 @@ The exact packaging/runtime architecture is still being refined, but the product
 
 - a desktop app experience
 - a chat-first command-center UI
-- a code editing environment with strong diff, terminal, and run/debug support
-- a first-class browser surface for manual QA
+- a worktree-aware terminal workflow for local testing
+- external handoff for full editor, diff, and browser tasks when needed
 - local speech-to-text input for chat surfaces
 - ephemeral file upload for chat surfaces
 - a backend/runtime layer capable of supervising threads and coordinators reliably
@@ -288,8 +282,8 @@ It should not feel like:
 1. Chat page with multi-chat support
 2. Thread creation and supervision
 3. Coordinator conversation inside thread detail
-4. Editor page with active target switching
-5. Thread review flow inside editor
+4. Worktree selector and integrated terminal drawer
+5. Runtime file sync and saved test/dev commands for the active worktree
 6. Basic publish flow with draft PR support
 7. Health indicators for backend, coordinator, and watch processes
 

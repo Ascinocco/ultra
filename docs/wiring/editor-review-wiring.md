@@ -1,79 +1,54 @@
-# Ultra Editor Review Wiring
+# Ultra Worktree Terminal Wiring
 
 ## Scope
 
 This document covers:
 
-- opening a thread in Editor
-- active target switching
+- selecting an active worktree
 - runtime file sync
-- changed files and diffs
+- opening the integrated terminal
+- running saved commands
 - request changes and approve actions
+- external handoff from the active worktree
 
-## Flow: Open Thread In Editor
+## Flow: Select Active Worktree
 
 User action:
 
-- click `Open in Editor` from chat or thread UI
+- choose a worktree from the top bar or thread UI
 
 IPC:
 
-- `threads.open_in_editor`
+- `worktrees.set_active`
+- `worktrees.get_active`
 
 Backend:
 
-- resolve thread worktree target
-- set target as active for the project
-- trigger runtime sync
+- resolve the selected worktree
+- persist active worktree for the project
+- trigger runtime sync status refresh if required
 
 DB:
 
 - `threads`
-- `editor_targets`
-- `target_runtime_syncs`
+- worktree context records
 - `project_layout_state`
+- runtime sync records
 
 Store updates:
 
-- set page to `Editor`
-- set active target for project
-- keep selected thread
-
-## Flow: Set Active Editor Target
-
-User action:
-
-- change target from the selector
-
-IPC:
-
-- `editor.set_active_target`
-
-Backend:
-
-- persist target choice
-- trigger runtime sync if required
-
-DB:
-
-- `editor_targets`
-- `project_layout_state`
-- `target_runtime_syncs`
-
-Store updates:
-
-- update `activeTargetIdByProject`
+- set active worktree for project
 - update runtime sync status
 
 ## Flow: Sync Runtime Files
 
 Trigger:
 
-- target activation or explicit refresh
+- worktree activation or explicit refresh
 
 IPC:
 
-- `editor.sync_runtime_files`
+- `terminal.sync_runtime_files`
 
 Backend:
 
@@ -83,63 +58,64 @@ Backend:
 
 DB:
 
-- `project_runtime_profiles`
-- `target_runtime_syncs`
+- runtime profile tables
+- runtime sync records
 
 Store updates:
 
 - refresh runtime sync indicator
 
-## Flow: Open Changed Files
+## Flow: Open Terminal
 
 User action:
 
-- click `Open Changed Files`
+- click `Open Terminal` from the top bar or thread UI
 
 IPC:
 
-- `threads.get_changed_files`
-- `editor.open_changed_files`
+- `terminal.open`
 
 Backend:
 
-- compute or read thread file-change projection
-- return ordered changed-file list
+- resolve active worktree
+- ensure runtime sync is current enough for launch
+- create or focus a terminal session for that worktree
 
 DB:
 
-- `thread_file_changes`
+- terminal session records if persisted
+- `project_layout_state`
 
 Store updates:
 
-- store current changed-file list for the selected thread
+- mark terminal drawer open
+- add or focus terminal session
 
-UI updates:
-
-- open changed files in the editor host
-
-## Flow: Open Diff
+## Flow: Run Saved Command
 
 User action:
 
-- click `Open Diff`
+- click `test`, `dev`, `lint`, or another saved command
 
 IPC:
 
-- `threads.get_changed_files`
-- `editor.open_diff`
+- `terminal.run_saved_command`
 
 Backend:
 
-- resolve file and base/head context from active target
+- resolve active worktree
+- ensure runtime sync is current enough for launch
+- start the saved command in the correct cwd
 
 DB:
 
-- `thread_file_changes`
+- terminal session records if persisted
+- saved command history if tracked
 
-UI updates:
+Store updates:
 
-- open diff editors in the editor host
+- append or focus terminal session
+- update session metadata
 
 ## Flow: Request Changes
 
@@ -192,3 +168,29 @@ Store updates:
 
 - patch thread snapshot
 - append thread events
+
+## Flow: External Handoff
+
+User action:
+
+- click `Open in Editor`, `Open in GitHub`, or `Open in Browser`
+
+IPC:
+
+- `handoff.open_editor`
+- `handoff.open_github`
+- `handoff.open_browser`
+
+Backend:
+
+- resolve active worktree and related branch/thread context
+- construct handoff target
+- invoke the external tool
+
+DB:
+
+- none required by default beyond reading current project/worktree/thread state
+
+Store updates:
+
+- optional handoff history update

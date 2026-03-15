@@ -12,7 +12,7 @@ Related specs:
 - [chat-contract.md](/Users/tony/Projects/ultra/docs/chat-contract.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [thread-event-schema.md](/Users/tony/Projects/ultra/docs/thread-event-schema.md)
-- [editor-checkout-model.md](/Users/tony/Projects/ultra/docs/editor-checkout-model.md)
+- [worktree-terminal-model.md](/Users/tony/Projects/ultra/docs/worktree-terminal-model.md)
 - [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md)
 - [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
 
@@ -62,7 +62,8 @@ Ultra should treat the database as canonical for:
 - thread identity and snapshots
 - thread event history
 - runtime health records
-- editor target state
+- worktree context state
+- terminal/runtime sync state
 - layout state
 - approvals
 - local artifact metadata
@@ -109,9 +110,9 @@ The initial schema should be grouped into:
 - threads
 - thread events and logs
 - thread agents and approvals
-- editor targets and runtime file sync
+- worktree contexts and runtime file sync
 - runtime supervision
-- browser
+- optional future browser conveniences
 - artifacts
 - layout and schema migration metadata
 
@@ -296,7 +297,7 @@ Columns:
 - `ov_project_id` TEXT
 - `ov_coordinator_id` TEXT
 - `ov_thread_key` TEXT
-- `worktree_id` TEXT REFERENCES `editor_targets`(`target_id`) ON DELETE SET NULL
+- `worktree_id` TEXT REFERENCES `worktree_contexts`(`worktree_id`) ON DELETE SET NULL
 - `branch_name` TEXT
 - `base_branch` TEXT
 - `latest_commit_sha` TEXT
@@ -497,15 +498,15 @@ Indexes:
 - `idx_approvals_thread_status` on (`thread_id`, `status`)
 - `idx_approvals_project_status` on (`project_id`, `status`)
 
-## Editor Targets and Runtime Files
+## Worktree Contexts and Runtime Files
 
-### `editor_targets`
+### `worktree_contexts`
 
-Concrete checkout paths available in the editor page.
+Concrete checkout paths available in the chat-plus-terminal workflow.
 
 Columns:
 
-- `target_id` TEXT PRIMARY KEY
+- `worktree_id` TEXT PRIMARY KEY
 - `project_id` TEXT NOT NULL REFERENCES `projects`(`project_id`) ON DELETE CASCADE
 - `thread_id` TEXT REFERENCES `threads`(`thread_id`) ON DELETE SET NULL
 - `path` TEXT NOT NULL UNIQUE
@@ -520,12 +521,12 @@ Columns:
 
 Indexes:
 
-- `idx_editor_targets_project_used` on (`project_id`, `last_used_at` DESC)
-- `idx_editor_targets_project_type` on (`project_id`, `target_type`)
+- `idx_worktree_contexts_project_used` on (`project_id`, `last_used_at` DESC)
+- `idx_worktree_contexts_project_type` on (`project_id`, `target_type`)
 
 ### `project_runtime_profiles`
 
-Project-scoped runtime file and env behavior for editor targets.
+Project-scoped runtime file and env behavior for worktree contexts.
 
 Columns:
 
@@ -535,14 +536,14 @@ Columns:
 - `created_at` TEXT NOT NULL
 - `updated_at` TEXT NOT NULL
 
-### `target_runtime_syncs`
+### `worktree_runtime_syncs`
 
-Tracks runtime file sync state per target.
+Tracks runtime file sync state per worktree.
 
 Columns:
 
 - `sync_id` TEXT PRIMARY KEY
-- `target_id` TEXT NOT NULL REFERENCES `editor_targets`(`target_id`) ON DELETE CASCADE
+- `worktree_id` TEXT NOT NULL REFERENCES `worktree_contexts`(`worktree_id`) ON DELETE CASCADE
 - `project_id` TEXT NOT NULL REFERENCES `projects`(`project_id`) ON DELETE CASCADE
 - `sync_mode` TEXT NOT NULL DEFAULT 'managed_copy'
 - `status` TEXT NOT NULL
@@ -554,7 +555,7 @@ Columns:
 
 Indexes:
 
-- `idx_target_runtime_syncs_target` on (`target_id`)
+- `idx_worktree_runtime_syncs_worktree` on (`worktree_id`)
 
 ## Runtime Supervision
 
@@ -605,6 +606,10 @@ Notes:
 - `project_id` may be NULL for global components such as `ov watch`
 
 ## Browser
+
+Browser persistence is deferred beyond the core v1 chat-plus-terminal workflow.
+
+If browser convenience features return later, the following tables are the likely starting point.
 
 ### `browser_profiles`
 
@@ -717,18 +722,19 @@ Indexes:
 
 ### `project_layout_state`
 
-Persistent layout state for the command-center and editor pages.
+Persistent layout state for the chat workspace and terminal workflow.
 
 Columns:
 
 - `project_id` TEXT PRIMARY KEY REFERENCES `projects`(`project_id`) ON DELETE CASCADE
 - `active_chat_id` TEXT REFERENCES `chats`(`chat_id`) ON DELETE SET NULL
 - `selected_thread_id` TEXT REFERENCES `threads`(`thread_id`) ON DELETE SET NULL
-- `last_editor_target_id` TEXT REFERENCES `editor_targets`(`target_id`) ON DELETE SET NULL
+- `last_active_worktree_id` TEXT REFERENCES `worktree_contexts`(`worktree_id`) ON DELETE SET NULL
 - `right_top_collapsed` INTEGER NOT NULL DEFAULT 0
 - `right_bottom_collapsed` INTEGER NOT NULL DEFAULT 0
 - `selected_right_pane_tab` TEXT
 - `selected_bottom_pane_tab` TEXT
+- `terminal_drawer_open` INTEGER NOT NULL DEFAULT 0
 - `created_at` TEXT NOT NULL
 - `updated_at` TEXT NOT NULL
 
@@ -777,7 +783,7 @@ Some tables are primary records, while others are projections updated from event
 
 - `thread_agents`
 - `project_runtimes`
-- `target_runtime_syncs`
+- `worktree_runtime_syncs`
 - `project_layout_state`
 
 The backend rebuilds eligible projections from durable history during recovery or migration when necessary.
@@ -793,7 +799,7 @@ If implementation needs a narrower first slice, these tables are the true minimu
 - `chat_messages`
 - `threads`
 - `thread_events`
-- `editor_targets`
+- `worktree_contexts`
 - `project_runtime_profiles`
 - `runtime_components`
 - `project_layout_state`
@@ -804,7 +810,7 @@ If implementation needs a narrower first slice, these tables are the true minimu
 1. SQLite is the source of truth for Ultra-local state
 2. Thread snapshots and thread events are stored separately
 3. Raw log chunks are stored separately from milestone events
-4. Editor targets are first-class DB objects
+4. Worktree contexts are first-class DB objects
 5. Runtime supervision state is first-class DB state
 6. Layout state is persisted per project
 7. JSON columns are acceptable for evolving payloads in v1

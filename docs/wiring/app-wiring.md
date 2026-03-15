@@ -7,7 +7,8 @@ This document covers global app-shell flows:
 - app startup
 - backend connection
 - project open
-- page navigation
+- worktree selection
+- terminal drawer visibility
 - layout persistence
 
 ## Flow: App Startup
@@ -44,7 +45,7 @@ DB:
 Store updates:
 
 - set backend connection state
-- set current page from last persisted state if available
+- set project-scoped shell state from last persisted layout if available
 
 ## Flow: Open Project
 
@@ -82,25 +83,26 @@ Store updates:
 UI updates:
 
 - show project identity in app frame
-- render page state for the project
+- render project-scoped shell state for the project
 
-## Flow: Top Pill Navigation
+## Flow: Top Bar Worktree And Terminal Controls
 
 User action:
 
-- click `Chat`, `Editor`, or `Browser`
+- choose a worktree or click `Open Terminal`
 
 Frontend:
 
-- update current page in store
+- update active worktree or terminal drawer state in store
 
 IPC:
 
+- `worktrees.set_active`
 - `projects.set_layout`
 
 Backend:
 
-- persist updated page/layout state
+- persist updated worktree and layout state
 
 DB:
 
@@ -108,7 +110,8 @@ DB:
 
 UI updates:
 
-- route to selected page
+- reflect the selected worktree
+- open or focus the terminal drawer when requested
 
 ## Flow: Restore Layout
 
@@ -130,6 +133,5 @@ DB:
 
 Store updates:
 
-- restore current page
 - restore pane collapse state
-- restore active chat, selected thread, and last editor target when available
+- restore active chat, selected thread, last active worktree, and terminal drawer state when available

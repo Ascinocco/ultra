@@ -1,133 +1,88 @@
-# Ultra Browser and Artifact Wiring
+# Ultra External Handoff and Artifact Wiring
 
 ## Scope
 
 This document covers:
 
-- Browser page
-- side browser
-- bookmarks
-- manual vs automation browser separation
-- artifact capture
+- external browser/editor/GitHub handoff
+- runtime artifact capture
 - artifact sharing into chats and threads
 
-## Flow: Open Browser Page
+## Flow: Open External Browser
 
 User action:
 
-- click the `Browser` top pill
+- click `Open in Browser`
 
 IPC:
 
-- `browser.get_state`
-- `browser.list_bookmarks`
+- `handoff.open_browser`
 
 Backend:
 
-- load manual browser state
-- load global bookmarks
+- resolve the active project/worktree/thread context
+- construct the target URL or local app URL
+- invoke the system browser
 
 DB:
 
-- `browser_profiles`
-- `browser_bookmarks`
+- none required by default beyond reading current context
 
 Store updates:
 
-- hydrate browser page state
+- optional handoff history update
 
-## Flow: Open Side Browser
-
-User action:
-
-- click `Open Side Browser` from Chat or Editor
-
-IPC:
-
-- `browser.set_side_open`
-- optionally `browser.set_side_destination`
-
-Backend:
-
-- persist side browser state if tracked server-side
-
-Store updates:
-
-- mark side browser open
-- set source page
-- set default destination context
-
-## Flow: Navigate Browser
+## Flow: Open External Editor
 
 User action:
 
-- enter URL or use browser controls
+- click `Open in Editor`
 
 IPC:
 
-- `browser.navigate`
+- `handoff.open_editor`
 
 Backend:
 
-- update browser state projection if needed
-
-Store updates:
-
-- update current URL and nav state
-
-## Flow: Bookmark Page
-
-User action:
-
-- add bookmark from browser toolbar
-
-IPC:
-
-- `browser.create_bookmark`
-- `browser.list_bookmarks`
-
-Backend:
-
-- persist bookmark in global manual browser profile scope
+- resolve the active worktree path
+- invoke the configured or default editor handoff
 
 DB:
 
-- `browser_bookmarks`
+- none required by default beyond reading current context
 
 Store updates:
 
-- refresh bookmark list
+- optional handoff history update
 
-## Flow: Capture Browser Artifact
+## Flow: Open GitHub Context
 
 User action:
 
-- click a browser share action
+- click `Open in GitHub`
 
 IPC:
 
-- `artifacts.capture_browser`
+- `handoff.open_github`
 
 Backend:
 
-- capture selected browser context
-- normalize into artifact bundle
-- persist artifact metadata
+- resolve branch, PR, or repository context from the active worktree or selected thread
+- invoke the external Git hosting URL
 
 DB:
 
-- `artifacts`
-- optional browser session records
+- project/thread metadata tables as needed for branch or PR context
 
 Store updates:
 
-- stage artifact for destination selection or immediate send
+- optional handoff history update
 
 ## Flow: Capture Runtime Artifact
 
 User action:
 
-- click an editor/runtime share action
+- click a runtime share action
 
 IPC:
 
@@ -135,8 +90,8 @@ IPC:
 
 Backend:
 
-- collect managed terminal/debug/test output
-- normalize into artifact bundle
+- collect terminal, runtime, or related debugging output
+- normalize into an artifact bundle
 - persist artifact metadata
 
 DB:
@@ -185,7 +140,7 @@ IPC:
 Backend:
 
 - create artifact share record
-- attach artifact reference into thread/coordinator context
+- attach artifact reference into thread context
 
 DB:
 
@@ -209,8 +164,8 @@ IPC:
 
 Backend:
 
-- capture browser context
 - capture runtime context
+- capture terminal context
 - build combined bundle
 - route to selected destination
 
@@ -218,29 +173,3 @@ DB:
 
 - `artifacts`
 - `artifact_shares`
-- destination transcript/event store
-
-Store updates:
-
-- append combined artifact attachment to destination
-
-## Flow: Automation Browser QA
-
-Trigger:
-
-- thread requests browser QA
-
-Backend:
-
-- launch isolated automation browser session
-- collect QA artifacts
-- attach resulting artifacts to thread
-
-DB:
-
-- `browser_sessions`
-- `artifacts`
-
-Important rule:
-
-- no manual browser profile or manual browser cookies are used

@@ -12,7 +12,7 @@ Related specs:
 - [chat-contract.md](/Users/tony/Projects/ultra/docs/chat-contract.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [thread-event-schema.md](/Users/tony/Projects/ultra/docs/thread-event-schema.md)
-- [editor-checkout-model.md](/Users/tony/Projects/ultra/docs/editor-checkout-model.md)
+- [worktree-terminal-model.md](/Users/tony/Projects/ultra/docs/worktree-terminal-model.md)
 - [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md)
 
 ## Purpose
@@ -32,7 +32,7 @@ The IPC is used by:
 
 - the chat page frontend
 - the thread pane frontend
-- the editor page integration layer
+- the worktree selector and terminal drawer
 - internal app surfaces that need project runtime state
 
 It is not designed as a public SDK or CLI interface.
@@ -191,7 +191,7 @@ Progress and completion should then flow through subscriptions and updated snaps
 - thread creation is async
 - publish is async
 - runtime recovery is async
-- editor opening/sync may be async
+- worktree sync and terminal launch may be async
 
 Do not block IPC calls waiting for long-running operations to finish.
 
@@ -203,8 +203,9 @@ The v1 IPC should expose these namespaces:
 - `projects.*`
 - `chats.*`
 - `threads.*`
-- `editor.*`
-- `browser.*`
+- `worktrees.*`
+- `terminal.*`
+- `handoff.*`
 - `voice.*`
 - `attachments.*`
 - `runtime.*`
@@ -330,7 +331,6 @@ Recommended commands:
 - `threads.request_changes`
 - `threads.approve`
 - `threads.publish`
-- `threads.open_in_editor`
 
 Recommended queries:
 
@@ -339,7 +339,6 @@ Recommended queries:
 - `threads.get`
 - `threads.get_messages`
 - `threads.get_events`
-- `threads.get_changed_files`
 - `threads.get_agents`
 - `threads.get_logs`
 - `threads.get_approvals`
@@ -352,33 +351,27 @@ Recommended subscriptions:
 - `threads.agents`
 - `threads.logs`
 
-## `browser.*`
+## `worktrees.*`
 
 Purpose:
 
-- Browser page state
-- side browser state
-- navigation
-- bookmarks
+- active worktree selection
+- per-project worktree summaries
+- thread worktree resolution
 
 Recommended commands:
 
-- `browser.navigate`
-- `browser.set_side_open`
-- `browser.set_side_destination`
-- `browser.create_bookmark`
-- `browser.delete_bookmark`
+- `worktrees.set_active`
 
 Recommended queries:
 
-- `browser.get_state`
-- `browser.list_bookmarks`
-- `browser.get_side_state`
+- `worktrees.list`
+- `worktrees.get_active`
 
 Recommended subscriptions:
 
-- `browser.state_updated`
-- `browser.bookmarks_updated`
+- `worktrees.updated`
+- `worktrees.active_updated`
 
 ## `voice.*`
 
@@ -440,35 +433,42 @@ Minimum replay fields:
 
 If no checkpoint is provided, the backend may stream from the current tip or a recent default window.
 
-## `editor.*`
+## `terminal.*`
 
 Purpose:
 
-- active target selection
-- opening editor surfaces
-- terminal actions
+- terminal launch and session management
+- saved command execution
 - runtime file sync
 
 Recommended commands:
 
-- `editor.set_active_target`
-- `editor.open_in_target`
-- `editor.open_terminal`
-- `editor.open_diff`
-- `editor.open_changed_files`
-- `editor.sync_runtime_files`
+- `terminal.open`
+- `terminal.run_saved_command`
+- `terminal.sync_runtime_files`
 
 Recommended queries:
 
-- `editor.get_targets`
-- `editor.get_active_target`
-- `editor.get_runtime_profile`
+- `terminal.list_sessions`
+- `terminal.get_runtime_profile`
+- `terminal.get_saved_commands`
 
 Recommended subscriptions:
 
-- `editor.targets_updated`
-- `editor.active_target_updated`
-- `editor.runtime_sync_updated`
+- `terminal.sessions_updated`
+- `terminal.runtime_sync_updated`
+
+## `handoff.*`
+
+Purpose:
+
+- external editor/browser/GitHub handoff from the active worktree context
+
+Recommended commands:
+
+- `handoff.open_editor`
+- `handoff.open_browser`
+- `handoff.open_github`
 
 ## `runtime.*`
 
@@ -568,7 +568,9 @@ The following should always have direct query access:
 - chat config
 - thread snapshots
 - runtime health
-- editor targets
+- worktree contexts
+- terminal session summaries
+- terminal runtime sync state
 
 ### Streams
 
@@ -579,7 +581,7 @@ The following should have live subscription streams:
 - thread agent activity
 - thread logs
 - runtime health updates
-- editor target/runtime sync changes
+- worktree and terminal runtime sync changes
 
 ## Error Model
 
@@ -624,7 +626,8 @@ type AppState = {
   threadListsByChat: Record<string, string[]>;
   threadEventsByThread: Record<string, ThreadEvent[]>;
   runtimeByProject: Record<string, ProjectRuntimeSnapshot>;
-  editorByProject: Record<string, EditorProjectState>;
+  worktreesByProject: Record<string, WorktreeProjectState>;
+  terminalByProject: Record<string, TerminalProjectState>;
   layoutByProject: Record<string, ProjectLayoutState>;
 };
 ```
@@ -637,7 +640,8 @@ Per-project layout state should include:
 - `rightBottomCollapsed`
 - `selectedRightPaneTab`
 - `selectedBottomPaneTab`
-- `lastEditorTargetId`
+- `lastActiveWorktreeId`
+- `terminalDrawerOpen`
 
 This supports the collapsible thread/status panels you want without coupling layout to chat state.
 
@@ -649,7 +653,7 @@ On project open:
 - query chat list
 - query thread list
 - query runtime snapshot
-- query editor target snapshot
+- query worktree snapshot
 - subscribe to project/runtime updates
 
 On chat select:
@@ -701,11 +705,12 @@ If implementation needs to start narrower, these are the essential methods:
 - `threads.request_changes`
 - `threads.approve`
 - `threads.publish`
-- `threads.open_in_editor`
-- `editor.get_targets`
-- `editor.set_active_target`
-- `editor.open_terminal`
-- `editor.sync_runtime_files`
+- `worktrees.list`
+- `worktrees.set_active`
+- `terminal.open`
+- `terminal.run_saved_command`
+- `terminal.sync_runtime_files`
+- `handoff.open_editor`
 - `runtime.get_project_health`
 - `runtime.health_updated`
 
@@ -719,6 +724,6 @@ If implementation needs to start narrower, these are the essential methods:
 6. Runtime control actions exist as backend commands even if exposed only through chat
 7. Frontend state should be normalized rather than centered on one nested active-chat object
 8. Shared validation schemas for all payloads live in the shared package and are consumed by both frontend and backend
-9. Editor actions remain true backend operations in v1; the frontend never bypasses the backend with direct UI bridge commands
+9. Worktree selection, terminal launch, and external handoff remain true backend operations in v1; the frontend never bypasses the backend with direct UI bridge commands
 10. Large log queries use cursor-based pagination keyed by thread and log cursor
 11. Frontend query results are cached per project in the normalized store until invalidated by subscriptions or explicit project switch
