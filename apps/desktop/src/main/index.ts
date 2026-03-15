@@ -1,8 +1,12 @@
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
-import { app, BrowserWindow } from "electron"
+import { app, BrowserWindow, Menu } from "electron"
 
+import {
+  createApplicationMenuTemplate,
+  OPEN_SYSTEM_TOOLS_CHANNEL,
+} from "./app-menu.js"
 import { createBackendLaunchConfig } from "./backend-config.js"
 import { BackendConnection } from "./backend-connection.js"
 import { BackendProcessManager } from "./backend-process.js"
@@ -43,8 +47,19 @@ function createMainWindow(): BrowserWindow {
   return mainWindow
 }
 
+function openSystemTools(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send(OPEN_SYSTEM_TOOLS_CHANNEL)
+  }
+}
+
 app.whenReady().then(() => {
   unregisterShellIpc = registerShellIpc(backendConnection)
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      createApplicationMenuTemplate(APP_NAME, openSystemTools),
+    ),
+  )
   backendManager.start()
   createMainWindow()
 

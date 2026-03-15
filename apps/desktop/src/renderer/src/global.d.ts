@@ -18,6 +18,7 @@ declare global {
       ipcQuery: (name: string, payload?: unknown) => Promise<unknown>
       ipcCommand: (name: string, payload?: unknown) => Promise<unknown>
       onBackendStatusChange: (listener: BackendStatusListener) => () => void
+      onOpenSystemTools: (listener: () => void) => () => void
     }
   }
 }

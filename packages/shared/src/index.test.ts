@@ -5,6 +5,7 @@ import {
   buildPlaceholderProjectLabel,
   IPC_PROTOCOL_VERSION,
   parseCommandRequest,
+  parseEnvironmentReadinessSnapshot,
   parseIpcResponseEnvelope,
   parseProjectLayoutState,
   parseProjectOpenInput,
@@ -76,6 +77,51 @@ describe("shared contracts", () => {
     })
 
     expect(result.capabilities.supportsProjects).toBe(true)
+  })
+
+  it("parses environment readiness snapshots", () => {
+    const snapshot = parseEnvironmentReadinessSnapshot({
+      status: "blocked",
+      sessionMode: "desktop",
+      checkedAt: "2026-03-15T00:00:00Z",
+      checks: [
+        {
+          tool: "sd",
+          displayName: "Seeds CLI",
+          scope: "runtime-required",
+          requiredInCurrentSession: true,
+          status: "missing",
+          detectedVersion: null,
+          command: "sd --version",
+          helpText: "Install Seeds and ensure `sd` is on PATH.",
+        },
+      ],
+    })
+
+    expect(snapshot.status).toBe("blocked")
+    expect(snapshot.checks[0]?.tool).toBe("sd")
+  })
+
+  it("rejects malformed dependency readiness checks", () => {
+    expect(() =>
+      parseEnvironmentReadinessSnapshot({
+        status: "blocked",
+        sessionMode: "desktop",
+        checkedAt: "2026-03-15T00:00:00Z",
+        checks: [
+          {
+            tool: "seeds",
+            displayName: "Seeds CLI",
+            scope: "runtime-required",
+            requiredInCurrentSession: true,
+            status: "missing",
+            detectedVersion: null,
+            command: "sd --version",
+            helpText: "Install Seeds and ensure `sd` is on PATH.",
+          },
+        ],
+      }),
+    ).toThrow()
   })
 
   it("parses project open input", () => {

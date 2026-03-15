@@ -46,6 +46,154 @@ button {
   display: grid;
 }
 
+.readiness-gate {
+  min-height: 100vh;
+  padding: 32px 20px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+}
+
+.readiness-gate__card,
+.system-tools-panel {
+  width: min(900px, 100%);
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.readiness-gate__card {
+  display: grid;
+  gap: 20px;
+}
+
+.readiness-gate__header,
+.system-tools-panel__header {
+  display: grid;
+  gap: 8px;
+}
+
+.readiness-gate__title,
+.system-tools-panel__title {
+  margin: 0;
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+
+.readiness-gate__summary,
+.system-tools-panel__summary,
+.readiness-gate__meta,
+.system-tools-panel__empty {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.readiness-gate__error,
+.system-tools-panel__error {
+  margin: 0;
+  color: var(--danger);
+}
+
+.readiness-gate__checks,
+.system-tools-panel__checks {
+  display: grid;
+  gap: 12px;
+}
+
+.readiness-gate__check,
+.system-tools-panel__check {
+  border: 1px solid var(--surface-border);
+  background: rgba(14, 17, 26, 0.76);
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.readiness-gate__check-header,
+.system-tools-panel__check-header,
+.system-tools-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+}
+
+.readiness-gate__status,
+.system-tools-panel__status {
+  display: inline-flex;
+  padding: 5px 9px;
+  border: 1px solid var(--surface-border);
+  text-transform: capitalize;
+  font-size: 0.76rem;
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.readiness-gate__status[data-status="ready"],
+.system-tools-panel__status[data-status="ready"] {
+  color: var(--success);
+}
+
+.readiness-gate__status[data-status="missing"],
+.readiness-gate__status[data-status="error"],
+.system-tools-panel__status[data-status="missing"],
+.system-tools-panel__status[data-status="error"] {
+  color: var(--danger);
+}
+
+.readiness-gate__status[data-status="unsupported"],
+.system-tools-panel__status[data-status="unsupported"] {
+  color: var(--warning);
+}
+
+.readiness-gate__status[data-status="skipped"],
+.system-tools-panel__status[data-status="skipped"] {
+  color: var(--idle);
+}
+
+.readiness-gate__check-command,
+.readiness-gate__check-help,
+.system-tools-panel__meta,
+.system-tools-panel__help {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.readiness-gate__actions,
+.system-tools-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.readiness-gate__button,
+.system-tools-panel__button {
+  appearance: none;
+  border: 1px solid var(--surface-border);
+  background: var(--accent-surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 9px 14px;
+}
+
+.readiness-gate__button--ghost,
+.system-tools-panel__button--ghost {
+  background: var(--surface-3);
+}
+
+.system-tools-panel__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 14, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
 /* ── Project Frame ─────────────────────────────────────────── */
 
 .project-frame {

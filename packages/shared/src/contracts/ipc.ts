@@ -10,6 +10,7 @@ import {
 export const queryMethodSchema = z.enum([
   "system.hello",
   "system.get_backend_info",
+  "system.get_environment_readiness",
   "system.ping",
   "projects.list",
   "projects.get",
@@ -17,6 +18,7 @@ export const queryMethodSchema = z.enum([
 ])
 
 export const commandMethodSchema = z.enum([
+  "system.recheck_environment",
   "projects.open",
   "projects.set_layout",
 ])

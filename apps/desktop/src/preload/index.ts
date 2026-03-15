@@ -1,7 +1,7 @@
 import type { BackendInfoSnapshot, SystemPingResult } from "@ultra/shared"
 import { APP_NAME } from "@ultra/shared"
 import { contextBridge, ipcRenderer } from "electron"
-
+import { OPEN_SYSTEM_TOOLS_CHANNEL } from "../main/app-menu.js"
 import type {
   BackendStatusListener,
   BackendStatusSnapshot,
@@ -53,6 +53,17 @@ const ultraShell = {
         BACKEND_STATUS_CHANGED_CHANNEL,
         wrappedListener,
       )
+    }
+  },
+  onOpenSystemTools: (listener: () => void) => {
+    const wrappedListener = () => {
+      listener()
+    }
+
+    ipcRenderer.on(OPEN_SYSTEM_TOOLS_CHANNEL, wrappedListener)
+
+    return () => {
+      ipcRenderer.removeListener(OPEN_SYSTEM_TOOLS_CHANNEL, wrappedListener)
     }
   },
 }

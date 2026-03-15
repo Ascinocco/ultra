@@ -13,6 +13,7 @@ Related specs:
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
 - [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md)
+- [environment-readiness.md](/Users/tony/Projects/ultra/docs/environment-readiness.md)
 
 ## Purpose
 

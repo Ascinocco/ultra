@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { protocolVersionSchema } from "./constants.js"
 import {
+  commandRequestEnvelopeSchema,
   queryRequestEnvelopeSchema,
   successResponseEnvelopeSchema,
 } from "./ipc.js"
@@ -15,7 +16,63 @@ export const backendCapabilitiesSchema = z.object({
 
 export const systemHelloRequestPayloadSchema = z.object({}).strict()
 export const systemGetBackendInfoRequestPayloadSchema = z.object({}).strict()
+export const systemGetEnvironmentReadinessRequestPayloadSchema = z
+  .object({})
+  .strict()
 export const systemPingRequestPayloadSchema = z.object({}).strict()
+export const systemRecheckEnvironmentRequestPayloadSchema = z
+  .object({})
+  .strict()
+
+export const dependencyToolValues = [
+  "git",
+  "ov",
+  "tmux",
+  "sd",
+  "codex",
+  "claude",
+  "node",
+  "pnpm",
+] as const
+export const dependencyScopeValues = [
+  "runtime-required",
+  "developer-required",
+] as const
+export const dependencyStatusValues = [
+  "ready",
+  "missing",
+  "unsupported",
+  "error",
+  "skipped",
+] as const
+export const environmentReadinessStatusValues = ["ready", "blocked"] as const
+export const environmentSessionModeValues = ["desktop", "development"] as const
+
+export const dependencyToolSchema = z.enum(dependencyToolValues)
+export const dependencyScopeSchema = z.enum(dependencyScopeValues)
+export const dependencyStatusSchema = z.enum(dependencyStatusValues)
+export const environmentReadinessStatusSchema = z.enum(
+  environmentReadinessStatusValues,
+)
+export const environmentSessionModeSchema = z.enum(environmentSessionModeValues)
+
+export const dependencyCheckSchema = z.object({
+  tool: dependencyToolSchema,
+  displayName: z.string().min(1),
+  scope: dependencyScopeSchema,
+  requiredInCurrentSession: z.boolean(),
+  status: dependencyStatusSchema,
+  detectedVersion: z.string().min(1).nullable(),
+  command: z.string().min(1),
+  helpText: z.string().min(1),
+})
+
+export const environmentReadinessSnapshotSchema = z.object({
+  status: environmentReadinessStatusSchema,
+  sessionMode: environmentSessionModeSchema,
+  checkedAt: z.string().min(1),
+  checks: z.array(dependencyCheckSchema),
+})
 
 export const systemHelloResultSchema = z.object({
   acceptedProtocolVersion: protocolVersionSchema,
@@ -51,10 +108,22 @@ export const systemGetBackendInfoQuerySchema =
     payload: systemGetBackendInfoRequestPayloadSchema,
   })
 
+export const systemGetEnvironmentReadinessQuerySchema =
+  queryRequestEnvelopeSchema.extend({
+    name: z.literal("system.get_environment_readiness"),
+    payload: systemGetEnvironmentReadinessRequestPayloadSchema,
+  })
+
 export const systemPingQuerySchema = queryRequestEnvelopeSchema.extend({
   name: z.literal("system.ping"),
   payload: systemPingRequestPayloadSchema,
 })
+
+export const systemRecheckEnvironmentCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("system.recheck_environment"),
+    payload: systemRecheckEnvironmentRequestPayloadSchema,
+  })
 
 export const systemHelloSuccessResponseSchema =
   successResponseEnvelopeSchema.extend({
@@ -71,7 +140,30 @@ export const systemPingSuccessResponseSchema =
     result: systemPingResultSchema,
   })
 
+export const systemGetEnvironmentReadinessSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: environmentReadinessSnapshotSchema,
+  })
+
+export const systemRecheckEnvironmentSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: environmentReadinessSnapshotSchema,
+  })
+
 export type BackendCapabilities = z.infer<typeof backendCapabilitiesSchema>
+export type DependencyTool = z.infer<typeof dependencyToolSchema>
+export type DependencyScope = z.infer<typeof dependencyScopeSchema>
+export type DependencyStatus = z.infer<typeof dependencyStatusSchema>
+export type DependencyCheck = z.infer<typeof dependencyCheckSchema>
+export type EnvironmentReadinessStatus = z.infer<
+  typeof environmentReadinessStatusSchema
+>
+export type EnvironmentSessionMode = z.infer<
+  typeof environmentSessionModeSchema
+>
+export type EnvironmentReadinessSnapshot = z.infer<
+  typeof environmentReadinessSnapshotSchema
+>
 export type SystemHelloRequestPayload = z.infer<
   typeof systemHelloRequestPayloadSchema
 >
@@ -82,7 +174,13 @@ export type SystemHelloQuery = z.infer<typeof systemHelloQuerySchema>
 export type SystemGetBackendInfoQuery = z.infer<
   typeof systemGetBackendInfoQuerySchema
 >
+export type SystemGetEnvironmentReadinessQuery = z.infer<
+  typeof systemGetEnvironmentReadinessQuerySchema
+>
 export type SystemPingQuery = z.infer<typeof systemPingQuerySchema>
+export type SystemRecheckEnvironmentCommand = z.infer<
+  typeof systemRecheckEnvironmentCommandSchema
+>
 
 export function parseSystemHelloQuery(input: unknown): SystemHelloQuery {
   return systemHelloQuerySchema.parse(input)
@@ -94,6 +192,12 @@ export function parseSystemHelloResult(input: unknown): SystemHelloResult {
 
 export function parseBackendInfoSnapshot(input: unknown): BackendInfoSnapshot {
   return backendInfoSnapshotSchema.parse(input)
+}
+
+export function parseEnvironmentReadinessSnapshot(
+  input: unknown,
+): EnvironmentReadinessSnapshot {
+  return environmentReadinessSnapshotSchema.parse(input)
 }
 
 export function parseSystemPingResult(input: unknown): SystemPingResult {
