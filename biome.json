@@ -7,7 +7,11 @@
       "tsconfig.json",
       "biome.json",
       "apps/**",
-      "packages/**"
+      "packages/**",
+      "!apps/**/.cache",
+      "!apps/**/dist",
+      "!packages/**/.cache",
+      "!packages/**/dist"
     ],
     "ignoreUnknown": true
   },
