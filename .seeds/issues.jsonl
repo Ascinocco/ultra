@@ -20,3 +20,5 @@
 {"id":"ultra-0df4","title":"ULR-54: Build share-to-chat/thread flows and transcript rendering","status":"open","type":"feature","priority":1,"createdAt":"2026-03-15T21:32:00.796Z","updatedAt":"2026-03-15T21:32:00.796Z"}
 {"id":"ultra-e2e1","title":"ULR-55: Implement Share All Context and oversized-bundle summarization","status":"open","type":"feature","priority":2,"createdAt":"2026-03-15T21:32:00.839Z","updatedAt":"2026-03-15T21:32:00.839Z"}
 {"id":"ultra-0ded","title":"ULR-57: Add M5 handoff and artifact sharing tests","status":"open","type":"task","priority":2,"createdAt":"2026-03-15T21:32:00.881Z","updatedAt":"2026-03-15T21:32:00.881Z"}
+{"id":"ultra-a3ec","title":"ULR-XX: Add chat attention badges and system notifications","status":"open","type":"feature","priority":2,"createdAt":"2026-03-15T21:55:31.966Z","updatedAt":"2026-03-15T21:55:31.966Z"}
+{"id":"ultra-44d3","title":"ULR-25: Implement thread snapshot/event schema and creation/promotion transactions","status":"in_progress","type":"feature","priority":1,"createdAt":"2026-03-15T22:02:05.485Z","updatedAt":"2026-03-15T22:02:08.390Z"}
