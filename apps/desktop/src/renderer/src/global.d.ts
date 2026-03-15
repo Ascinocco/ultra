@@ -14,6 +14,7 @@ declare global {
       getBackendStatus: () => Promise<BackendStatusSnapshot>
       pingBackend: () => Promise<SystemPingResult>
       getBackendInfo: () => Promise<BackendInfoSnapshot>
+      pickProjectDirectory: () => Promise<string | null>
       ipcQuery: (name: string, payload?: unknown) => Promise<unknown>
       ipcCommand: (name: string, payload?: unknown) => Promise<unknown>
       onBackendStatusChange: (listener: BackendStatusListener) => () => void

@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest"
 import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../shared/backend-status.js"
 import { AppShell } from "./components/AppShell.js"
+import { ProjectFrame } from "./components/ProjectFrame.js"
 import {
   AppStoreProvider,
   type ConnectionStatus,
@@ -47,6 +48,7 @@ describe("AppShell", () => {
     expect(markup).toContain(">Chat</button>")
     expect(markup).toContain("No chats yet")
     expect(markup).toContain("Starting local backend")
+    expect(markup).toContain("Open Project")
   })
 
   it("marks only the selected pill as active", () => {
@@ -130,7 +132,7 @@ describe("app store", () => {
     store.getState().actions.setProjects(projects)
 
     const { byId, allIds } = store.getState().projects
-    expect(allIds).toEqual(["proj-a", "proj-b"])
+    expect(allIds).toEqual(["proj-b", "proj-a"])
     expect(byId["proj-a"].name).toBe("Alpha")
     expect(byId["proj-b"].name).toBe("Beta")
   })
@@ -224,6 +226,66 @@ describe("app store", () => {
     })
 
     expect(store.getState().app.capabilities).toBeNull()
+  })
+
+  it("sets the active project through the action API", () => {
+    const store = createAppStore()
+
+    store.getState().actions.setActiveProjectId("proj-1")
+
+    expect(store.getState().app.activeProjectId).toBe("proj-1")
+  })
+
+  it("tracks project-open status and error messaging", () => {
+    const store = createAppStore()
+
+    store.getState().actions.setProjectOpenState("error", "Project open failed")
+
+    expect(store.getState().app.projectOpenStatus).toBe("error")
+    expect(store.getState().app.projectOpenError).toBe("Project open failed")
+  })
+})
+
+describe("ProjectFrame", () => {
+  it("renders recent projects in the empty state", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectFrame
+        activeProject={null}
+        recentProjects={[makeProject("proj-2", "Beta")]}
+        canOpenProjects={true}
+        openStatus="idle"
+        openError={null}
+        onOpenProject={() => undefined}
+        onOpenRecentProject={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain("Open Project")
+    expect(markup).toContain("Recent projects")
+    expect(markup).toContain("Beta")
+  })
+
+  it("renders active project identity when a project is loaded", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectFrame
+        activeProject={{
+          ...makeProject("proj-1", "Alpha"),
+          rootPath: "/repo/apps/web",
+          gitRootPath: "/repo",
+        }}
+        recentProjects={[]}
+        canOpenProjects={true}
+        openStatus="idle"
+        openError={null}
+        onOpenProject={() => undefined}
+        onOpenRecentProject={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain("Alpha")
+    expect(markup).toContain("/repo/apps/web")
+    expect(markup).toContain("Repo root: /repo")
+    expect(markup).toContain("Switch Project")
   })
 })
 
