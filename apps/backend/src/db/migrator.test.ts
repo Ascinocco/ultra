@@ -4,6 +4,7 @@ import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 import { afterEach, describe, expect, it } from "vitest"
+import { DATABASE_MIGRATIONS } from "./migrations.js"
 import { runMigrations } from "./migrator.js"
 
 const temporaryDirectories: string[] = []
@@ -367,6 +368,87 @@ describe("thread core FK constraints", () => {
       .prepare("SELECT id FROM thread_messages")
       .all() as Array<{ id: string }>
     expect(messages).toEqual([])
+
+    database.close()
+  })
+
+  it("incremental apply on DB with 0001-0004 applies only 0005", () => {
+    const database = createDatabase()
+
+    // Apply only 0001-0004 first
+    const firstResult = runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+      migrations: DATABASE_MIGRATIONS.slice(0, 4),
+    })
+    expect(firstResult.appliedMigrationIds).toHaveLength(4)
+
+    // Now run full migrations — only 0005 should apply
+    const secondResult = runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+    })
+
+    expect(secondResult.appliedMigrationIds).toEqual(["0005_thread_core"])
+    expect(secondResult.totalMigrationCount).toBe(5)
+
+    database.close()
+  })
+
+  it("preserves valid chat_thread_refs data through table recreation", () => {
+    const database = createDatabase()
+    database.exec("PRAGMA foreign_keys = ON")
+
+    // Apply only 0001-0004 first
+    runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+      migrations: DATABASE_MIGRATIONS.slice(0, 4),
+    })
+
+    // Insert prerequisite data
+    insertProject(database)
+    insertChat(database)
+
+    // Insert a chat_thread_refs row with a thread_id that won't exist yet.
+    // The old table from 0003 has no thread FK so this succeeds.
+    database
+      .prepare(
+        "INSERT INTO chat_thread_refs (chat_id, thread_id, reference_type, created_at) VALUES (?, ?, ?, ?)",
+      )
+      .run("chat_1", "orphaned_thread", "spawned", "2026-03-15T00:00:00Z")
+
+    // Apply 0005 — the orphaned row should be purged during recreation
+    // since its thread_id doesn't exist in the (empty) threads table.
+    runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+    })
+
+    // Verify orphaned row was purged
+    const refs = database
+      .prepare("SELECT * FROM chat_thread_refs")
+      .all() as Array<{ chat_id: string; thread_id: string }>
+    expect(refs).toEqual([])
+
+    // Verify the new table has the FK constraint by testing it rejects bad data
+    expect(() =>
+      database
+        .prepare(
+          "INSERT INTO chat_thread_refs (chat_id, thread_id, reference_type, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .run("chat_1", "nonexistent", "spawned", "2026-03-15T00:00:00Z"),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("re-running migrations after full apply is a no-op", () => {
+    const database = createDatabase()
+    runMigrations(database, { now: () => "2026-03-15T00:00:00.000Z" })
+
+    const result = runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+    })
+
+    expect(result.appliedMigrationIds).toEqual([])
+    expect(result.totalMigrationCount).toBe(5)
 
     database.close()
   })
