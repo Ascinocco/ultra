@@ -1,4 +1,9 @@
-import type { ConnectionStatus } from "@ultra/shared"
+import type {
+  BackendCapabilities,
+  ConnectionStatus,
+  ProjectLayoutState,
+  ProjectSnapshot,
+} from "@ultra/shared"
 import {
   createContext,
   type PropsWithChildren,
@@ -19,16 +24,35 @@ type AppSlice = {
   activeProjectId: string | null
   connectionStatus: ConnectionStatus
   backendStatus: BackendStatusSnapshot
+  capabilities: BackendCapabilities | null
+}
+
+type ProjectsSlice = {
+  byId: Record<string, ProjectSnapshot>
+  allIds: string[]
+}
+
+type LayoutSlice = {
+  byProjectId: Record<string, ProjectLayoutState>
 }
 
 type AppActions = {
   setCurrentPage: (page: AppPage) => void
   setConnectionStatus: (status: ConnectionStatus) => void
   setBackendStatus: (status: BackendStatusSnapshot) => void
+  setCapabilities: (capabilities: BackendCapabilities | null) => void
+  setProjects: (projects: ProjectSnapshot[]) => void
+  upsertProject: (project: ProjectSnapshot) => void
+  setLayoutForProject: (
+    projectId: string,
+    layout: ProjectLayoutState,
+  ) => void
 }
 
 export type AppStoreState = {
   app: AppSlice
+  projects: ProjectsSlice
+  layout: LayoutSlice
   actions: AppActions
 }
 
@@ -39,6 +63,16 @@ const defaultAppState: AppSlice = {
   activeProjectId: null,
   connectionStatus: "connecting",
   backendStatus: createInitialBackendStatus(),
+  capabilities: null,
+}
+
+const defaultProjectsState: ProjectsSlice = {
+  byId: {},
+  allIds: [],
+}
+
+const defaultLayoutState: LayoutSlice = {
+  byProjectId: {},
 }
 
 function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
@@ -49,12 +83,32 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
 
   return {
     app,
+    projects: { ...defaultProjectsState },
+    layout: { ...defaultLayoutState },
     actions: {
       setCurrentPage: () => undefined,
       setConnectionStatus: () => undefined,
       setBackendStatus: () => undefined,
+      setCapabilities: () => undefined,
+      setProjects: () => undefined,
+      upsertProject: () => undefined,
+      setLayoutForProject: () => undefined,
     },
   }
+}
+
+function normalizeProjects(projects: ProjectSnapshot[]): ProjectsSlice {
+  const byId: Record<string, ProjectSnapshot> = {}
+  const allIds: string[] = []
+
+  for (const project of projects) {
+    byId[project.id] = project
+    allIds.push(project.id)
+  }
+
+  allIds.sort()
+
+  return { byId, allIds }
 }
 
 export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
@@ -64,18 +118,12 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
       setCurrentPage: (page) =>
         set((state) => ({
           ...state,
-          app: {
-            ...state.app,
-            currentPage: page,
-          },
+          app: { ...state.app, currentPage: page },
         })),
       setConnectionStatus: (status) =>
         set((state) => ({
           ...state,
-          app: {
-            ...state.app,
-            connectionStatus: status,
-          },
+          app: { ...state.app, connectionStatus: status },
         })),
       setBackendStatus: (status) =>
         set((state) => ({
@@ -84,6 +132,37 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             ...state.app,
             connectionStatus: status.connectionStatus,
             backendStatus: status,
+            capabilities:
+              status.connectionStatus === "connected"
+                ? (status.capabilities ?? state.app.capabilities)
+                : null,
+          },
+        })),
+      setCapabilities: (capabilities) =>
+        set((state) => ({
+          ...state,
+          app: { ...state.app, capabilities },
+        })),
+      setProjects: (projects) =>
+        set((state) => ({
+          ...state,
+          projects: normalizeProjects(projects),
+        })),
+      upsertProject: (project) =>
+        set((state) => {
+          const byId = { ...state.projects.byId, [project.id]: project }
+          const allIds = Object.keys(byId).sort()
+
+          return { ...state, projects: { byId, allIds } }
+        }),
+      setLayoutForProject: (projectId, layout) =>
+        set((state) => ({
+          ...state,
+          layout: {
+            byProjectId: {
+              ...state.layout.byProjectId,
+              [projectId]: layout,
+            },
           },
         })),
     },

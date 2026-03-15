@@ -1,6 +1,10 @@
 import { createConnection } from "node:net"
 
-import type { IpcResponseEnvelope, QueryMethodName } from "@ultra/shared"
+import type {
+  CommandMethodName,
+  IpcResponseEnvelope,
+  QueryMethodName,
+} from "@ultra/shared"
 import { IPC_PROTOCOL_VERSION, parseIpcResponseEnvelope } from "@ultra/shared"
 
 type Logger = {
@@ -18,6 +22,21 @@ export class BackendSocketClient {
   async query(
     name: QueryMethodName,
     payload: unknown = {},
+  ): Promise<IpcResponseEnvelope> {
+    return this.sendRequest("query", name, payload)
+  }
+
+  async command(
+    name: CommandMethodName,
+    payload: unknown = {},
+  ): Promise<IpcResponseEnvelope> {
+    return this.sendRequest("command", name, payload)
+  }
+
+  private async sendRequest(
+    type: "query" | "command",
+    name: string,
+    payload: unknown,
   ): Promise<IpcResponseEnvelope> {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
@@ -83,7 +102,7 @@ export class BackendSocketClient {
           `${JSON.stringify({
             protocol_version: IPC_PROTOCOL_VERSION,
             request_id: requestId,
-            type: "query",
+            type,
             name,
             payload,
           })}\n`,
