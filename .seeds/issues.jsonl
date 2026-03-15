@@ -2,3 +2,4 @@
 {"id":"ultra-7499","title":"Scaffold monorepo workspace and tooling","status":"closed","type":"task","priority":1,"createdAt":"2026-03-15T01:54:37.521Z","updatedAt":"2026-03-15T02:01:56.150Z","closedAt":"2026-03-15T02:01:56.150Z"}
 {"id":"ultra-4b73","title":"Define environment readiness and dependency detection","status":"open","type":"task","priority":1,"createdAt":"2026-03-15T01:54:37.634Z","updatedAt":"2026-03-15T01:54:37.634Z"}
 {"id":"ultra-5aae","title":"Bootstrap Electron shell and top-level navigation","status":"closed","type":"task","priority":1,"createdAt":"2026-03-15T02:22:16.276Z","updatedAt":"2026-03-15T02:25:18.762Z","closedAt":"2026-03-15T02:25:18.762Z"}
+{"id":"ultra-3dac","title":"Create shared validation schemas and DTO package","status":"closed","type":"task","priority":1,"createdAt":"2026-03-15T02:41:33.801Z","updatedAt":"2026-03-15T02:46:28.217Z","closedAt":"2026-03-15T02:46:28.217Z"}
