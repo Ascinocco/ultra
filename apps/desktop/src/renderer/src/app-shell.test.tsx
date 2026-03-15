@@ -1,8 +1,6 @@
 import type {
   BackendCapabilities,
-  ChatSummary,
   ProjectLayoutState,
-  ProjectSnapshot,
 } from "@ultra/shared"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -15,6 +13,7 @@ import {
   type ConnectionStatus,
   createAppStore,
 } from "./state/app-store.js"
+import { makeChat, makeProject } from "./test-utils/factories.js"
 
 function renderShell(options?: {
   currentPage?: "chat" | "editor" | "browser"
@@ -47,7 +46,7 @@ describe("AppShell", () => {
     expect(markup).toContain('data-page="chat"')
     expect(markup).toContain('aria-current="page"')
     expect(markup).toContain(">Chat</button>")
-    expect(markup).toContain("No chats yet")
+    expect(markup).toContain("New Chat")
     expect(markup).toContain("Open Project")
   })
 
@@ -434,27 +433,6 @@ describe("ProjectSelector", () => {
   })
 })
 
-function makeChat(id: string, projectId: string, opts?: Partial<ChatSummary>): ChatSummary {
-  return {
-    id,
-    projectId,
-    title: `Chat ${id}`,
-    status: "active",
-    provider: "claude",
-    model: "claude-sonnet-4-6",
-    thinkingLevel: "normal",
-    permissionLevel: "supervised",
-    isPinned: false,
-    pinnedAt: null,
-    archivedAt: null,
-    lastCompactedAt: null,
-    currentSessionId: null,
-    createdAt: "2026-03-14T00:00:00Z",
-    updatedAt: "2026-03-14T00:00:00Z",
-    ...opts,
-  }
-}
-
 describe("sidebar slice", () => {
   it("starts with empty sidebar state", () => {
     const store = createAppStore()
@@ -533,15 +511,3 @@ describe("sidebar slice", () => {
   })
 })
 
-function makeProject(id: string, name: string): ProjectSnapshot {
-  return {
-    id,
-    key: name.toLowerCase(),
-    name,
-    rootPath: `/projects/${name.toLowerCase()}`,
-    gitRootPath: null,
-    createdAt: "2026-03-14T00:00:00Z",
-    updatedAt: "2026-03-14T00:00:00Z",
-    lastOpenedAt: null,
-  }
-}

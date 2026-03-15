@@ -1,3 +1,5 @@
+import { Sidebar } from "../sidebar/Sidebar.js"
+
 export function ChatPageShell({ active }: { active: boolean }) {
   return (
     <section
@@ -8,17 +10,7 @@ export function ChatPageShell({ active }: { active: boolean }) {
       <div className="chat-frame">
         <div className="chat-frame__grid">
           <aside className="chat-frame__rail">
-            <div className="surface__header">
-              <p className="surface__eyebrow">Chat Rail</p>
-              <h2 className="surface__title">Project chats</h2>
-            </div>
-            <div className="placeholder-card">
-              <strong>No chats yet</strong>
-              <p>
-                This rail will hold pinned, active, and archived chats once chat
-                persistence lands.
-              </p>
-            </div>
+            <Sidebar />
           </aside>
 
           <section className="chat-frame__main">
@@ -49,7 +41,6 @@ export function ChatPageShell({ active }: { active: boolean }) {
                 </p>
               </div>
             </section>
-
             <section className="chat-frame__side-bottom">
               <div className="surface__header">
                 <p className="surface__eyebrow">Status</p>

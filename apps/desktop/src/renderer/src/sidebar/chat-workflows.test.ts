@@ -1,7 +1,7 @@
-import type { ChatSummary } from "@ultra/shared"
 import { describe, expect, it, vi } from "vitest"
 
 import { createAppStore } from "../state/app-store.js"
+import { makeChat } from "../test-utils/factories.js"
 import {
   archiveChat,
   createChat,
@@ -10,27 +10,6 @@ import {
   renameChat,
   unpinChat,
 } from "./chat-workflows.js"
-
-function makeChat(id: string, projectId: string, opts?: Partial<ChatSummary>): ChatSummary {
-  return {
-    id,
-    projectId,
-    title: `Chat ${id}`,
-    status: "active",
-    provider: "claude",
-    model: "claude-sonnet-4-6",
-    thinkingLevel: "normal",
-    permissionLevel: "supervised",
-    isPinned: false,
-    pinnedAt: null,
-    archivedAt: null,
-    lastCompactedAt: null,
-    currentSessionId: null,
-    createdAt: "2026-03-14T00:00:00Z",
-    updatedAt: "2026-03-14T00:00:00Z",
-    ...opts,
-  }
-}
 
 describe("loadChatsForProject", () => {
   it("fetches chats and stores them in sidebar state", async () => {
