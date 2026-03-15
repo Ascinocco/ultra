@@ -1,0 +1,29 @@
+{
+  "name": "ultra",
+  "private": true,
+  "packageManager": "pnpm@10.21.0",
+  "engines": {
+    "node": ">=22.18.0",
+    "pnpm": ">=10.21.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  },
+  "scripts": {
+    "dev": "concurrently -n backend,desktop -c blue,green \"pnpm --filter @ultra/backend dev\" \"pnpm --filter @ultra/desktop dev\"",
+    "build": "pnpm -r build",
+    "typecheck": "tsc -b",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.7",
+    "concurrently": "9.2.1",
+    "typescript": "5.9.3",
+    "vitest": "4.1.0"
+  }
+}
