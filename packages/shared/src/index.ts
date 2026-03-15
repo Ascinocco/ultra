@@ -169,6 +169,31 @@ export {
   runtimeHealthCheckSnapshotSchema,
 } from "./contracts/runtime.js"
 export type {
+  ProjectRuntimeProfileSnapshot,
+  RuntimeProfileEnvVars,
+  RuntimeSyncMode,
+  SandboxContextSnapshot,
+  SandboxId,
+  SandboxRuntimeSyncDetails,
+  SandboxRuntimeSyncSnapshot,
+  SandboxRuntimeSyncStatus,
+  SandboxType,
+} from "./contracts/sandboxes.js"
+export {
+  parseProjectRuntimeProfileSnapshot,
+  parseSandboxContextSnapshot,
+  parseSandboxRuntimeSyncSnapshot,
+  projectRuntimeProfileSnapshotSchema,
+  runtimeProfileEnvVarsSchema,
+  runtimeSyncModeSchema,
+  sandboxContextSnapshotSchema,
+  sandboxIdSchema,
+  sandboxRuntimeSyncDetailsSchema,
+  sandboxRuntimeSyncSnapshotSchema,
+  sandboxRuntimeSyncStatusSchema,
+  sandboxTypeSchema,
+} from "./contracts/sandboxes.js"
+export type {
   BackendCapabilities,
   BackendInfoSnapshot,
   DependencyCheck,

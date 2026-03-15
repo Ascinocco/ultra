@@ -314,4 +314,128 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON thread_messages(thread_id, created_at);
     `,
   },
+  {
+    id: "0006_sandbox_context_and_runtime_sync",
+    sql: `
+      CREATE TABLE IF NOT EXISTS sandbox_contexts (
+        sandbox_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        thread_id TEXT REFERENCES threads(id) ON DELETE SET NULL,
+        path TEXT NOT NULL UNIQUE,
+        display_name TEXT NOT NULL,
+        sandbox_type TEXT NOT NULL CHECK (sandbox_type IN ('main_checkout', 'thread_sandbox')),
+        branch_name TEXT,
+        base_branch TEXT,
+        is_main_checkout INTEGER NOT NULL DEFAULT 0 CHECK (is_main_checkout IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_used_at TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sandbox_contexts_project_used
+        ON sandbox_contexts(project_id, last_used_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_sandbox_contexts_project_type
+        ON sandbox_contexts(project_id, sandbox_type);
+
+      CREATE TABLE IF NOT EXISTS project_runtime_profiles (
+        project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+        runtime_file_paths_json TEXT NOT NULL DEFAULT '[".env"]',
+        env_vars_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS sandbox_runtime_syncs (
+        sync_id TEXT PRIMARY KEY,
+        sandbox_id TEXT NOT NULL REFERENCES sandbox_contexts(sandbox_id) ON DELETE CASCADE,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        sync_mode TEXT NOT NULL DEFAULT 'managed_copy' CHECK (sync_mode IN ('managed_copy')),
+        status TEXT NOT NULL CHECK (status IN ('unknown', 'synced', 'stale', 'failed')),
+        synced_files_json TEXT NOT NULL,
+        last_synced_at TEXT,
+        details_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_sandbox_runtime_syncs_sandbox
+        ON sandbox_runtime_syncs(sandbox_id);
+
+      ALTER TABLE project_layout_state
+        ADD COLUMN last_active_sandbox_id TEXT REFERENCES sandbox_contexts(sandbox_id) ON DELETE SET NULL;
+
+      INSERT INTO sandbox_contexts (
+        sandbox_id,
+        project_id,
+        thread_id,
+        path,
+        display_name,
+        sandbox_type,
+        branch_name,
+        base_branch,
+        is_main_checkout,
+        created_at,
+        updated_at,
+        last_used_at
+      )
+      SELECT
+        'sandbox_' || lower(hex(randomblob(16))),
+        projects.id,
+        NULL,
+        projects.root_path,
+        'Main',
+        'main_checkout',
+        NULL,
+        NULL,
+        1,
+        projects.created_at,
+        projects.updated_at,
+        projects.last_opened_at
+      FROM projects
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM sandbox_contexts
+        WHERE sandbox_contexts.project_id = projects.id
+          AND sandbox_contexts.is_main_checkout = 1
+      );
+
+      INSERT INTO project_runtime_profiles (
+        project_id,
+        runtime_file_paths_json,
+        env_vars_json,
+        created_at,
+        updated_at
+      )
+      SELECT
+        projects.id,
+        '[".env"]',
+        '{}',
+        projects.created_at,
+        projects.updated_at
+      FROM projects
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM project_runtime_profiles
+        WHERE project_runtime_profiles.project_id = projects.id
+      );
+
+      UPDATE project_layout_state
+      SET last_active_sandbox_id = (
+        SELECT sandbox_contexts.sandbox_id
+        FROM sandbox_contexts
+        WHERE sandbox_contexts.project_id = project_layout_state.project_id
+          AND sandbox_contexts.is_main_checkout = 1
+        ORDER BY sandbox_contexts.created_at ASC
+        LIMIT 1
+      )
+      WHERE last_active_sandbox_id IS NULL
+        AND EXISTS (
+          SELECT 1
+          FROM sandbox_contexts
+          WHERE sandbox_contexts.project_id = project_layout_state.project_id
+            AND sandbox_contexts.is_main_checkout = 1
+        );
+    `,
+  },
 ]

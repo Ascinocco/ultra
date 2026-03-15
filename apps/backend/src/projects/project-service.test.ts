@@ -75,6 +75,36 @@ describe("ProjectService", () => {
       right_bottom_collapsed: 0,
     })
 
+    const sandboxState = runtime.database
+      .prepare(
+        `
+          SELECT
+            project_layout_state.last_active_sandbox_id AS last_active_sandbox_id,
+            sandbox_contexts.path AS sandbox_path,
+            sandbox_contexts.display_name AS display_name,
+            sandbox_contexts.sandbox_type AS sandbox_type
+          FROM project_layout_state
+          LEFT JOIN sandbox_contexts
+            ON sandbox_contexts.sandbox_id = project_layout_state.last_active_sandbox_id
+          WHERE project_layout_state.project_id = ?
+        `,
+      )
+      .get(firstProject.id) as
+      | {
+          last_active_sandbox_id: string | null
+          sandbox_path: string | null
+          display_name: string | null
+          sandbox_type: string | null
+        }
+      | undefined
+
+    expect(sandboxState).toEqual({
+      last_active_sandbox_id: expect.stringMatching(/^sandbox_/),
+      sandbox_path: firstProject.rootPath,
+      display_name: "Main",
+      sandbox_type: "main_checkout",
+    })
+
     runtime.close()
   })
 
@@ -236,6 +266,46 @@ describe("ProjectService", () => {
     expect(layout.activeChatId).toBe("chat_123")
     expect(layout.selectedThreadId).toBe("thread_456")
     expect(layout.lastEditorTargetId).toBe("target_789")
+
+    runtime.close()
+  })
+
+  it("setLayout preserves the hidden active sandbox linkage", () => {
+    const { directory, databasePath } = createWorkspace()
+    const projectDir = join(directory, "sandbox-layout-project")
+    mkdirSync(projectDir)
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const service = new ProjectService(
+      runtime.database,
+      () => "2026-03-15T12:00:00Z",
+    )
+
+    const project = service.open({ path: projectDir })
+    const before = runtime.database
+      .prepare(
+        "SELECT last_active_sandbox_id FROM project_layout_state WHERE project_id = ?",
+      )
+      .get(project.id) as { last_active_sandbox_id: string | null } | undefined
+
+    service.setLayout(project.id, {
+      currentPage: "browser",
+      rightTopCollapsed: false,
+      rightBottomCollapsed: true,
+      selectedRightPaneTab: "timeline",
+      selectedBottomPaneTab: "logs",
+      activeChatId: "chat_123",
+      selectedThreadId: "thread_456",
+      lastEditorTargetId: "target_789",
+    })
+
+    const after = runtime.database
+      .prepare(
+        "SELECT last_active_sandbox_id FROM project_layout_state WHERE project_id = ?",
+      )
+      .get(project.id) as { last_active_sandbox_id: string | null } | undefined
+
+    expect(before?.last_active_sandbox_id).toMatch(/^sandbox_/)
+    expect(after).toEqual(before)
 
     runtime.close()
   })

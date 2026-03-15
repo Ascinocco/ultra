@@ -45,6 +45,7 @@ describe("migration runner", () => {
       "0003_chat_persistence",
       "0004_runtime_registry",
       "0005_thread_core",
+      "0006_sandbox_context_and_runtime_sync",
     ])
     expect(rows).toEqual([
       {
@@ -65,6 +66,10 @@ describe("migration runner", () => {
       },
       {
         id: "0005_thread_core",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0006_sandbox_context_and_runtime_sync",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
@@ -107,14 +112,17 @@ describe("migration runner", () => {
     database.close()
   })
 
-  it("applies 0005_thread_core on a fresh database", () => {
+  it("applies 0005_thread_core and 0006_sandbox_context_and_runtime_sync on a fresh database", () => {
     const database = createDatabase()
     const result = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
     })
 
     expect(result.appliedMigrationIds).toContain("0005_thread_core")
-    expect(result.totalMigrationCount).toBe(5)
+    expect(result.appliedMigrationIds).toContain(
+      "0006_sandbox_context_and_runtime_sync",
+    )
+    expect(result.totalMigrationCount).toBe(6)
 
     // Verify threads table exists with correct columns
     const threadColumns = database
@@ -150,6 +158,29 @@ describe("migration runner", () => {
       .all() as Array<{ name: string }>
     expect(ticketColumns.map((c) => c.name)).toContain("thread_id")
     expect(ticketColumns.map((c) => c.name)).toContain("provider")
+
+    const sandboxColumns = database
+      .prepare("PRAGMA table_info(sandbox_contexts)")
+      .all() as Array<{ name: string }>
+    expect(sandboxColumns.map((c) => c.name)).toContain("sandbox_id")
+    expect(sandboxColumns.map((c) => c.name)).toContain("sandbox_type")
+
+    const runtimeProfileColumns = database
+      .prepare("PRAGMA table_info(project_runtime_profiles)")
+      .all() as Array<{ name: string }>
+    expect(runtimeProfileColumns.map((c) => c.name)).toContain(
+      "runtime_file_paths_json",
+    )
+
+    const runtimeSyncColumns = database
+      .prepare("PRAGMA table_info(sandbox_runtime_syncs)")
+      .all() as Array<{ name: string }>
+    expect(runtimeSyncColumns.map((c) => c.name)).toContain("status")
+
+    const layoutColumns = database
+      .prepare("PRAGMA table_info(project_layout_state)")
+      .all() as Array<{ name: string }>
+    expect(layoutColumns.map((c) => c.name)).toContain("last_active_sandbox_id")
 
     database.close()
   })
@@ -372,23 +403,115 @@ describe("thread core FK constraints", () => {
     database.close()
   })
 
-  it("incremental apply on DB with 0001-0004 applies only 0005", () => {
+  it("incremental apply on DB with 0001-0005 applies only 0006", () => {
     const database = createDatabase()
 
-    // Apply only 0001-0004 first
+    // Apply only 0001-0005 first
     const firstResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
-      migrations: DATABASE_MIGRATIONS.slice(0, 4),
+      migrations: DATABASE_MIGRATIONS.slice(0, 5),
     })
-    expect(firstResult.appliedMigrationIds).toHaveLength(4)
+    expect(firstResult.appliedMigrationIds).toHaveLength(5)
 
-    // Now run full migrations — only 0005 should apply
+    // Now run full migrations — only 0006 should apply
     const secondResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
     })
 
-    expect(secondResult.appliedMigrationIds).toEqual(["0005_thread_core"])
-    expect(secondResult.totalMigrationCount).toBe(5)
+    expect(secondResult.appliedMigrationIds).toEqual([
+      "0006_sandbox_context_and_runtime_sync",
+    ])
+    expect(secondResult.totalMigrationCount).toBe(6)
+
+    database.close()
+  })
+
+  it("backfills main sandboxes, runtime profiles, and active sandbox ids during 0006", () => {
+    const database = createDatabase()
+    database.exec("PRAGMA foreign_keys = ON")
+
+    runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+      migrations: DATABASE_MIGRATIONS.slice(0, 5),
+    })
+
+    insertProject(database)
+    database
+      .prepare(
+        `
+          INSERT INTO project_layout_state (
+            project_id,
+            current_page,
+            right_top_collapsed,
+            right_bottom_collapsed,
+            selected_right_pane_tab,
+            selected_bottom_pane_tab,
+            active_chat_id,
+            selected_thread_id,
+            last_editor_target_id,
+            updated_at
+          ) VALUES (?, 'chat', 0, 0, NULL, NULL, NULL, NULL, NULL, ?)
+        `,
+      )
+      .run("proj_1", "2026-03-15T00:00:00Z")
+
+    runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+    })
+
+    const sandboxes = database
+      .prepare(
+        `
+          SELECT project_id, path, display_name, sandbox_type, is_main_checkout
+          FROM sandbox_contexts
+          WHERE project_id = ?
+        `,
+      )
+      .all("proj_1") as Array<{
+      project_id: string
+      path: string
+      display_name: string
+      sandbox_type: string
+      is_main_checkout: number
+    }>
+    const runtimeProfile = database
+      .prepare(
+        `
+          SELECT runtime_file_paths_json, env_vars_json
+          FROM project_runtime_profiles
+          WHERE project_id = ?
+        `,
+      )
+      .get("proj_1") as
+      | {
+          runtime_file_paths_json: string
+          env_vars_json: string
+        }
+      | undefined
+    const layout = database
+      .prepare(
+        `
+          SELECT last_active_sandbox_id
+          FROM project_layout_state
+          WHERE project_id = ?
+        `,
+      )
+      .get("proj_1") as { last_active_sandbox_id: string | null } | undefined
+
+    expect(sandboxes).toEqual([
+      {
+        project_id: "proj_1",
+        path: "/tmp/test",
+        display_name: "Main",
+        sandbox_type: "main_checkout",
+        is_main_checkout: 1,
+      },
+    ])
+    expect(runtimeProfile).toEqual({
+      runtime_file_paths_json: '[".env"]',
+      env_vars_json: "{}",
+    })
+    expect(layout?.last_active_sandbox_id).toMatch(/^sandbox_/)
 
     database.close()
   })
@@ -448,7 +571,7 @@ describe("thread core FK constraints", () => {
     })
 
     expect(result.appliedMigrationIds).toEqual([])
-    expect(result.totalMigrationCount).toBe(5)
+    expect(result.totalMigrationCount).toBe(6)
 
     database.close()
   })

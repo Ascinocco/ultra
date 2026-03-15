@@ -51,6 +51,9 @@ describe("database bootstrap", () => {
     expect(runtime.migrationResult.appliedMigrationIds).toContain(
       "0004_runtime_registry",
     )
+    expect(runtime.migrationResult.appliedMigrationIds).toContain(
+      "0006_sandbox_context_and_runtime_sync",
+    )
 
     const tables = runtime.database
       .prepare<[string], { name: string }>(
@@ -87,6 +90,27 @@ describe("database bootstrap", () => {
         )
         .all("runtime_health_checks"),
     ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("sandbox_contexts"),
+    ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("project_runtime_profiles"),
+    ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("sandbox_runtime_syncs"),
+    ).toHaveLength(1)
 
     runtime.close()
   })
@@ -105,7 +129,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0005_thread_core",
+      "0006_sandbox_context_and_runtime_sync",
     )
 
     secondRuntime.close()

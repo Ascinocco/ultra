@@ -11,6 +11,7 @@ import type {
 } from "@ultra/shared"
 
 import { IpcProtocolError } from "../ipc/errors.js"
+import { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
 
 type ProjectRow = {
   id: string
@@ -104,6 +105,10 @@ export class ProjectService {
     const projectKey = gitRootPath ?? rootPath
     const name = basename(projectKey)
     const timestamp = this.now()
+    const sandboxPersistenceService = new SandboxPersistenceService(
+      this.database,
+      this.now,
+    )
     const selectByKey = this.database.prepare(
       "SELECT id, project_key, name, root_path, git_root_path, created_at, updated_at, last_opened_at FROM projects WHERE project_key = ?",
     )
@@ -191,6 +196,9 @@ export class ProjectService {
           `,
         )
         .run(projectId, timestamp)
+
+      sandboxPersistenceService.ensureMainCheckoutSandbox(projectId)
+      sandboxPersistenceService.ensureActiveSandbox(projectId)
 
       this.database.exec("COMMIT")
     } catch (error) {
@@ -306,7 +314,7 @@ export class ProjectService {
   setLayout(projectId: ProjectId, layout: ProjectLayoutState): void {
     this.database
       .prepare(
-        `INSERT OR REPLACE INTO project_layout_state (
+        `INSERT INTO project_layout_state (
           project_id,
           current_page,
           right_top_collapsed,
@@ -317,7 +325,17 @@ export class ProjectService {
           selected_thread_id,
           last_editor_target_id,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(project_id) DO UPDATE SET
+          current_page = excluded.current_page,
+          right_top_collapsed = excluded.right_top_collapsed,
+          right_bottom_collapsed = excluded.right_bottom_collapsed,
+          selected_right_pane_tab = excluded.selected_right_pane_tab,
+          selected_bottom_pane_tab = excluded.selected_bottom_pane_tab,
+          active_chat_id = excluded.active_chat_id,
+          selected_thread_id = excluded.selected_thread_id,
+          last_editor_target_id = excluded.last_editor_target_id,
+          updated_at = excluded.updated_at`,
       )
       .run(
         projectId,
