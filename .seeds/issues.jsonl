@@ -1,3 +1,4 @@
 {"id":"ultra-9f18","title":"Add root gitignore for repo tooling and Electron","status":"closed","type":"task","priority":2,"createdAt":"2026-03-14T14:52:55.609Z","updatedAt":"2026-03-14T14:53:43.502Z","closedAt":"2026-03-14T14:53:43.502Z"}
 {"id":"ultra-7499","title":"Scaffold monorepo workspace and tooling","status":"closed","type":"task","priority":1,"createdAt":"2026-03-15T01:54:37.521Z","updatedAt":"2026-03-15T02:01:56.150Z","closedAt":"2026-03-15T02:01:56.150Z"}
 {"id":"ultra-4b73","title":"Define environment readiness and dependency detection","status":"open","type":"task","priority":1,"createdAt":"2026-03-15T01:54:37.634Z","updatedAt":"2026-03-15T01:54:37.634Z"}
+{"id":"ultra-5aae","title":"Bootstrap Electron shell and top-level navigation","status":"closed","type":"task","priority":1,"createdAt":"2026-03-15T02:22:16.276Z","updatedAt":"2026-03-15T02:25:18.762Z","closedAt":"2026-03-15T02:25:18.762Z"}
