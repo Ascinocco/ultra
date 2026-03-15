@@ -134,7 +134,7 @@ describe("ProjectService", () => {
   })
 
   it("getLayout returns default layout when no row exists", () => {
-    const { directory, databasePath } = createWorkspace()
+    const { databasePath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const service = new ProjectService(runtime.database)
 
