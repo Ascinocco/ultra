@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest"
 import { ChatService } from "../chats/chat-service.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
+import { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
+import { SandboxService } from "../sandboxes/sandbox-service.js"
 import { ThreadService } from "../threads/thread-service.js"
 import { startSocketServer } from "./socket-server.js"
 
@@ -15,11 +17,15 @@ async function createServerRuntime(directory: string, socketPath: string) {
   const databaseRuntime = bootstrapDatabase({
     ULTRA_DB_PATH: join(directory, "ultra.db"),
   })
+  const sandboxPersistenceService = new SandboxPersistenceService(
+    databaseRuntime.database,
+  )
   const runtime = await startSocketServer(
     socketPath,
     {
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
+      sandboxService: new SandboxService(sandboxPersistenceService),
       threadService: new ThreadService(databaseRuntime.database),
     },
     {
@@ -31,6 +37,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
   return {
     runtime,
     databaseRuntime,
+    sandboxPersistenceService,
   }
 }
 
@@ -508,6 +515,128 @@ describe("socket server", () => {
           sequenceNumber: 1,
         }),
       ])
+    }
+
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips sandbox list/get_active/set_active over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const { runtime, databaseRuntime, sandboxPersistenceService } =
+      await createServerRuntime(directory, socketPath)
+    await mkdir(projectDirectory, { recursive: true })
+
+    const openProjectRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_sandbox_open_project",
+      type: "command",
+      name: "projects.open",
+      payload: {
+        path: projectDirectory,
+      },
+    })
+    const openProjectResponse = parseIpcResponseEnvelope(openProjectRaw)
+
+    expect(openProjectResponse.ok).toBe(true)
+    if (!openProjectResponse.ok) {
+      throw new Error("Expected project open to succeed")
+    }
+
+    const listRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_sandbox_list",
+      type: "query",
+      name: "sandboxes.list",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const activeRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_sandbox_active",
+      type: "query",
+      name: "sandboxes.get_active",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+
+    const listResponse = parseIpcResponseEnvelope(listRaw)
+    const activeResponse = parseIpcResponseEnvelope(activeRaw)
+
+    expect(listResponse.ok).toBe(true)
+    expect(activeResponse.ok).toBe(true)
+
+    if (!listResponse.ok || !activeResponse.ok) {
+      throw new Error("Expected sandbox reads to succeed")
+    }
+
+    expect(listResponse.result.sandboxes).toHaveLength(1)
+    expect(activeResponse.result).toMatchObject({
+      sandboxType: "main_checkout",
+      isMainCheckout: true,
+      path: openProjectResponse.result.rootPath,
+    })
+
+    databaseRuntime.database
+      .prepare(
+        "INSERT INTO chats (id, project_id, title, status, provider, model, thinking_level, permission_level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "chat_1",
+        openProjectResponse.result.id,
+        "Chat 1",
+        "active",
+        "codex",
+        "gpt-5-codex",
+        "standard",
+        "supervised",
+        "2026-03-15T19:30:00Z",
+        "2026-03-15T19:30:00Z",
+      )
+    databaseRuntime.database
+      .prepare(
+        "INSERT INTO threads (id, project_id, source_chat_id, title, execution_state, review_state, publish_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "thread_1",
+        openProjectResponse.result.id,
+        "chat_1",
+        "Thread 1",
+        "queued",
+        "not_ready",
+        "not_requested",
+        "2026-03-15T19:30:00Z",
+        "2026-03-15T19:30:00Z",
+      )
+    const threadSandbox = sandboxPersistenceService.upsertThreadSandbox({
+      projectId: openProjectResponse.result.id,
+      threadId: "thread_1",
+      path: join(projectDirectory, ".sandbox-thread-1"),
+      displayName: "Thread 1 Sandbox",
+      branchName: "thread/one",
+      baseBranch: "main",
+    })
+
+    const setActiveRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_sandbox_set_active",
+      type: "command",
+      name: "sandboxes.set_active",
+      payload: {
+        project_id: openProjectResponse.result.id,
+        sandbox_id: threadSandbox.sandboxId,
+      },
+    })
+    const setActiveResponse = parseIpcResponseEnvelope(setActiveRaw)
+
+    expect(setActiveResponse.ok).toBe(true)
+    if (setActiveResponse.ok) {
+      expect(setActiveResponse.result.sandboxId).toBe(threadSandbox.sandboxId)
     }
 
     await runtime.close()

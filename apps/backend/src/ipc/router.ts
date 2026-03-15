@@ -23,6 +23,9 @@ import {
   projectsGetLayoutInputSchema,
   projectsListQuerySchema,
   projectsSetLayoutInputSchema,
+  sandboxesGetActiveInputSchema,
+  sandboxesListInputSchema,
+  sandboxesSetActiveInputSchema,
   systemGetBackendInfoQuerySchema,
   systemGetEnvironmentReadinessQuerySchema,
   systemPingQuerySchema,
@@ -34,6 +37,7 @@ import {
 } from "@ultra/shared"
 import type { ChatService } from "../chats/chat-service.js"
 import type { ProjectService } from "../projects/project-service.js"
+import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import type { SystemService } from "../system/system-service.js"
 import type { ThreadService } from "../threads/thread-service.js"
 import { createErrorResponse, IpcProtocolError } from "./errors.js"
@@ -140,6 +144,7 @@ export async function routeIpcRequest(
     chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
+    sandboxService: SandboxService
     threadService: ThreadService
   },
 ): Promise<SuccessResponseEnvelope | ReturnType<typeof createErrorResponse>> {
@@ -306,6 +311,34 @@ export async function routeIpcRequest(
           services.threadService.promoteWorkToThread(
             chatsPromoteWorkToThreadInputSchema.parse(promoteCommand.payload),
           ),
+        )
+      }
+      case "sandboxes.list": {
+        const listQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          listQuery.request_id,
+          services.sandboxService.list(
+            sandboxesListInputSchema.parse(listQuery.payload).project_id,
+          ),
+        )
+      }
+      case "sandboxes.get_active": {
+        const activeQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          activeQuery.request_id,
+          services.sandboxService.getActive(
+            sandboxesGetActiveInputSchema.parse(activeQuery.payload).project_id,
+          ),
+        )
+      }
+      case "sandboxes.set_active": {
+        const setActiveCommand = assertCommandRequest(request)
+        const { project_id, sandbox_id } = sandboxesSetActiveInputSchema.parse(
+          setActiveCommand.payload,
+        )
+        return createSuccessResponse(
+          setActiveCommand.request_id,
+          services.sandboxService.setActive(project_id, sandbox_id),
         )
       }
       case "projects.get_layout": {

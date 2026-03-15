@@ -6,6 +6,8 @@ import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { ProjectService } from "./projects/project-service.js"
 import { RuntimePersistenceService } from "./runtime/runtime-persistence-service.js"
 import { RuntimeRegistry } from "./runtime/runtime-registry.js"
+import { SandboxPersistenceService } from "./sandboxes/sandbox-persistence-service.js"
+import { SandboxService } from "./sandboxes/sandbox-service.js"
 import {
   type SocketServerRuntime,
   startSocketServer,
@@ -46,9 +48,13 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
 
   if (socketPath) {
     const threadService = new ThreadService(databaseRuntime.database)
+    const sandboxPersistenceService = new SandboxPersistenceService(
+      databaseRuntime.database,
+    )
     socketRuntime = await startSocketServer(socketPath, {
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
+      sandboxService: new SandboxService(sandboxPersistenceService),
       systemService: new SystemService(),
       threadService,
     })
