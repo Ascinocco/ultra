@@ -6,6 +6,7 @@
   "main": "dist/main/index.js",
   "scripts": {
     "predev": "pnpm --filter @ultra/shared build",
+    "pretypecheck": "pnpm --filter @ultra/shared build",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -145,6 +145,30 @@ export {
   projectsUpdatedEventSchema,
 } from "./contracts/projects.js"
 export type {
+  ProjectRuntimeHealthSummary,
+  ProjectRuntimeSnapshot,
+  RuntimeComponentHealthStatus,
+  RuntimeComponentScope,
+  RuntimeComponentSnapshot,
+  RuntimeComponentType,
+  RuntimeDetails,
+  RuntimeHealthCheckSnapshot,
+} from "./contracts/runtime.js"
+export {
+  parseProjectRuntimeHealthSummary,
+  parseProjectRuntimeSnapshot,
+  parseRuntimeComponentSnapshot,
+  parseRuntimeHealthCheckSnapshot,
+  projectRuntimeHealthSummarySchema,
+  projectRuntimeSnapshotSchema,
+  runtimeComponentHealthStatusSchema,
+  runtimeComponentScopeSchema,
+  runtimeComponentSnapshotSchema,
+  runtimeComponentTypeSchema,
+  runtimeDetailsSchema,
+  runtimeHealthCheckSnapshotSchema,
+} from "./contracts/runtime.js"
+export type {
   BackendCapabilities,
   BackendInfoSnapshot,
   DependencyCheck,

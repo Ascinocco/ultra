@@ -48,6 +48,9 @@ describe("database bootstrap", () => {
     expect(runtime.migrationResult.appliedMigrationIds).toContain(
       "0003_chat_persistence",
     )
+    expect(runtime.migrationResult.appliedMigrationIds).toContain(
+      "0004_runtime_registry",
+    )
 
     const tables = runtime.database
       .prepare<[string], { name: string }>(
@@ -62,6 +65,27 @@ describe("database bootstrap", () => {
           "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
         )
         .all("chats"),
+    ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("project_runtimes"),
+    ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("runtime_components"),
+    ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("runtime_health_checks"),
     ).toHaveLength(1)
 
     runtime.close()
@@ -81,7 +105,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0003_chat_persistence",
+      "0004_runtime_registry",
     )
 
     secondRuntime.close()

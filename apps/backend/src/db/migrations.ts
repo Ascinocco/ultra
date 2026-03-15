@@ -151,4 +151,60 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON chat_action_checkpoints(chat_id, created_at);
     `,
   },
+  {
+    id: "0004_runtime_registry",
+    sql: `
+      CREATE TABLE IF NOT EXISTS project_runtimes (
+        project_runtime_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL UNIQUE REFERENCES projects(id) ON DELETE CASCADE,
+        coordinator_id TEXT,
+        coordinator_instance_id TEXT,
+        status TEXT NOT NULL,
+        started_at TEXT,
+        last_heartbeat_at TEXT,
+        restart_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_project_runtimes_project
+        ON project_runtimes(project_id);
+
+      CREATE TABLE IF NOT EXISTS runtime_components (
+        component_id TEXT PRIMARY KEY,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+        component_type TEXT NOT NULL,
+        scope TEXT NOT NULL CHECK (scope IN ('project', 'global')),
+        process_id INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('healthy', 'degraded', 'down')),
+        started_at TEXT,
+        last_heartbeat_at TEXT,
+        restart_count INTEGER NOT NULL DEFAULT 0,
+        reason TEXT,
+        details_json TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_runtime_components_project_type
+        ON runtime_components(project_id, component_type);
+
+      CREATE INDEX IF NOT EXISTS idx_runtime_components_scope_status
+        ON runtime_components(scope, status);
+
+      CREATE TABLE IF NOT EXISTS runtime_health_checks (
+        health_check_id TEXT PRIMARY KEY,
+        component_id TEXT NOT NULL REFERENCES runtime_components(component_id) ON DELETE CASCADE,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+        status TEXT NOT NULL CHECK (status IN ('healthy', 'degraded', 'down')),
+        checked_at TEXT NOT NULL,
+        last_heartbeat_at TEXT,
+        reason TEXT,
+        details_json TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_runtime_health_checks_component_checked
+        ON runtime_health_checks(component_id, checked_at DESC);
+    `,
+  },
 ]

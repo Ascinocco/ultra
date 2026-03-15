@@ -21,6 +21,7 @@ describe("backend scaffold", () => {
 
     expect(runtime.socketPath).toBe(process.env.ULTRA_SOCKET_PATH)
     expect(runtime.databasePath).toBe(process.env.ULTRA_DB_PATH)
+    expect(runtime.runtimeRegistry.listGlobalRuntimeComponents()).toEqual([])
 
     await runtime.stop()
     delete process.env.ULTRA_SOCKET_PATH
