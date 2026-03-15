@@ -1,5 +1,6 @@
 import type {
   BackendCapabilities,
+  ChatSummary,
   ConnectionStatus,
   EnvironmentReadinessSnapshot,
   ProjectLayoutState,
@@ -50,8 +51,19 @@ type LayoutSlice = {
   byProjectId: Record<string, ProjectLayoutState>
 }
 
+type SidebarSlice = {
+  expandedProjectIds: string[]
+  chatsByProjectId: Record<string, ChatSummary[]>
+  chatsFetchStatus: Record<string, "idle" | "loading" | "error">
+}
+
 type AppActions = {
   setCurrentPage: (page: AppPage) => void
+  toggleProjectExpanded: (projectId: string) => void
+  setChatsForProject: (projectId: string, chats: ChatSummary[]) => void
+  setChatsFetchStatus: (projectId: string, status: "idle" | "loading" | "error") => void
+  upsertChat: (chat: ChatSummary) => void
+  removeChat: (chatId: string, projectId: string) => void
   setConnectionStatus: (status: ConnectionStatus) => void
   setBackendStatus: (status: BackendStatusSnapshot) => void
   setCapabilities: (capabilities: BackendCapabilities | null) => void
@@ -79,6 +91,7 @@ export type AppStoreState = {
   readiness: ReadinessSlice
   projects: ProjectsSlice
   layout: LayoutSlice
+  sidebar: SidebarSlice
   actions: AppActions
 }
 
@@ -108,6 +121,12 @@ const defaultReadinessState: ReadinessSlice = {
 
 const defaultLayoutState: LayoutSlice = {
   byProjectId: {},
+}
+
+const defaultSidebarState: SidebarSlice = {
+  expandedProjectIds: [],
+  chatsByProjectId: {},
+  chatsFetchStatus: {},
 }
 
 const DEFAULT_LAYOUT: ProjectLayoutState = {
@@ -164,8 +183,14 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
     readiness: { ...defaultReadinessState },
     projects: { ...defaultProjectsState },
     layout: { ...defaultLayoutState },
+    sidebar: { ...defaultSidebarState },
     actions: {
       setCurrentPage: () => undefined,
+      toggleProjectExpanded: () => undefined,
+      setChatsForProject: () => undefined,
+      setChatsFetchStatus: () => undefined,
+      upsertChat: () => undefined,
+      removeChat: () => undefined,
       setConnectionStatus: () => undefined,
       setBackendStatus: () => undefined,
       setCapabilities: () => undefined,
@@ -205,6 +230,61 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           ...state,
           app: { ...state.app, currentPage: page },
         })),
+      toggleProjectExpanded: (projectId) =>
+        set((state) => {
+          const ids = state.sidebar.expandedProjectIds
+          const next = ids.includes(projectId)
+            ? ids.filter((id) => id !== projectId)
+            : [...ids, projectId]
+          return { ...state, sidebar: { ...state.sidebar, expandedProjectIds: next } }
+        }),
+      setChatsForProject: (projectId, chats) =>
+        set((state) => ({
+          ...state,
+          sidebar: {
+            ...state.sidebar,
+            chatsByProjectId: { ...state.sidebar.chatsByProjectId, [projectId]: chats },
+            chatsFetchStatus: { ...state.sidebar.chatsFetchStatus, [projectId]: "idle" },
+          },
+        })),
+      setChatsFetchStatus: (projectId, status) =>
+        set((state) => ({
+          ...state,
+          sidebar: {
+            ...state.sidebar,
+            chatsFetchStatus: { ...state.sidebar.chatsFetchStatus, [projectId]: status },
+          },
+        })),
+      upsertChat: (chat) =>
+        set((state) => {
+          const existing = state.sidebar.chatsByProjectId[chat.projectId] ?? []
+          const index = existing.findIndex((c) => c.id === chat.id)
+          const updated =
+            index >= 0
+              ? existing.map((c) => (c.id === chat.id ? chat : c))
+              : [...existing, chat]
+          return {
+            ...state,
+            sidebar: {
+              ...state.sidebar,
+              chatsByProjectId: { ...state.sidebar.chatsByProjectId, [chat.projectId]: updated },
+            },
+          }
+        }),
+      removeChat: (chatId, projectId) =>
+        set((state) => {
+          const existing = state.sidebar.chatsByProjectId[projectId] ?? []
+          return {
+            ...state,
+            sidebar: {
+              ...state.sidebar,
+              chatsByProjectId: {
+                ...state.sidebar.chatsByProjectId,
+                [projectId]: existing.filter((c) => c.id !== chatId),
+              },
+            },
+          }
+        }),
       setConnectionStatus: (status) =>
         set((state) => ({
           ...state,
@@ -358,3 +438,5 @@ export function useAppStore<T>(selector: (state: AppStoreState) => T): T {
 
   return useStore(store, selector)
 }
+
+export type { AppActions }

@@ -1,5 +1,6 @@
 import type {
   BackendCapabilities,
+  ChatSummary,
   ProjectLayoutState,
   ProjectSnapshot,
 } from "@ultra/shared"
@@ -430,6 +431,105 @@ describe("ProjectSelector", () => {
 
     expect(markup).toContain('aria-expanded="false"')
     expect(markup).toContain('aria-haspopup="menu"')
+  })
+})
+
+function makeChat(id: string, projectId: string, opts?: Partial<ChatSummary>): ChatSummary {
+  return {
+    id,
+    projectId,
+    title: `Chat ${id}`,
+    status: "active",
+    provider: "claude",
+    model: "claude-sonnet-4-6",
+    thinkingLevel: "normal",
+    permissionLevel: "supervised",
+    isPinned: false,
+    pinnedAt: null,
+    archivedAt: null,
+    lastCompactedAt: null,
+    currentSessionId: null,
+    createdAt: "2026-03-14T00:00:00Z",
+    updatedAt: "2026-03-14T00:00:00Z",
+    ...opts,
+  }
+}
+
+describe("sidebar slice", () => {
+  it("starts with empty sidebar state", () => {
+    const store = createAppStore()
+    const { sidebar } = store.getState()
+
+    expect(sidebar.expandedProjectIds).toEqual([])
+    expect(sidebar.chatsByProjectId).toEqual({})
+    expect(sidebar.chatsFetchStatus).toEqual({})
+  })
+
+  it("toggleProjectExpanded adds and removes project IDs", () => {
+    const store = createAppStore()
+
+    store.getState().actions.toggleProjectExpanded("proj-1")
+    expect(store.getState().sidebar.expandedProjectIds).toEqual(["proj-1"])
+
+    store.getState().actions.toggleProjectExpanded("proj-2")
+    expect(store.getState().sidebar.expandedProjectIds).toEqual(["proj-1", "proj-2"])
+
+    store.getState().actions.toggleProjectExpanded("proj-1")
+    expect(store.getState().sidebar.expandedProjectIds).toEqual(["proj-2"])
+  })
+
+  it("setChatsForProject stores chat list for a project", () => {
+    const store = createAppStore()
+    const chats = [makeChat("c1", "proj-1"), makeChat("c2", "proj-1")]
+
+    store.getState().actions.setChatsForProject("proj-1", chats)
+
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toEqual(chats)
+  })
+
+  it("setChatsFetchStatus tracks loading state per project", () => {
+    const store = createAppStore()
+
+    store.getState().actions.setChatsFetchStatus("proj-1", "loading")
+    expect(store.getState().sidebar.chatsFetchStatus["proj-1"]).toBe("loading")
+
+    store.getState().actions.setChatsFetchStatus("proj-1", "idle")
+    expect(store.getState().sidebar.chatsFetchStatus["proj-1"]).toBe("idle")
+  })
+
+  it("upsertChat adds a new chat to the correct project", () => {
+    const store = createAppStore()
+    store.getState().actions.setChatsForProject("proj-1", [])
+
+    store.getState().actions.upsertChat(makeChat("c1", "proj-1"))
+
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe("c1")
+  })
+
+  it("upsertChat updates an existing chat in place", () => {
+    const store = createAppStore()
+    store.getState().actions.setChatsForProject("proj-1", [
+      makeChat("c1", "proj-1", { title: "Old Title" }),
+    ])
+
+    store.getState().actions.upsertChat(makeChat("c1", "proj-1", { title: "New Title" }))
+
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.title).toBe("New Title")
+  })
+
+  it("removeChat removes a chat from the project list", () => {
+    const store = createAppStore()
+    store.getState().actions.setChatsForProject("proj-1", [
+      makeChat("c1", "proj-1"),
+      makeChat("c2", "proj-1"),
+    ])
+
+    store.getState().actions.removeChat("c1", "proj-1")
+
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe("c2")
   })
 })
 
