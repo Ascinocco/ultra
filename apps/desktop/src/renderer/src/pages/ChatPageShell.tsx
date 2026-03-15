@@ -6,7 +6,7 @@ export function ChatPageShell({ active }: { active: boolean }) {
       data-page="chat"
     >
       <div className="chat-layout">
-        <aside className="surface surface--rail">
+        <aside className="surface">
           <div className="surface__header">
             <p className="surface__eyebrow">Chat Rail</p>
             <h2 className="surface__title">Project chats</h2>

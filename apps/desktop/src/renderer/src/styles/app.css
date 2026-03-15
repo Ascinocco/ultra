@@ -8,7 +8,7 @@ body,
 
 body {
   margin: 0;
-  background: var(--shell-bg-accent);
+  background: var(--shell-bg);
   color: var(--text-primary);
   font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   font-size: 15px;
@@ -56,7 +56,6 @@ button {
   width: min(900px, 100%);
   background: var(--surface-2);
   border: 1px solid var(--surface-border);
-  box-shadow: var(--shadow-lg);
   padding: 24px;
   box-sizing: border-box;
 }
@@ -417,7 +416,6 @@ button {
   border-radius: 999px;
   background: var(--surface-2);
   border: 1px solid var(--surface-border);
-  box-shadow: var(--shadow-md);
   -webkit-app-region: no-drag;
 }
 
@@ -504,18 +502,6 @@ button {
   border: 1px solid var(--surface-border);
   padding: 20px;
   box-sizing: border-box;
-  box-shadow: var(--shadow-md);
-}
-
-.surface--rail {
-  background:
-    radial-gradient(
-      ellipse at top left,
-      rgba(70, 90, 160, 0.12),
-      transparent 60%
-    ),
-    radial-gradient(ellipse at bottom, rgba(60, 70, 130, 0.06), transparent 50%),
-    rgba(18, 22, 34, 0.96);
 }
 
 .surface--toolbar {
