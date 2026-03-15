@@ -14,7 +14,7 @@ export class SystemService {
   private readonly sessionId = `sess_${randomUUID()}`
   private readonly capabilities: BackendCapabilities = {
     supportsProjects: true,
-    supportsLayoutPersistence: false,
+    supportsLayoutPersistence: true,
     supportsSubscriptions: false,
     supportsBackendInfo: true,
   }
