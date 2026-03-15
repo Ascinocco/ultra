@@ -24,7 +24,7 @@ button {
 .app-shell {
   min-height: 100vh;
   padding: 0 20px 20px;
-  padding-top: 56px; /* title bar height (48px) + 8px gap */
+  padding-top: 60px; /* title bar height (52px) + 8px gap */
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   box-sizing: border-box;
@@ -197,11 +197,11 @@ button {
   top: 0;
   left: 0;
   right: 0;
-  height: 48px;
+  height: 52px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 0 20px 0 86px; /* 86px left for macOS traffic lights + spacing */
+  padding: 0 20px;
   -webkit-app-region: drag;
   z-index: 100;
   background: transparent;
@@ -212,6 +212,7 @@ button {
 
 .project-selector {
   justify-self: start;
+  margin-left: 66px; /* clear macOS traffic lights (≈ 3 buttons + gap) */
   -webkit-app-region: no-drag;
 }
 
@@ -423,7 +424,7 @@ button {
 /* ── Page Shells ───────────────────────────────────────────── */
 
 .page-shell {
-  min-height: calc(100vh - 76px); /* 56px top padding + 20px bottom padding */
+  min-height: calc(100vh - 80px); /* 60px top padding + 20px bottom padding */
 }
 
 .page-shell--hidden {
