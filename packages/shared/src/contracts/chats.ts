@@ -10,7 +10,7 @@ import { projectIdSchema } from "./projects.js"
 
 export const chatIdSchema = opaqueIdSchema
 export const chatStatusSchema = z.enum(["active", "archived"])
-export const chatProviderSchema = z.literal("codex")
+export const chatProviderSchema = z.enum(["codex", "claude"])
 export const chatPermissionLevelSchema = z.enum(["supervised", "full_access"])
 export const chatThinkingLevelSchema = z.string().min(1)
 

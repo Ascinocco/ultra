@@ -1,0 +1,277 @@
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
+import { afterEach, describe, expect, it } from "vitest"
+
+import { bootstrapDatabase } from "../db/database.js"
+import { IpcProtocolError } from "../ipc/errors.js"
+import { ProjectService } from "../projects/project-service.js"
+import { ChatService } from "./chat-service.js"
+import { ChatTurnService } from "./chat-turn-service.js"
+import { ChatRuntimeRegistry } from "./runtime/chat-runtime-registry.js"
+import { ChatRuntimeSessionManager } from "./runtime/runtime-session-manager.js"
+import { type ChatRuntimeAdapter, ChatRuntimeError } from "./runtime/types.js"
+
+const temporaryDirectories: string[] = []
+
+function createWorkspace(): {
+  directory: string
+  databasePath: string
+  projectPath: string
+} {
+  const directory = mkdtempSync(join(tmpdir(), "ultra-chat-turn-"))
+  const projectPath = join(directory, "project")
+  temporaryDirectories.push(directory)
+  mkdirSync(projectPath)
+
+  return {
+    directory,
+    databasePath: join(directory, "ultra.db"),
+    projectPath,
+  }
+}
+
+function createAdapter(
+  provider: "codex" | "claude",
+  implementation: ChatRuntimeAdapter["runTurn"],
+): ChatRuntimeAdapter {
+  return {
+    provider,
+    runTurn: implementation,
+  }
+}
+
+afterEach(() => {
+  while (temporaryDirectories.length > 0) {
+    const directory = temporaryDirectories.pop()
+
+    if (directory) {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  }
+})
+
+describe("ChatTurnService", () => {
+  it("persists user and assistant messages plus checkpoints and reuses the runtime session", async () => {
+    const { databasePath, projectPath } = createWorkspace()
+    let tick = 0
+    const now = () => {
+      tick += 1
+      return `2026-03-15T12:00:${String(tick).padStart(2, "0")}Z`
+    }
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database, now)
+    const chatService = new ChatService(runtime.database, now)
+    const sessionManager = new ChatRuntimeSessionManager()
+    const requests: Array<{ vendorSessionId: string | null; prompt: string }> =
+      []
+    const registry = new ChatRuntimeRegistry([
+      createAdapter("codex", async (request) => {
+        requests.push({
+          vendorSessionId: request.vendorSessionId,
+          prompt: request.prompt,
+        })
+
+        return {
+          events: [
+            {
+              type: "checkpoint_candidate",
+              checkpoint: {
+                actionType: "tool_activity",
+                affectedPaths: ["src/index.ts"],
+                resultSummary: "Checked src/index.ts",
+              },
+            },
+            {
+              type: "assistant_final",
+              text: `Ack: ${request.prompt}`,
+            },
+          ],
+          finalText: `Ack: ${request.prompt}`,
+          vendorSessionId: "vendor_codex_1",
+          diagnostics: {
+            exitCode: 0,
+            signal: null,
+            stdout: "",
+            stderr: "",
+            stdoutLines: [],
+            stderrLines: [],
+            timedOut: false,
+          },
+          resumed: request.vendorSessionId !== null,
+        }
+      }),
+    ])
+    const service = new ChatTurnService(
+      chatService,
+      registry,
+      sessionManager,
+      now,
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+
+    const first = await service.sendMessage(chat.id, "First task")
+    const second = await service.sendMessage(chat.id, "Second task")
+    const persistedMessages = chatService.listMessages(chat.id)
+    const checkpointCount = runtime.database
+      .prepare<[string], { count: number }>(
+        "SELECT COUNT(*) AS count FROM chat_action_checkpoints WHERE chat_id = ?",
+      )
+      .get(chat.id)?.count
+
+    expect(first.userMessage.messageType).toBe("user_text")
+    expect(first.assistantMessage.contentMarkdown).toBe("Ack: First task")
+    expect(second.assistantMessage.contentMarkdown).toBe("Ack: Second task")
+    expect(requests).toEqual([
+      { vendorSessionId: null, prompt: "First task" },
+      { vendorSessionId: "vendor_codex_1", prompt: "Second task" },
+    ])
+    expect(persistedMessages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+    ])
+    expect(checkpointCount).toBe(2)
+    expect(sessionManager.size()).toBe(1)
+
+    runtime.close()
+  })
+
+  it("recovers from resume failure by retrying with a fresh vendor session", async () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(runtime.database)
+    const sessionManager = new ChatRuntimeSessionManager()
+    let callCount = 0
+    const registry = new ChatRuntimeRegistry([
+      createAdapter("codex", async (request) => {
+        callCount += 1
+
+        if (callCount === 2 && request.vendorSessionId) {
+          throw new ChatRuntimeError("resume_failed", "resume failed", {
+            exitCode: 1,
+            signal: null,
+            stdout: "",
+            stderr: "resume failed",
+            stdoutLines: [],
+            stderrLines: ["resume failed"],
+            timedOut: false,
+          })
+        }
+
+        return {
+          events: [
+            {
+              type: "assistant_final",
+              text: `Ack: ${request.prompt}`,
+            },
+          ],
+          finalText: `Ack: ${request.prompt}`,
+          vendorSessionId: `vendor_codex_${callCount}`,
+          diagnostics: {
+            exitCode: 0,
+            signal: null,
+            stdout: "",
+            stderr: "",
+            stdoutLines: [],
+            stderrLines: [],
+            timedOut: false,
+          },
+          resumed: request.vendorSessionId !== null,
+        }
+      }),
+    ])
+    const service = new ChatTurnService(chatService, registry, sessionManager)
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+
+    await service.sendMessage(chat.id, "First")
+    const second = await service.sendMessage(chat.id, "Second")
+
+    expect(callCount).toBe(3)
+    expect(second.assistantMessage.contentMarkdown).toBe("Ack: Second")
+    expect(chatService.listSessions(chat.id)[0]?.continuationPrompt).toContain(
+      "User: First",
+    )
+
+    runtime.close()
+  })
+
+  it("supports claude-backed chats and maps invalid runtime config to protocol errors", async () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(runtime.database)
+    const sessionManager = new ChatRuntimeSessionManager()
+    const registry = new ChatRuntimeRegistry([
+      createAdapter("codex", async () => ({
+        events: [{ type: "assistant_final", text: "unused" }],
+        finalText: "unused",
+        vendorSessionId: "vendor_codex_1",
+        diagnostics: {
+          exitCode: 0,
+          signal: null,
+          stdout: "",
+          stderr: "",
+          stdoutLines: [],
+          stderrLines: [],
+          timedOut: false,
+        },
+        resumed: false,
+      })),
+      createAdapter("claude", async (request) => {
+        if (request.config.thinkingLevel === "ultra") {
+          throw new ChatRuntimeError("invalid_config", "unsupported thinking")
+        }
+
+        return {
+          events: [{ type: "assistant_final", text: "Claude ack" }],
+          finalText: "Claude ack",
+          vendorSessionId: "vendor_claude_1",
+          diagnostics: {
+            exitCode: 0,
+            signal: null,
+            stdout: "",
+            stderr: "",
+            stdoutLines: [],
+            stderrLines: [],
+            timedOut: false,
+          },
+          resumed: false,
+        }
+      }),
+    ])
+    const service = new ChatTurnService(chatService, registry, sessionManager)
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+
+    chatService.updateRuntimeConfig(chat.id, {
+      provider: "claude",
+      model: "sonnet",
+      thinkingLevel: "default",
+      permissionLevel: "supervised",
+    })
+
+    const result = await service.sendMessage(chat.id, "Use claude")
+    expect(result.assistantMessage.contentMarkdown).toBe("Claude ack")
+
+    chatService.updateRuntimeConfig(chat.id, {
+      provider: "claude",
+      model: "sonnet",
+      thinkingLevel: "ultra",
+      permissionLevel: "supervised",
+    })
+
+    await expect(
+      service.sendMessage(chat.id, "bad config"),
+    ).rejects.toMatchObject(
+      new IpcProtocolError("invalid_request", "unsupported thinking"),
+    )
+
+    runtime.close()
+  })
+})

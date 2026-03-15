@@ -148,4 +148,32 @@ describe("ChatService", () => {
 
     runtime.close()
   })
+
+  it("updates runtime config and persists provider changes", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const service = new ChatService(
+      runtime.database,
+      () => "2026-03-15T12:15:00Z",
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = service.create(project.id)
+
+    const updated = service.updateRuntimeConfig(chat.id, {
+      provider: "claude",
+      model: "sonnet",
+      thinkingLevel: "medium",
+      permissionLevel: "full_access",
+    })
+
+    expect(updated).toMatchObject({
+      provider: "claude",
+      model: "sonnet",
+      thinkingLevel: "medium",
+      permissionLevel: "full_access",
+    })
+
+    runtime.close()
+  })
 })

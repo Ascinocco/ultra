@@ -7,6 +7,7 @@ import type {
   ChatSummary,
   ChatsListResult,
   ProjectId,
+  ChatSnapshot as SharedChatSnapshot,
 } from "@ultra/shared"
 
 import { IpcProtocolError } from "../ipc/errors.js"
@@ -16,7 +17,7 @@ type ChatRow = {
   project_id: string
   title: string
   status: "active" | "archived"
-  provider: "codex"
+  provider: "codex" | "claude"
   model: string
   thinking_level: string
   permission_level: "supervised" | "full_access"
@@ -78,6 +79,42 @@ export type ChatMessageSnapshot = {
   createdAt: string
 }
 
+export type ChatRuntimeConfig = Pick<
+  SharedChatSnapshot,
+  "provider" | "model" | "thinkingLevel" | "permissionLevel"
+>
+
+export type ChatRuntimeContext = {
+  chat: ChatSnapshot
+  projectId: ProjectId
+  rootPath: string
+  chatSessionId: string
+  continuationPrompt: string | null
+}
+
+export type CreateChatMessageInput = {
+  chatId: ChatId
+  sessionId?: string
+  role: string
+  messageType: string
+  contentMarkdown?: string | null
+  structuredPayloadJson?: string | null
+  providerMessageId?: string | null
+}
+
+export type CreateChatActionCheckpointInput = {
+  chatId: ChatId
+  sessionId?: string
+  activeTargetPath?: string | null
+  branchName?: string | null
+  worktreePath?: string | null
+  actionType: string
+  affectedPaths: string[]
+  commandMetadataJson?: string | null
+  resultSummary?: string | null
+  artifactRefsJson?: string | null
+}
+
 export type ChatThreadRefSnapshot = {
   chatId: string
   threadId: string
@@ -124,6 +161,15 @@ function readChatRow(statementResult: unknown): ChatRow | null {
   }
 
   return statementResult as ChatRow
+}
+
+function readStringRow(statementResult: unknown, key: string): string | null {
+  if (!statementResult || typeof statementResult !== "object") {
+    return null
+  }
+
+  const candidate = statementResult as Record<string, unknown>
+  return typeof candidate[key] === "string" ? candidate[key] : null
 }
 
 function mapChatRow(row: ChatRow): ChatSnapshot {
@@ -357,6 +403,218 @@ export class ChatService {
     })
 
     return this.get(chatId)
+  }
+
+  updateRuntimeConfig(chatId: ChatId, config: ChatRuntimeConfig): ChatSnapshot {
+    if (config.model.trim().length === 0) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Chat model must not be empty.",
+      )
+    }
+
+    if (config.thinkingLevel.trim().length === 0) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Chat thinking level must not be empty.",
+      )
+    }
+
+    this.updateChat(chatId, {
+      sql: `
+        UPDATE chats
+        SET
+          provider = ?,
+          model = ?,
+          thinking_level = ?,
+          permission_level = ?,
+          updated_at = ?
+        WHERE id = ?
+      `,
+      params: [
+        config.provider,
+        config.model.trim(),
+        config.thinkingLevel.trim(),
+        config.permissionLevel,
+        this.now(),
+        chatId,
+      ],
+    })
+
+    return this.get(chatId)
+  }
+
+  getRuntimeContext(chatId: ChatId): ChatRuntimeContext {
+    const chat = this.get(chatId)
+    const projectRow = this.database
+      .prepare("SELECT root_path FROM projects WHERE id = ?")
+      .get(chat.projectId)
+    const rootPath = readStringRow(projectRow, "root_path")
+
+    if (!rootPath) {
+      throw new IpcProtocolError(
+        "internal_error",
+        `Project root path missing for chat ${chatId}.`,
+      )
+    }
+
+    if (!chat.currentSessionId) {
+      throw new IpcProtocolError(
+        "internal_error",
+        `Chat session missing for chat ${chatId}.`,
+      )
+    }
+
+    const sessionRow = this.database
+      .prepare(
+        `
+          SELECT continuation_prompt
+          FROM chat_sessions
+          WHERE id = ?
+        `,
+      )
+      .get(chat.currentSessionId) as
+      | {
+          continuation_prompt: string | null
+        }
+      | undefined
+
+    return {
+      chat,
+      projectId: chat.projectId,
+      rootPath,
+      chatSessionId: chat.currentSessionId,
+      continuationPrompt: sessionRow?.continuation_prompt ?? null,
+    }
+  }
+
+  appendMessage(input: CreateChatMessageInput): ChatMessageSnapshot {
+    const context = this.getRuntimeContext(input.chatId)
+    const timestamp = this.now()
+    const messageId = `chat_msg_${randomUUID()}`
+    const sessionId = input.sessionId ?? context.chatSessionId
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO chat_messages (
+            id,
+            chat_id,
+            session_id,
+            role,
+            message_type,
+            content_markdown,
+            structured_payload_json,
+            provider_message_id,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        messageId,
+        input.chatId,
+        sessionId,
+        input.role,
+        input.messageType,
+        input.contentMarkdown ?? null,
+        input.structuredPayloadJson ?? null,
+        input.providerMessageId ?? null,
+        timestamp,
+      )
+
+    this.touch(input.chatId, timestamp)
+
+    const row = this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            chat_id,
+            session_id,
+            role,
+            message_type,
+            content_markdown,
+            structured_payload_json,
+            provider_message_id,
+            created_at
+          FROM chat_messages
+          WHERE id = ?
+        `,
+      )
+      .get(messageId) as ChatMessageRow | undefined
+
+    if (!row) {
+      throw new IpcProtocolError(
+        "internal_error",
+        `Message ${messageId} could not be loaded after insert.`,
+      )
+    }
+
+    return mapChatMessageRow(row)
+  }
+
+  createActionCheckpoint(input: CreateChatActionCheckpointInput): string {
+    const context = this.getRuntimeContext(input.chatId)
+    const checkpointId = `chat_checkpoint_${randomUUID()}`
+    const sessionId = input.sessionId ?? context.chatSessionId
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO chat_action_checkpoints (
+            id,
+            chat_id,
+            session_id,
+            active_target_path,
+            branch_name,
+            worktree_path,
+            action_type,
+            affected_paths_json,
+            command_metadata_json,
+            result_summary,
+            artifact_refs_json,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+      )
+      .run(
+        checkpointId,
+        input.chatId,
+        sessionId,
+        input.activeTargetPath ?? null,
+        input.branchName ?? null,
+        input.worktreePath ?? null,
+        input.actionType,
+        JSON.stringify(input.affectedPaths),
+        input.commandMetadataJson ?? null,
+        input.resultSummary ?? null,
+        input.artifactRefsJson ?? null,
+        this.now(),
+      )
+
+    return checkpointId
+  }
+
+  updateSessionContinuationPrompt(
+    sessionId: string,
+    continuationPrompt: string | null,
+  ): void {
+    this.database
+      .prepare(
+        `
+          UPDATE chat_sessions
+          SET continuation_prompt = ?
+          WHERE id = ?
+        `,
+      )
+      .run(continuationPrompt, sessionId)
+  }
+
+  touch(chatId: ChatId, timestamp = this.now()): void {
+    this.updateChat(chatId, {
+      sql: "UPDATE chats SET updated_at = ? WHERE id = ?",
+      params: [timestamp, chatId],
+    })
   }
 
   listSessions(chatId: ChatId): ChatSessionSnapshot[] {
