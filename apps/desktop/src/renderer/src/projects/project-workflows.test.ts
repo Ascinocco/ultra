@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { AppPage } from "../state/app-store.js"
 import {
+  hydrateLastProject,
   loadRecentProjects,
   openProjectFromPath,
   openProjectFromPicker,
@@ -166,5 +167,98 @@ describe("project workflows", () => {
     })
     expect(actions.setLayoutForProject).toHaveBeenCalledWith("proj-1", layout)
     expect(actions.setCurrentPage).toHaveBeenCalledWith("editor")
+  })
+
+  it("hydrateLastProject restores the most recently opened project and its layout", async () => {
+    const actions = makeActions()
+    const recentProject = makeProject("proj-1", "Alpha")
+    const olderProject = makeProject("proj-2", "Beta")
+    const layout: ProjectLayoutState = {
+      currentPage: "browser",
+      rightTopCollapsed: true,
+      rightBottomCollapsed: false,
+      selectedRightPaneTab: null,
+      selectedBottomPaneTab: null,
+      activeChatId: "chat_1",
+      selectedThreadId: null,
+      lastEditorTargetId: null,
+    }
+
+    const client = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({
+          projects: [
+            { ...recentProject, lastOpenedAt: "2026-03-15T12:00:00Z" },
+            { ...olderProject, lastOpenedAt: "2026-03-14T12:00:00Z" },
+          ],
+        })
+        .mockResolvedValueOnce(layout),
+      command: vi.fn(),
+    }
+
+    const capabilities: BackendCapabilities = {
+      supportsProjects: true,
+      supportsLayoutPersistence: true,
+      supportsSubscriptions: false,
+      supportsBackendInfo: true,
+    }
+
+    await hydrateLastProject(actions, capabilities, client)
+
+    expect(actions.setProjects).toHaveBeenCalled()
+    expect(actions.setActiveProjectId).toHaveBeenCalledWith("proj-1")
+    expect(client.query).toHaveBeenNthCalledWith(2, "projects.get_layout", {
+      project_id: "proj-1",
+    })
+    expect(actions.setLayoutForProject).toHaveBeenCalledWith("proj-1", layout)
+    expect(actions.setCurrentPage).toHaveBeenCalledWith("browser")
+  })
+
+  it("hydrateLastProject is a no-op when no projects exist", async () => {
+    const actions = makeActions()
+    const client = {
+      query: vi.fn().mockResolvedValueOnce({ projects: [] }),
+      command: vi.fn(),
+    }
+
+    const capabilities: BackendCapabilities = {
+      supportsProjects: true,
+      supportsLayoutPersistence: true,
+      supportsSubscriptions: false,
+      supportsBackendInfo: true,
+    }
+
+    await hydrateLastProject(actions, capabilities, client)
+
+    expect(actions.setProjects).toHaveBeenCalledWith([])
+    expect(actions.setActiveProjectId).not.toHaveBeenCalled()
+    expect(actions.setLayoutForProject).not.toHaveBeenCalled()
+  })
+
+  it("hydrateLastProject skips layout restore when capability is off", async () => {
+    const actions = makeActions()
+    const recentProject = makeProject("proj-1", "Alpha")
+    const client = {
+      query: vi.fn().mockResolvedValueOnce({
+        projects: [
+          { ...recentProject, lastOpenedAt: "2026-03-15T12:00:00Z" },
+        ],
+      }),
+      command: vi.fn(),
+    }
+
+    const capabilities: BackendCapabilities = {
+      supportsProjects: true,
+      supportsLayoutPersistence: false,
+      supportsSubscriptions: false,
+      supportsBackendInfo: true,
+    }
+
+    await hydrateLastProject(actions, capabilities, client)
+
+    expect(actions.setProjects).toHaveBeenCalled()
+    expect(actions.setActiveProjectId).toHaveBeenCalledWith("proj-1")
+    expect(actions.setLayoutForProject).not.toHaveBeenCalled()
   })
 })

@@ -110,3 +110,33 @@ export async function openProjectFromPicker(
 
   return openProjectFromPath(selectedPath, actions, capabilities, client)
 }
+
+export async function hydrateLastProject(
+  actions: ProjectWorkflowActions,
+  capabilities: BackendCapabilities | null,
+  client: ProjectWorkflowClient = ipcClient,
+): Promise<void> {
+  const projects = await loadRecentProjects(actions, client)
+
+  if (projects.length === 0) {
+    return
+  }
+
+  // projects.list returns sorted by lastOpenedAt DESC
+  const lastProject = projects[0]
+  actions.setActiveProjectId(lastProject.id)
+
+  if (capabilities?.supportsLayoutPersistence) {
+    try {
+      const layoutResult = await client.query("projects.get_layout", {
+        project_id: lastProject.id,
+      })
+      const layout = parseProjectLayoutState(layoutResult)
+
+      actions.setLayoutForProject(lastProject.id, layout)
+      actions.setCurrentPage(layout.currentPage)
+    } catch {
+      // Layout restore is best-effort.
+    }
+  }
+}
