@@ -244,6 +244,39 @@ describe("app store", () => {
     expect(store.getState().app.projectOpenStatus).toBe("error")
     expect(store.getState().app.projectOpenError).toBe("Project open failed")
   })
+
+  it("setLayoutField merges partial into existing layout", () => {
+    const store = createAppStore()
+    const fullLayout: ProjectLayoutState = {
+      currentPage: "chat",
+      rightTopCollapsed: false,
+      rightBottomCollapsed: false,
+      selectedRightPaneTab: null,
+      selectedBottomPaneTab: null,
+      activeChatId: null,
+      selectedThreadId: null,
+      lastEditorTargetId: null,
+    }
+
+    store.getState().actions.setLayoutForProject("proj-1", fullLayout)
+    store.getState().actions.setLayoutField("proj-1", { currentPage: "editor" })
+
+    const result = store.getState().layout.byProjectId["proj-1"]
+    expect(result.currentPage).toBe("editor")
+    expect(result.rightTopCollapsed).toBe(false)
+  })
+
+  it("setLayoutField creates default layout if project has no entry", () => {
+    const store = createAppStore()
+
+    store
+      .getState()
+      .actions.setLayoutField("proj-new", { rightTopCollapsed: true })
+
+    const result = store.getState().layout.byProjectId["proj-new"]
+    expect(result.currentPage).toBe("chat")
+    expect(result.rightTopCollapsed).toBe(true)
+  })
 })
 
 describe("ProjectFrame", () => {

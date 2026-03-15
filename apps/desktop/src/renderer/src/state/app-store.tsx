@@ -15,6 +15,7 @@ import { createStore, useStore } from "zustand"
 
 import type { BackendStatusSnapshot } from "../../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../../shared/backend-status.js"
+import { ipcClient } from "../ipc/ipc-client.js"
 
 export type AppPage = "chat" | "editor" | "browser"
 export type { ConnectionStatus } from "@ultra/shared"
@@ -52,6 +53,10 @@ type AppActions = {
   setProjects: (projects: ProjectSnapshot[]) => void
   upsertProject: (project: ProjectSnapshot) => void
   setLayoutForProject: (projectId: string, layout: ProjectLayoutState) => void
+  setLayoutField: (
+    projectId: string,
+    partial: Partial<ProjectLayoutState>,
+  ) => void
 }
 
 export type AppStoreState = {
@@ -82,6 +87,49 @@ const defaultLayoutState: LayoutSlice = {
   byProjectId: {},
 }
 
+const DEFAULT_LAYOUT: ProjectLayoutState = {
+  currentPage: "chat",
+  rightTopCollapsed: false,
+  rightBottomCollapsed: false,
+  selectedRightPaneTab: null,
+  selectedBottomPaneTab: null,
+  activeChatId: null,
+  selectedThreadId: null,
+  lastEditorTargetId: null,
+}
+
+const layoutPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function debouncedPersistLayout(
+  projectId: string,
+  getState: () => AppStoreState,
+): void {
+  const existing = layoutPersistTimers.get(projectId)
+
+  if (existing) {
+    clearTimeout(existing)
+  }
+
+  layoutPersistTimers.set(
+    projectId,
+    setTimeout(() => {
+      layoutPersistTimers.delete(projectId)
+      const layout = getState().layout.byProjectId[projectId]
+
+      if (layout) {
+        ipcClient
+          .command("projects.set_layout", {
+            project_id: projectId,
+            layout,
+          })
+          .catch(() => {
+            // Fire-and-forget — layout persist failures are non-fatal.
+          })
+      }
+    }, 300),
+  )
+}
+
 function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
   const app = {
     ...defaultAppState,
@@ -102,6 +150,7 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       setProjects: () => undefined,
       upsertProject: () => undefined,
       setLayoutForProject: () => undefined,
+      setLayoutField: () => undefined,
     },
   }
 }
@@ -119,7 +168,7 @@ function normalizeProjects(projects: ProjectSnapshot[]): ProjectsSlice {
 }
 
 export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
-  return createStore<AppStoreState>()((set) => ({
+  return createStore<AppStoreState>()((set, get) => ({
     ...buildInitialState(overrides),
     actions: {
       setCurrentPage: (page) =>
@@ -188,6 +237,23 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             },
           },
         })),
+      setLayoutField: (projectId, partial) =>
+        set((state) => {
+          const current = state.layout.byProjectId[projectId] ?? DEFAULT_LAYOUT
+          const merged = { ...current, ...partial }
+
+          debouncedPersistLayout(projectId, get)
+
+          return {
+            ...state,
+            layout: {
+              byProjectId: {
+                ...state.layout.byProjectId,
+                [projectId]: merged,
+              },
+            },
+          }
+        }),
     },
   }))
 }
