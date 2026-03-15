@@ -457,27 +457,50 @@ button {
 
 /* ── Layout Grids ──────────────────────────────────────────── */
 
-.chat-layout,
-.editor-layout,
-.browser-layout {
+/* ── Chat Frame (connected-panel layout) ─────────────────── */
+
+.chat-frame {
+  background: var(--surface-2);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
   min-height: 100%;
 }
 
-.chat-layout {
+.chat-frame__grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: 280px minmax(0, 1fr) minmax(320px, 0.95fr);
+  min-height: 100%;
 }
 
-.chat-layout__main {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.95fr);
-  gap: 20px;
+.chat-frame__rail {
+  padding: 20px;
+  border-right: 1px solid var(--panel-border);
+  background: var(--surface-1);
 }
 
-.chat-layout__side {
+.chat-frame__main {
+  padding: 20px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.chat-frame__side {
   display: grid;
-  gap: 20px;
+  grid-template-rows: 1fr auto;
+}
+
+.chat-frame__side-top {
+  padding: 20px;
+}
+
+.chat-frame__side-bottom {
+  padding: 20px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.editor-layout,
+.browser-layout {
+  min-height: 100%;
 }
 
 .editor-layout,
@@ -582,8 +605,21 @@ button {
     max-width: 120px;
   }
 
-  .chat-layout,
-  .chat-layout__main {
+  .chat-frame__grid {
     grid-template-columns: 1fr;
+  }
+
+  .chat-frame__rail {
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .chat-frame__main {
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .chat-frame__side {
+    grid-template-rows: auto auto;
   }
 }
