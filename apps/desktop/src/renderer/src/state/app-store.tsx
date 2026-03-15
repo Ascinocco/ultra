@@ -413,8 +413,9 @@ const AppStoreContext = createContext<AppStore | null>(null)
 export function AppStoreProvider({
   children,
   initialState,
-}: PropsWithChildren<{ initialState?: Partial<AppSlice> }>) {
-  const storeRef = useRef<AppStore | null>(null)
+  store: externalStore,
+}: PropsWithChildren<{ initialState?: Partial<AppSlice>; store?: AppStore }>) {
+  const storeRef = useRef<AppStore | null>(externalStore ?? null)
 
   if (!storeRef.current) {
     storeRef.current = createAppStore(initialState)
@@ -439,4 +440,4 @@ export function useAppStore<T>(selector: (state: AppStoreState) => T): T {
   return useStore(store, selector)
 }
 
-export type { AppActions }
+export type { AppActions, AppStore }
