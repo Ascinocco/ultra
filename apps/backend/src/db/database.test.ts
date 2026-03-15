@@ -71,7 +71,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0001_initial_foundations",
+      "0002_add_layout_pane_tabs",
     )
 
     secondRuntime.close()

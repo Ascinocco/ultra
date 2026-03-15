@@ -42,4 +42,11 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
       );
     `,
   },
+  {
+    id: "0002_add_layout_pane_tabs",
+    sql: `
+      ALTER TABLE project_layout_state ADD COLUMN selected_right_pane_tab TEXT;
+      ALTER TABLE project_layout_state ADD COLUMN selected_bottom_pane_tab TEXT;
+    `,
+  },
 ]

@@ -39,10 +39,17 @@ describe("migration runner", () => {
       )
       .all()
 
-    expect(result.appliedMigrationIds).toEqual(["0001_initial_foundations"])
+    expect(result.appliedMigrationIds).toEqual([
+      "0001_initial_foundations",
+      "0002_add_layout_pane_tabs",
+    ])
     expect(rows).toEqual([
       {
         id: "0001_initial_foundations",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0002_add_layout_pane_tabs",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
