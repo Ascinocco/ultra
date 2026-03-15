@@ -6,7 +6,6 @@ import type {
   ProjectId,
   ThreadCreatedEventPayload,
   ThreadDetailResult,
-  ThreadEventSnapshot,
   ThreadExecutionState,
   ThreadId,
   ThreadPublishState,
@@ -14,11 +13,10 @@ import type {
   ThreadSnapshot,
   ThreadSpecRefInput,
   ThreadSpecRefSnapshot,
-  ThreadSummary,
-  ThreadTicketRefInput,
-  ThreadTicketRefSnapshot,
   ThreadsGetEventsResult,
   ThreadsListResult,
+  ThreadTicketRefInput,
+  ThreadTicketRefSnapshot,
 } from "@ultra/shared"
 
 import { IpcProtocolError } from "../ipc/errors.js"
@@ -156,7 +154,9 @@ function mapThreadSpecRefRow(row: ThreadSpecRefRow): ThreadSpecRefSnapshot {
   }
 }
 
-function mapThreadTicketRefRow(row: ThreadTicketRefRow): ThreadTicketRefSnapshot {
+function mapThreadTicketRefRow(
+  row: ThreadTicketRefRow,
+): ThreadTicketRefSnapshot {
   return {
     threadId: row.thread_id,
     provider: row.provider,
@@ -190,7 +190,9 @@ export class ThreadService {
   }
 
   startThread(input: ChatsStartThreadInput): ThreadDetailResult {
-    const existing = this.getThreadByCreatedByMessageId(input.start_request_message_id)
+    const existing = this.getThreadByCreatedByMessageId(
+      input.start_request_message_id,
+    )
 
     if (existing) {
       return this.getThread(existing.id)
@@ -236,7 +238,9 @@ export class ThreadService {
     return this.getThread(threadId)
   }
 
-  promoteWorkToThread(input: ChatsPromoteWorkToThreadInput): ThreadDetailResult {
+  promoteWorkToThread(
+    input: ChatsPromoteWorkToThreadInput,
+  ): ThreadDetailResult {
     if (!input.promotion_summary.trim()) {
       throw new IpcProtocolError(
         "invalid_request",
@@ -244,7 +248,9 @@ export class ThreadService {
       )
     }
 
-    const existing = this.getThreadByCreatedByMessageId(input.start_request_message_id)
+    const existing = this.getThreadByCreatedByMessageId(
+      input.start_request_message_id,
+    )
 
     if (existing) {
       return this.getThread(existing.id)
@@ -785,7 +791,10 @@ export class ThreadService {
       | undefined
 
     if (!row) {
-      throw new IpcProtocolError("not_found", `Chat message not found: ${messageId}`)
+      throw new IpcProtocolError(
+        "not_found",
+        `Chat message not found: ${messageId}`,
+      )
     }
 
     if (row.chat_id !== chatId) {
@@ -803,7 +812,10 @@ export class ThreadService {
     }
   }
 
-  private assertMessagesBelongToChat(chatId: string, messageIds: string[]): void {
+  private assertMessagesBelongToChat(
+    chatId: string,
+    messageIds: string[],
+  ): void {
     for (const messageId of messageIds) {
       const row = this.database
         .prepare("SELECT chat_id FROM chat_messages WHERE id = ?")

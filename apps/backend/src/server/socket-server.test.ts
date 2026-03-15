@@ -420,19 +420,19 @@ describe("socket server", () => {
       throw new Error("Expected chat create to succeed")
     }
 
-    const planApproval = chatService.createMessage({
+    const planApproval = chatService.appendMessage({
       chatId: createChatResponse.result.id,
       role: "user",
       messageType: "plan_approval",
       contentMarkdown: "approve plan",
     })
-    const specApproval = chatService.createMessage({
+    const specApproval = chatService.appendMessage({
       chatId: createChatResponse.result.id,
       role: "user",
       messageType: "spec_approval",
       contentMarkdown: "approve specs",
     })
-    const startRequest = chatService.createMessage({
+    const startRequest = chatService.appendMessage({
       chatId: createChatResponse.result.id,
       role: "user",
       messageType: "thread_start_request",

@@ -4,7 +4,7 @@ import { join } from "node:path"
 
 import { afterEach, describe, expect, it } from "vitest"
 
-import { ChatService, type ChatMessageSnapshot } from "../chats/chat-service.js"
+import { type ChatMessageSnapshot, ChatService } from "../chats/chat-service.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
 import { ThreadService } from "./thread-service.js"
@@ -41,19 +41,19 @@ function seedApprovalMessages(
   specApproval: ChatMessageSnapshot
   startRequest: ChatMessageSnapshot
 } {
-  const planApproval = chatService.createMessage({
+  const planApproval = chatService.appendMessage({
     chatId,
     role: "user",
     messageType: "plan_approval",
     contentMarkdown: "Plan approved",
   })
-  const specApproval = chatService.createMessage({
+  const specApproval = chatService.appendMessage({
     chatId,
     role: "user",
     messageType: "spec_approval",
     contentMarkdown: "Specs approved",
   })
-  const startRequest = chatService.createMessage({
+  const startRequest = chatService.appendMessage({
     chatId,
     role: "user",
     messageType: "thread_start_request",
@@ -72,7 +72,10 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:00:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:00:00Z",
+    )
     const threadService = new ThreadService(
       runtime.database,
       () => "2026-03-16T00:00:01Z",
@@ -143,7 +146,10 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:05:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:05:00Z",
+    )
     const threadService = new ThreadService(
       runtime.database,
       () => "2026-03-16T00:05:01Z",
@@ -187,11 +193,14 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:10:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:10:00Z",
+    )
     const threadService = new ThreadService(runtime.database)
     const project = projectService.open({ path: projectPath })
     const chat = chatService.create(project.id)
-    const userText = chatService.createMessage({
+    const userText = chatService.appendMessage({
       chatId: chat.id,
       role: "user",
       messageType: "user_text",
@@ -232,7 +241,10 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:15:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:15:00Z",
+    )
     const threadService = new ThreadService(runtime.database)
     const project = projectService.open({ path: projectPath })
     const firstChat = chatService.create(project.id)
@@ -260,7 +272,10 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:20:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:20:00Z",
+    )
     const threadService = new ThreadService(
       runtime.database,
       () => "2026-03-16T00:20:01Z",
@@ -268,7 +283,7 @@ describe("ThreadService", () => {
     const project = projectService.open({ path: projectPath })
     const chat = chatService.create(project.id)
     const approvals = seedApprovalMessages(chatService, chat.id)
-    const assistantMessage = chatService.createMessage({
+    const assistantMessage = chatService.appendMessage({
       chatId: chat.id,
       role: "assistant",
       messageType: "assistant_text",
@@ -317,13 +332,16 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:25:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:25:00Z",
+    )
     const threadService = new ThreadService(runtime.database)
     const project = projectService.open({ path: projectPath })
     const firstChat = chatService.create(project.id)
     const secondChat = chatService.create(project.id)
     const approvals = seedApprovalMessages(chatService, firstChat.id)
-    const secondMessage = chatService.createMessage({
+    const secondMessage = chatService.appendMessage({
       chatId: secondChat.id,
       role: "assistant",
       messageType: "assistant_text",
@@ -397,7 +415,10 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:30:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:30:00Z",
+    )
     const threadService = new ThreadService(runtime.database)
     const project = projectService.open({ path: projectPath })
     const chat = chatService.create(project.id)
@@ -428,7 +449,10 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:35:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:35:00Z",
+    )
     let tick = 0
     const threadService = new ThreadService(runtime.database, () => {
       tick += 1
@@ -483,7 +507,10 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:40:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:40:00Z",
+    )
     const threadService = new ThreadService(runtime.database)
     const project = projectService.open({ path: projectPath })
     const chat = chatService.create(project.id)
@@ -525,7 +552,10 @@ describe("ThreadService", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
-    const chatService = new ChatService(runtime.database, () => "2026-03-16T00:45:00Z")
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:45:00Z",
+    )
     const threadService = new ThreadService(runtime.database)
     const project = projectService.open({ path: projectPath })
     const chat = chatService.create(project.id)

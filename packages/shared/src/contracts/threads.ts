@@ -1,12 +1,11 @@
 import { z } from "zod"
-
+import { chatIdSchema } from "./chats.js"
+import { isoUtcTimestampSchema, opaqueIdSchema } from "./constants.js"
 import {
   commandRequestEnvelopeSchema,
   queryRequestEnvelopeSchema,
   successResponseEnvelopeSchema,
 } from "./ipc.js"
-import { isoUtcTimestampSchema, opaqueIdSchema } from "./constants.js"
-import { chatIdSchema } from "./chats.js"
 import { projectIdSchema } from "./projects.js"
 
 export const threadIdSchema = opaqueIdSchema
@@ -113,7 +112,9 @@ export const threadCreatedEventPayloadSchema = z.object({
   title: z.string().min(1),
   summary: z.string().nullable(),
   initialSpecIds: z.array(z.string().min(1)),
-  initialTicketRefs: z.array(threadTicketRefSnapshotSchema.omit({ threadId: true, createdAt: true })),
+  initialTicketRefs: z.array(
+    threadTicketRefSnapshotSchema.omit({ threadId: true, createdAt: true }),
+  ),
   initialExecutionState: threadExecutionStateSchema,
   initialReviewState: threadReviewStateSchema,
   initialPublishState: threadPublishStateSchema,
@@ -196,10 +197,11 @@ export const threadsGetEventsResultSchema = z.object({
   events: z.array(threadEventSnapshotSchema),
 })
 
-export const chatsStartThreadCommandSchema = commandRequestEnvelopeSchema.extend({
-  name: z.literal("chats.start_thread"),
-  payload: chatsStartThreadInputSchema,
-})
+export const chatsStartThreadCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("chats.start_thread"),
+    payload: chatsStartThreadInputSchema,
+  })
 
 export const chatsPromoteWorkToThreadCommandSchema =
   commandRequestEnvelopeSchema.extend({
@@ -207,10 +209,11 @@ export const chatsPromoteWorkToThreadCommandSchema =
     payload: chatsPromoteWorkToThreadInputSchema,
   })
 
-export const threadsListByProjectQuerySchema = queryRequestEnvelopeSchema.extend({
-  name: z.literal("threads.list_by_project"),
-  payload: threadsListByProjectInputSchema,
-})
+export const threadsListByProjectQuerySchema =
+  queryRequestEnvelopeSchema.extend({
+    name: z.literal("threads.list_by_project"),
+    payload: threadsListByProjectInputSchema,
+  })
 
 export const threadsListByChatQuerySchema = queryRequestEnvelopeSchema.extend({
   name: z.literal("threads.list_by_chat"),
@@ -265,7 +268,9 @@ export type ThreadEventCreationSource = z.infer<
   typeof threadEventCreationSourceSchema
 >
 export type ThreadSpecRefSnapshot = z.infer<typeof threadSpecRefSnapshotSchema>
-export type ThreadTicketRefSnapshot = z.infer<typeof threadTicketRefSnapshotSchema>
+export type ThreadTicketRefSnapshot = z.infer<
+  typeof threadTicketRefSnapshotSchema
+>
 export type ThreadSummary = z.infer<typeof threadSummarySchema>
 export type ThreadSnapshot = z.infer<typeof threadSnapshotSchema>
 export type ThreadEventSnapshot = z.infer<typeof threadEventSnapshotSchema>

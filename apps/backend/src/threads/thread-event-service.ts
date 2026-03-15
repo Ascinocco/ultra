@@ -1,10 +1,6 @@
 import { randomUUID } from "node:crypto"
 import type { DatabaseSync } from "node:sqlite"
-import type {
-  ProjectId,
-  ThreadEventSnapshot,
-  ThreadId,
-} from "@ultra/shared"
+import type { ProjectId, ThreadEventSnapshot, ThreadId } from "@ultra/shared"
 
 import { IpcProtocolError } from "../ipc/errors.js"
 
@@ -79,7 +75,10 @@ export class ThreadEventService {
       .get(input.threadId) as { id: string; project_id: string } | undefined
 
     if (!thread) {
-      throw new IpcProtocolError("not_found", `Thread not found: ${input.threadId}`)
+      throw new IpcProtocolError(
+        "not_found",
+        `Thread not found: ${input.threadId}`,
+      )
     }
 
     if (thread.project_id !== input.projectId) {
@@ -163,7 +162,10 @@ export class ThreadEventService {
     )
 
     if (!row) {
-      throw new IpcProtocolError("not_found", `Thread event not found: ${eventId}`)
+      throw new IpcProtocolError(
+        "not_found",
+        `Thread event not found: ${eventId}`,
+      )
     }
 
     return mapThreadEventRow(row)
