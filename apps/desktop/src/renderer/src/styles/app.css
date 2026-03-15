@@ -259,7 +259,11 @@ button {
 
 .surface--rail {
   background:
-    radial-gradient(ellipse at top left, rgba(70, 90, 160, 0.12), transparent 60%),
+    radial-gradient(
+      ellipse at top left,
+      rgba(70, 90, 160, 0.12),
+      transparent 60%
+    ),
     radial-gradient(ellipse at bottom, rgba(60, 70, 130, 0.06), transparent 50%),
     rgba(18, 22, 34, 0.96);
 }

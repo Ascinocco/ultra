@@ -70,6 +70,7 @@ export type {
   ProjectSummary,
   ProjectsGetInput,
   ProjectsLayoutUpdatedEventPayload,
+  ProjectsListResult,
   ProjectsOpenCommand,
   ProjectsSetLayoutCommand,
   ProjectsUpdatedEventPayload,
@@ -77,6 +78,7 @@ export type {
 export {
   parseProjectOpenInput,
   parseProjectSnapshot,
+  parseProjectsListResult,
   projectIdSchema,
   projectKeySchema,
   projectOpenInputSchema,
@@ -94,6 +96,7 @@ export {
   projectsListRequestPayloadSchema,
   projectsListSuccessResponseSchema,
   projectsOpenCommandSchema,
+  projectsOpenSuccessResponseSchema,
   projectsSetLayoutCommandSchema,
   projectsUpdatedEventPayloadSchema,
   projectsUpdatedEventSchema,

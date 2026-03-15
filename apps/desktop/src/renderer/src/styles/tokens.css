@@ -4,8 +4,16 @@
   /* Cool blue-dark shell */
   --shell-bg: #0f1117;
   --shell-bg-accent:
-    radial-gradient(ellipse at top left, rgba(56, 89, 160, 0.1), transparent 50%),
-    radial-gradient(ellipse at bottom right, rgba(80, 60, 140, 0.06), transparent 50%),
+    radial-gradient(
+      ellipse at top left,
+      rgba(56, 89, 160, 0.1),
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at bottom right,
+      rgba(80, 60, 140, 0.06),
+      transparent 50%
+    ),
     linear-gradient(180deg, #12141c 0%, #0f1117 100%);
 
   /* Blue-tinted surfaces */

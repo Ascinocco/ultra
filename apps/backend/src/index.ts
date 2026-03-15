@@ -2,10 +2,12 @@ import { fileURLToPath } from "node:url"
 import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
 
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
+import { ProjectService } from "./projects/project-service.js"
 import {
   type SocketServerRuntime,
   startSocketServer,
 } from "./server/socket-server.js"
+import { SystemService } from "./system/system-service.js"
 
 export function createBackendBanner(): string {
   const target = buildPlaceholderProjectLabel(APP_NAME)
@@ -32,7 +34,10 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
   )
 
   if (socketPath) {
-    socketRuntime = await startSocketServer(socketPath)
+    socketRuntime = await startSocketServer(socketPath, {
+      projectService: new ProjectService(databaseRuntime.database),
+      systemService: new SystemService(),
+    })
   } else {
     console.log(
       "[backend] no ULTRA_SOCKET_PATH provided; socket server disabled",

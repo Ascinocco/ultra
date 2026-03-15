@@ -1,6 +1,5 @@
-import { BrowserWindow, ipcMain } from "electron"
-
 import type { CommandMethodName, QueryMethodName } from "@ultra/shared"
+import { BrowserWindow, ipcMain } from "electron"
 
 import type { BackendConnection } from "./backend-connection.js"
 
@@ -15,10 +14,8 @@ export function registerShellIpc(connection: BackendConnection): () => void {
   ipcMain.handle(GET_BACKEND_STATUS_CHANNEL, () => connection.getStatus())
   ipcMain.handle(SYSTEM_PING_CHANNEL, () => connection.ping())
   ipcMain.handle(GET_BACKEND_INFO_CHANNEL, () => connection.getBackendInfo())
-  ipcMain.handle(
-    IPC_QUERY_CHANNEL,
-    (_event, name: string, payload: unknown) =>
-      connection.query(name as QueryMethodName, payload),
+  ipcMain.handle(IPC_QUERY_CHANNEL, (_event, name: string, payload: unknown) =>
+    connection.query(name as QueryMethodName, payload),
   )
   ipcMain.handle(
     IPC_COMMAND_CHANNEL,

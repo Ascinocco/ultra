@@ -6,10 +6,14 @@ import type {
 import {
   IPC_PROTOCOL_VERSION,
   parseIpcRequestEnvelope,
+  parseProjectOpenInput,
   parseSystemHelloQuery,
+  projectsGetInputSchema,
+  projectsListQuerySchema,
   systemGetBackendInfoQuerySchema,
   systemPingQuerySchema,
 } from "@ultra/shared"
+import type { ProjectService } from "../projects/project-service.js"
 import type { SystemService } from "../system/system-service.js"
 import { createErrorResponse, IpcProtocolError } from "./errors.js"
 
@@ -83,38 +87,98 @@ function assertSystemQuery(request: IpcRequestEnvelope): QueryRequestEnvelope {
   return request
 }
 
+function assertQueryRequest(request: IpcRequestEnvelope): QueryRequestEnvelope {
+  if (request.type !== "query") {
+    throw new IpcProtocolError(
+      "invalid_request",
+      `IPC method requires a query envelope: ${request.name}`,
+      { requestId: request.request_id },
+    )
+  }
+
+  return request
+}
+
+function assertCommandRequest(
+  request: IpcRequestEnvelope,
+): Extract<IpcRequestEnvelope, { type: "command" }> {
+  if (request.type !== "command") {
+    throw new IpcProtocolError(
+      "invalid_request",
+      `IPC method requires a command envelope: ${request.name}`,
+      { requestId: request.request_id },
+    )
+  }
+
+  return request
+}
+
 export async function routeIpcRequest(
   raw: unknown,
-  systemService: SystemService,
+  services: {
+    systemService: SystemService
+    projectService: ProjectService
+  },
 ): Promise<SuccessResponseEnvelope | ReturnType<typeof createErrorResponse>> {
   try {
     const request = parseEnvelopeOrThrow(raw)
-    const systemQuery = assertSystemQuery(request)
 
-    switch (systemQuery.name) {
-      case "system.hello":
-        parseSystemHelloQuery(systemQuery)
+    switch (request.name) {
+      case "system.hello": {
+        const helloQuery = assertSystemQuery(request)
+        parseSystemHelloQuery(helloQuery)
         return createSuccessResponse(
-          systemQuery.request_id,
-          systemService.hello(),
+          helloQuery.request_id,
+          services.systemService.hello(),
         )
-      case "system.get_backend_info":
-        systemGetBackendInfoQuerySchema.parse(systemQuery)
+      }
+      case "system.get_backend_info": {
+        const backendInfoQuery = assertSystemQuery(request)
+        systemGetBackendInfoQuerySchema.parse(backendInfoQuery)
         return createSuccessResponse(
-          systemQuery.request_id,
-          systemService.getBackendInfo(),
+          backendInfoQuery.request_id,
+          services.systemService.getBackendInfo(),
         )
-      case "system.ping":
-        systemPingQuerySchema.parse(systemQuery)
+      }
+      case "system.ping": {
+        const pingQuery = assertSystemQuery(request)
+        systemPingQuerySchema.parse(pingQuery)
         return createSuccessResponse(
-          systemQuery.request_id,
-          systemService.ping(),
+          pingQuery.request_id,
+          services.systemService.ping(),
         )
+      }
+      case "projects.open": {
+        const openCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          openCommand.request_id,
+          services.projectService.open(
+            parseProjectOpenInput(openCommand.payload),
+          ),
+        )
+      }
+      case "projects.get": {
+        const getQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          getQuery.request_id,
+          services.projectService.get(
+            projectsGetInputSchema.parse(getQuery.payload).project_id,
+          ),
+        )
+      }
+      case "projects.list": {
+        const listQuery = assertQueryRequest(request)
+        projectsListQuerySchema.parse(listQuery)
+        return createSuccessResponse(
+          listQuery.request_id,
+          services.projectService.list(),
+        )
+      }
       default:
         throw new IpcProtocolError(
           "not_found",
-          `IPC method is not implemented: ${systemQuery.name}`,
-          { requestId: systemQuery.request_id },
+          `IPC method is not implemented: ${request.name}`,
+          { requestId: request.request_id },
         )
     }
   } catch (error) {

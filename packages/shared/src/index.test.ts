@@ -9,6 +9,7 @@ import {
   parseProjectLayoutState,
   parseProjectOpenInput,
   parseProjectSnapshot,
+  parseProjectsListResult,
   parseQueryRequest,
   parseSystemHelloResult,
   projectLayoutStateSchema,
@@ -98,6 +99,25 @@ describe("shared contracts", () => {
     })
 
     expect(snapshot.name).toBe("Ultra")
+  })
+
+  it("parses project list results", () => {
+    const result = parseProjectsListResult({
+      projects: [
+        {
+          id: "proj_123",
+          key: "/Users/tony/Projects/ultra",
+          name: "Ultra",
+          rootPath: "/Users/tony/Projects/ultra",
+          gitRootPath: "/Users/tony/Projects/ultra",
+          createdAt: "2026-03-14T12:00:00Z",
+          updatedAt: "2026-03-14T12:00:00Z",
+          lastOpenedAt: "2026-03-14T12:01:00Z",
+        },
+      ],
+    })
+
+    expect(result.projects).toHaveLength(1)
   })
 
   it("accepts the milestone one project layout state", () => {
