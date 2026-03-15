@@ -65,6 +65,11 @@ export class BackendConnection {
     return parseBackendInfoSnapshot(response)
   }
 
+  async retryStartup(): Promise<BackendStatusSnapshot> {
+    await this.processManager.restart()
+    return this.getStatus()
+  }
+
   async query(name: QueryMethodName, payload?: unknown): Promise<unknown> {
     const socketPath = this.status.socketPath
 

@@ -11,6 +11,7 @@ const GET_BACKEND_STATUS_CHANNEL = "ultra-shell:get-backend-status"
 const BACKEND_STATUS_CHANGED_CHANNEL = "ultra-shell:backend-status-changed"
 const SYSTEM_PING_CHANNEL = "ultra-shell:system-ping"
 const GET_BACKEND_INFO_CHANNEL = "ultra-shell:get-backend-info"
+const RETRY_BACKEND_STARTUP_CHANNEL = "ultra-shell:retry-backend-startup"
 const IPC_QUERY_CHANNEL = "ultra-shell:ipc-query"
 const IPC_COMMAND_CHANNEL = "ultra-shell:ipc-command"
 const PICK_PROJECT_DIRECTORY_CHANNEL = "ultra-shell:pick-project-directory"
@@ -30,6 +31,10 @@ const ultraShell = {
     ipcRenderer.invoke(
       GET_BACKEND_INFO_CHANNEL,
     ) as Promise<BackendInfoSnapshot>,
+  retryBackendStartup: () =>
+    ipcRenderer.invoke(
+      RETRY_BACKEND_STARTUP_CHANNEL,
+    ) as Promise<BackendStatusSnapshot>,
   pickProjectDirectory: () =>
     ipcRenderer.invoke(PICK_PROJECT_DIRECTORY_CHANNEL) as Promise<
       string | null

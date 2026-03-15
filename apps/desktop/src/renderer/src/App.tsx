@@ -2,7 +2,9 @@ import { useEffect } from "react"
 
 import { AppShell } from "./components/AppShell.js"
 import { EnvironmentReadinessGate } from "./components/EnvironmentReadinessGate.js"
+import { FoundationStartupErrorGate } from "./components/FoundationStartupErrorGate.js"
 import { SystemToolsPanel } from "./components/SystemToolsPanel.js"
+import { classifyFoundationStartupFailure } from "./foundation/foundation-startup.js"
 import {
   loadEnvironmentReadiness,
   recheckEnvironmentReadiness,
@@ -106,6 +108,8 @@ function AppScreen() {
   const setSystemToolsOpen = useAppStore(
     (state) => state.actions.setSystemToolsOpen,
   )
+  const backendStatus = useAppStore((state) => state.app.backendStatus)
+  const foundationFailure = classifyFoundationStartupFailure(backendStatus)
 
   async function handleRecheck() {
     setReadinessChecking()
@@ -118,7 +122,12 @@ function AppScreen() {
     }
   }
 
+  async function handleRetryStartup() {
+    await window.ultraShell.retryBackendStartup()
+  }
+
   const showReadinessGate =
+    !foundationFailure &&
     connectionStatus === "connected" &&
     (readiness.status === "checking" ||
       readiness.status === "blocked" ||
@@ -130,7 +139,17 @@ function AppScreen() {
 
   return (
     <>
-      {showReadinessGate ? (
+      {foundationFailure ? (
+        <FoundationStartupErrorGate
+          failure={foundationFailure}
+          onOpenSystemTools={() => {
+            setSystemToolsOpen(true)
+          }}
+          onRetryStartup={() => {
+            void handleRetryStartup()
+          }}
+        />
+      ) : showReadinessGate ? (
         <EnvironmentReadinessGate
           snapshot={readiness.snapshot}
           status={gateStatus}
