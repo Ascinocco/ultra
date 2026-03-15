@@ -14,6 +14,8 @@ export const queryMethodSchema = z.enum([
   "system.ping",
   "chats.list",
   "chats.get",
+  "sandboxes.list",
+  "sandboxes.get_active",
   "projects.list",
   "projects.get",
   "projects.get_layout",
@@ -27,6 +29,7 @@ export const commandMethodSchema = z.enum([
   "chats.unpin",
   "chats.archive",
   "chats.restore",
+  "sandboxes.set_active",
   "projects.open",
   "projects.set_layout",
 ])

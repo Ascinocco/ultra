@@ -323,6 +323,40 @@ export class SandboxPersistenceService {
     return mapSandboxContextRow(storedSandbox)
   }
 
+  findThreadSandbox(
+    projectId: ProjectId,
+    threadId: string,
+  ): SandboxContextSnapshot | null {
+    this.assertProjectExists(projectId)
+    this.assertThreadBelongsToProject(projectId, threadId)
+
+    const sandbox = readSandboxContextRow(
+      this.database
+        .prepare(
+          `
+            SELECT
+              sandbox_id,
+              project_id,
+              thread_id,
+              path,
+              display_name,
+              sandbox_type,
+              branch_name,
+              base_branch,
+              is_main_checkout,
+              created_at,
+              updated_at,
+              last_used_at
+            FROM sandbox_contexts
+            WHERE project_id = ? AND thread_id = ?
+          `,
+        )
+        .get(projectId, threadId),
+    )
+
+    return sandbox ? mapSandboxContextRow(sandbox) : null
+  }
+
   setActiveSandbox(
     projectId: ProjectId,
     sandboxId: string,

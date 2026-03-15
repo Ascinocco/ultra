@@ -18,6 +18,7 @@ import {
   parseQueryRequest,
   parseRuntimeComponentSnapshot,
   parseRuntimeHealthCheckSnapshot,
+  parseSandboxesListResult,
   parseSystemHelloResult,
   projectLayoutStateSchema,
 } from "./index.js"
@@ -81,6 +82,45 @@ describe("shared contracts", () => {
     })
 
     expect(command.name).toBe("chats.create")
+  })
+
+  it("parses a valid command envelope for sandboxes.set_active", () => {
+    const command = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_sandbox_set_active",
+      type: "command",
+      name: "sandboxes.set_active",
+      payload: {
+        project_id: "proj_123",
+        sandbox_id: "sandbox_123",
+      },
+    })
+
+    expect(command.name).toBe("sandboxes.set_active")
+  })
+
+  it("parses valid query envelopes for sandboxes.list and sandboxes.get_active", () => {
+    const listQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_sandbox_list",
+      type: "query",
+      name: "sandboxes.list",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+    const activeQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_sandbox_active",
+      type: "query",
+      name: "sandboxes.get_active",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+
+    expect(listQuery.name).toBe("sandboxes.list")
+    expect(activeQuery.name).toBe("sandboxes.get_active")
   })
 
   it("parses the system hello result contract", () => {
@@ -309,6 +349,44 @@ describe("shared contracts", () => {
     expect(component.componentType).toBe("coordinator")
     expect(healthCheck.details?.source).toBe("heartbeat")
     expect(summary.components).toHaveLength(1)
+  })
+
+  it("parses sandbox list results", () => {
+    const result = parseSandboxesListResult({
+      sandboxes: [
+        {
+          sandboxId: "sandbox_123",
+          projectId: "proj_123",
+          threadId: null,
+          path: "/Users/tony/Projects/ultra",
+          displayName: "Main",
+          sandboxType: "main_checkout",
+          branchName: null,
+          baseBranch: null,
+          isMainCheckout: true,
+          createdAt: "2026-03-15T00:00:00Z",
+          updatedAt: "2026-03-15T00:00:00Z",
+          lastUsedAt: "2026-03-15T00:00:00Z",
+        },
+      ],
+    })
+
+    expect(result.sandboxes).toHaveLength(1)
+    expect(result.sandboxes[0]?.displayName).toBe("Main")
+  })
+
+  it("rejects a runtime sync sandbox query because it is not public yet", () => {
+    expect(() =>
+      parseQueryRequest({
+        protocol_version: IPC_PROTOCOL_VERSION,
+        request_id: "req_runtime_sync",
+        type: "query",
+        name: "sandboxes.get_runtime_sync",
+        payload: {
+          sandbox_id: "sandbox_123",
+        },
+      }),
+    ).toThrow()
   })
 
   it("rejects malformed runtime values", () => {
