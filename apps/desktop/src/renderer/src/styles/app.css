@@ -475,7 +475,7 @@ button {
 .chat-frame__rail {
   padding: 20px;
   border-right: 1px solid var(--panel-border);
-  background: var(--surface-1);
+  background: var(--surface-2);
 }
 
 .chat-frame__main {
