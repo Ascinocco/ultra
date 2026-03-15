@@ -31,6 +31,7 @@ type AppSlice = {
   capabilities: BackendCapabilities | null
   projectOpenStatus: ProjectOpenStatus
   projectOpenError: string | null
+  terminalDrawerOpen: boolean
 }
 
 type ReadinessStatus = "idle" | "checking" | "ready" | "blocked" | "error"
@@ -84,6 +85,7 @@ type AppActions = {
   setReadinessError: (error: string) => void
   resetReadiness: () => void
   setSystemToolsOpen: (open: boolean) => void
+  toggleTerminalDrawer: () => void
 }
 
 export type AppStoreState = {
@@ -105,6 +107,7 @@ const defaultAppState: AppSlice = {
   capabilities: null,
   projectOpenStatus: "idle",
   projectOpenError: null,
+  terminalDrawerOpen: false,
 }
 
 const defaultProjectsState: ProjectsSlice = {
@@ -205,6 +208,7 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       setReadinessError: () => undefined,
       resetReadiness: () => undefined,
       setSystemToolsOpen: () => undefined,
+      toggleTerminalDrawer: () => undefined,
     },
   }
 }
@@ -403,6 +407,11 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             ...state.readiness,
             systemToolsOpen: open,
           },
+        })),
+      toggleTerminalDrawer: () =>
+        set((state) => ({
+          ...state,
+          app: { ...state.app, terminalDrawerOpen: !state.app.terminalDrawerOpen },
         })),
     },
   }))

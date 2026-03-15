@@ -397,3 +397,21 @@ describe("sidebar slice", () => {
   })
 })
 
+describe("terminal drawer state", () => {
+  it("starts with terminal drawer closed", () => {
+    const store = createAppStore()
+
+    expect(store.getState().app.terminalDrawerOpen).toBe(false)
+  })
+
+  it("toggleTerminalDrawer opens and closes the drawer", () => {
+    const store = createAppStore()
+
+    store.getState().actions.toggleTerminalDrawer()
+    expect(store.getState().app.terminalDrawerOpen).toBe(true)
+
+    store.getState().actions.toggleTerminalDrawer()
+    expect(store.getState().app.terminalDrawerOpen).toBe(false)
+  })
+})
+
