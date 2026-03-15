@@ -65,7 +65,7 @@ describe("BackendProcessManager", () => {
     child.stdout.emitData("Ultra backend scaffold ready for Ultra workspace")
 
     expect(manager.getStatus().phase).toBe("running")
-    expect(manager.getStatus().connectionStatus).toBe("connected")
+    expect(manager.getStatus().connectionStatus).toBe("connecting")
     expect(manager.getStatus().pid).toBe(101)
   })
 

@@ -1,4 +1,4 @@
-import type { ConnectionStatus } from "@ultra/shared"
+import type { BackendCapabilities, ConnectionStatus } from "@ultra/shared"
 
 export type BackendLifecyclePhase =
   | "idle"
@@ -13,6 +13,9 @@ export type BackendStatusSnapshot = {
   connectionStatus: ConnectionStatus
   message: string
   socketPath: string | null
+  sessionId: string | null
+  backendVersion: string | null
+  capabilities: BackendCapabilities | null
   pid: number | null
   restartCount: number
   lastExitCode: number | null
@@ -28,6 +31,9 @@ export function createInitialBackendStatus(): BackendStatusSnapshot {
     connectionStatus: "connecting",
     message: "Starting local backend…",
     socketPath: null,
+    sessionId: null,
+    backendVersion: null,
+    capabilities: null,
     pid: null,
     restartCount: 0,
     lastExitCode: null,

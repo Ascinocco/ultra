@@ -7,14 +7,14 @@ describe("backend scaffold", () => {
     expect(createBackendBanner()).toContain("Ultra backend scaffold ready")
   })
 
-  it("starts a long-lived scaffold runtime with the socket path", () => {
+  it("starts a backend runtime with the socket path", async () => {
     process.env.ULTRA_SOCKET_PATH = "/tmp/ultra-backend.sock"
 
-    const runtime = startBackendScaffold()
+    const runtime = await startBackendScaffold()
 
     expect(runtime.socketPath).toBe("/tmp/ultra-backend.sock")
 
-    runtime.stop()
+    await runtime.stop()
     delete process.env.ULTRA_SOCKET_PATH
   })
 })

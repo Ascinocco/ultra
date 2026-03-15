@@ -19,9 +19,9 @@ function resolveWorkspaceRoot(): string {
   return resolve(import.meta.dirname, "../../../../")
 }
 
-function resolveTsxBinary(workspaceRoot: string): string {
+function resolveTsxBinary(backendRoot: string): string {
   return join(
-    workspaceRoot,
+    backendRoot,
     "node_modules",
     ".bin",
     process.platform === "win32" ? "tsx.cmd" : "tsx",
@@ -47,8 +47,8 @@ export function createBackendLaunchConfig(app: App): BackendLaunchConfig {
 
   if (isDev) {
     return {
-      command: resolveTsxBinary(workspaceRoot),
-      args: ["watch", "src/index.ts"],
+      command: resolveTsxBinary(backendRoot),
+      args: ["src/index.ts"],
       cwd: backendRoot,
       env,
       socketPath,

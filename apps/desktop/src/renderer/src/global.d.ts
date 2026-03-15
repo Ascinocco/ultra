@@ -1,3 +1,4 @@
+import type { BackendInfoSnapshot, SystemPingResult } from "@ultra/shared"
 import type {
   BackendStatusListener,
   BackendStatusSnapshot,
@@ -11,6 +12,8 @@ declare global {
       electronVersion: string
       nodeVersion: string
       getBackendStatus: () => Promise<BackendStatusSnapshot>
+      pingBackend: () => Promise<SystemPingResult>
+      getBackendInfo: () => Promise<BackendInfoSnapshot>
       onBackendStatusChange: (listener: BackendStatusListener) => () => void
     }
   }
