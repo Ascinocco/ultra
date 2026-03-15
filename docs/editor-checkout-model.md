@@ -4,6 +4,11 @@
 
 Draft v0.1
 
+Related specs:
+
+- [product-spec.md](/Users/tony/Projects/ultra/docs/product-spec.md)
+- [electron-host-boundaries.md](/Users/tony/Projects/ultra/docs/electron-host-boundaries.md)
+
 This document defines how the Ultra editor page should handle repositories, worktrees, branches, terminals, runtime files, and run/debug behavior for thread review and manual coding.
 
 ## Purpose

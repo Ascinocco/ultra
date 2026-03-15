@@ -38,6 +38,11 @@ Cross-cutting input feature:
 
 - [voice-input.md](/Users/tony/Projects/ultra/docs/voice-input.md)
 
+Cross-cutting implementation boundary specs:
+
+- [cli-runtime-contract.md](/Users/tony/Projects/ultra/docs/cli-runtime-contract.md)
+- [electron-host-boundaries.md](/Users/tony/Projects/ultra/docs/electron-host-boundaries.md)
+
 ## Why This Structure
 
 Ultra now has enough product definition that implementation planning should move from broad feature ideation to staged execution.

@@ -9,6 +9,7 @@ This document defines the browser surfaces in Ultra for manual testing and agent
 Related specs:
 
 - [product-spec.md](/Users/tony/Projects/ultra/docs/product-spec.md)
+- [electron-host-boundaries.md](/Users/tony/Projects/ultra/docs/electron-host-boundaries.md)
 - [ui-layout-and-navigation.md](/Users/tony/Projects/ultra/docs/ui-layout-and-navigation.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md)

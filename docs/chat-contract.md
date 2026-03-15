@@ -9,6 +9,7 @@ This document defines the behavior, scope, and UX contract of project chats in U
 Related specs:
 
 - [product-spec.md](/Users/tony/Projects/ultra/docs/product-spec.md)
+- [cli-runtime-contract.md](/Users/tony/Projects/ultra/docs/cli-runtime-contract.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [editor-checkout-model.md](/Users/tony/Projects/ultra/docs/editor-checkout-model.md)
 

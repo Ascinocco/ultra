@@ -9,9 +9,11 @@ This is the entry-point product spec for Ultra. It describes the overall product
 Supporting specs:
 
 - [chat-contract.md](/Users/tony/Projects/ultra/docs/chat-contract.md)
+- [cli-runtime-contract.md](/Users/tony/Projects/ultra/docs/cli-runtime-contract.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [thread-event-schema.md](/Users/tony/Projects/ultra/docs/thread-event-schema.md)
 - [editor-checkout-model.md](/Users/tony/Projects/ultra/docs/editor-checkout-model.md)
+- [electron-host-boundaries.md](/Users/tony/Projects/ultra/docs/electron-host-boundaries.md)
 - [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md)
 - [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
 - [sqlite-schema.md](/Users/tony/Projects/ultra/docs/sqlite-schema.md)
