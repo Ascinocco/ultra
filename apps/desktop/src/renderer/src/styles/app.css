@@ -53,16 +53,20 @@ button {
 .runtime-indicator,
 .surface,
 .top-nav {
-  border: 1px solid var(--surface-border);
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(18px);
+}
+
+.surface,
+.top-nav {
+  border: 1px solid var(--surface-border);
 }
 
 .project-frame,
 .runtime-indicator {
   min-height: 88px;
   padding: 16px 18px;
-  background: var(--surface-1);
+  background: transparent;
   border-radius: var(--radius-lg);
   box-sizing: border-box;
 }
@@ -102,10 +106,10 @@ button {
 .top-nav {
   display: inline-grid;
   grid-auto-flow: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 4px;
+  padding: 4px;
   border-radius: 999px;
-  background: rgba(9, 18, 34, 0.92);
+  background: rgba(14, 18, 24, 0.98);
 }
 
 .top-nav__pill {
@@ -114,7 +118,8 @@ button {
   border-radius: 999px;
   background: transparent;
   color: var(--text-secondary);
-  padding: 11px 18px;
+  padding: 7px 12px;
+  font-size: 0.9rem;
   cursor: pointer;
   transition:
     background-color 120ms ease,
@@ -123,14 +128,14 @@ button {
 }
 
 .top-nav__pill:hover {
-  background: rgba(148, 163, 184, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
 }
 
 .top-nav__pill--active {
   background: var(--accent-surface);
   color: var(--accent-strong);
-  box-shadow: inset 0 0 0 1px rgba(104, 160, 255, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
 .runtime-indicator {
@@ -238,7 +243,7 @@ button {
 }
 
 .surface--rail {
-  background: rgba(9, 18, 34, 0.88);
+  background: rgba(10, 13, 18, 0.98);
 }
 
 .surface--toolbar {
@@ -268,8 +273,8 @@ button {
   display: inline-flex;
   align-items: center;
   padding: 8px 12px;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.1);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-secondary);
   font-size: 0.88rem;
 }
@@ -280,8 +285,8 @@ button {
   gap: 10px;
   min-height: 180px;
   padding: 18px;
-  background: rgba(9, 18, 34, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.11);
+  background: rgba(10, 13, 18, 0.9);
+  border: 1px solid rgba(214, 220, 230, 0.12);
   border-radius: var(--radius-lg);
 }
 

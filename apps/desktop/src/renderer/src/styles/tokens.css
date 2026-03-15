@@ -1,26 +1,26 @@
 :root {
   color-scheme: dark;
-  --shell-bg: #07111f;
+  --shell-bg: #070a0d;
   --shell-bg-accent:
-    radial-gradient(circle at top, rgba(51, 94, 193, 0.18), transparent 34%),
-    linear-gradient(180deg, #0a1629 0%, #07111f 100%);
-  --surface-1: rgba(12, 23, 39, 0.82);
-  --surface-2: rgba(15, 28, 48, 0.92);
-  --surface-3: rgba(24, 39, 63, 0.98);
-  --surface-border: rgba(148, 163, 184, 0.16);
-  --text-primary: #e5eefb;
-  --text-secondary: #b4c2da;
-  --text-muted: #8ca0bc;
-  --accent: #68a0ff;
-  --accent-strong: #dce9ff;
-  --accent-surface: rgba(104, 160, 255, 0.16);
+    radial-gradient(circle at top, rgba(124, 138, 172, 0.1), transparent 34%),
+    linear-gradient(180deg, #0c1016 0%, #070a0d 100%);
+  --surface-1: rgba(10, 13, 18, 0.94);
+  --surface-2: rgba(14, 18, 24, 0.96);
+  --surface-3: rgba(18, 22, 28, 0.98);
+  --surface-border: rgba(226, 232, 240, 0.22);
+  --text-primary: #f8fbff;
+  --text-secondary: #d5ddea;
+  --text-muted: #a0adbf;
+  --accent: #e7edf6;
+  --accent-strong: #ffffff;
+  --accent-surface: rgba(255, 255, 255, 0.12);
   --success: #6ee7b7;
   --warning: #facc15;
   --danger: #fb7185;
   --idle: #94a3b8;
   --shadow-lg: 0 26px 80px rgba(3, 8, 18, 0.4);
   --shadow-md: 0 18px 40px rgba(3, 8, 18, 0.3);
-  --radius-xl: 24px;
-  --radius-lg: 18px;
-  --radius-md: 14px;
+  --radius-xl: 0;
+  --radius-lg: 0;
+  --radius-md: 0;
 }
