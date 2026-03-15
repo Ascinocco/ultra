@@ -20,6 +20,7 @@ import {
   parseRuntimeHealthCheckSnapshot,
   parseSandboxesListResult,
   parseSystemHelloResult,
+  parseTerminalRuntimeProfileResult,
   parseThreadDetailResult,
   parseThreadEventSnapshot,
   parseThreadsListResult,
@@ -124,6 +125,32 @@ describe("shared contracts", () => {
 
     expect(listQuery.name).toBe("sandboxes.list")
     expect(activeQuery.name).toBe("sandboxes.get_active")
+  })
+
+  it("parses terminal runtime profile and sync envelopes", () => {
+    const profileQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_profile",
+      type: "query",
+      name: "terminal.get_runtime_profile",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+    const syncCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_sync",
+      type: "command",
+      name: "terminal.sync_runtime_files",
+      payload: {
+        project_id: "proj_123",
+        sandbox_id: "sandbox_123",
+        force: true,
+      },
+    })
+
+    expect(profileQuery.name).toBe("terminal.get_runtime_profile")
+    expect(syncCommand.name).toBe("terminal.sync_runtime_files")
   })
 
   it("parses a valid command envelope for chats.start_thread", () => {
@@ -533,6 +560,54 @@ describe("shared contracts", () => {
 
     expect(result.sandboxes).toHaveLength(1)
     expect(result.sandboxes[0]?.displayName).toBe("Main")
+  })
+
+  it("parses terminal runtime profile results", () => {
+    const result = parseTerminalRuntimeProfileResult({
+      sandbox: {
+        sandboxId: "sandbox_123",
+        projectId: "proj_123",
+        threadId: null,
+        path: "/Users/tony/Projects/ultra",
+        displayName: "Main",
+        sandboxType: "main_checkout",
+        branchName: null,
+        baseBranch: null,
+        isMainCheckout: true,
+        createdAt: "2026-03-15T00:00:00Z",
+        updatedAt: "2026-03-15T00:00:00Z",
+        lastUsedAt: "2026-03-15T00:00:00Z",
+      },
+      profile: {
+        projectId: "proj_123",
+        runtimeFilePaths: [".env"],
+        envVars: {},
+        createdAt: "2026-03-15T00:00:00Z",
+        updatedAt: "2026-03-15T00:00:00Z",
+      },
+      sync: {
+        syncId: "sync_123",
+        sandboxId: "sandbox_123",
+        projectId: "proj_123",
+        syncMode: "managed_copy",
+        status: "synced",
+        syncedFiles: [".env"],
+        lastSyncedAt: "2026-03-15T00:01:00Z",
+        details: {
+          checkedAt: "2026-03-15T00:01:00Z",
+          copiedFiles: [".env"],
+          staleFiles: [],
+          missingSourceFiles: [],
+          invalidPaths: [],
+          error: null,
+        },
+        createdAt: "2026-03-15T00:00:00Z",
+        updatedAt: "2026-03-15T00:01:00Z",
+      },
+    })
+
+    expect(result.profile.runtimeFilePaths).toEqual([".env"])
+    expect(result.sync.status).toBe("synced")
   })
 
   it("rejects a runtime sync sandbox query because it is not public yet", () => {

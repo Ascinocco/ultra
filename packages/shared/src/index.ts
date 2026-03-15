@@ -266,6 +266,21 @@ export {
   systemRecheckEnvironmentSuccessResponseSchema,
 } from "./contracts/system.js"
 export type {
+  TerminalGetRuntimeProfileInput,
+  TerminalRuntimeProfileResult,
+  TerminalSyncRuntimeFilesInput,
+} from "./contracts/terminal.js"
+export {
+  parseTerminalRuntimeProfileResult,
+  terminalGetRuntimeProfileInputSchema,
+  terminalGetRuntimeProfileQuerySchema,
+  terminalGetRuntimeProfileSuccessResponseSchema,
+  terminalRuntimeProfileResultSchema,
+  terminalSyncRuntimeFilesCommandSchema,
+  terminalSyncRuntimeFilesInputSchema,
+  terminalSyncRuntimeFilesSuccessResponseSchema,
+} from "./contracts/terminal.js"
+export type {
   ChatsPromoteWorkToThreadInput,
   ChatsStartThreadInput,
   ThreadCreatedEventPayload,

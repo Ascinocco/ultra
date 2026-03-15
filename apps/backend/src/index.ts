@@ -13,6 +13,9 @@ import {
   startSocketServer,
 } from "./server/socket-server.js"
 import { SystemService } from "./system/system-service.js"
+import { RuntimeProfileService } from "./terminal/runtime-profile-service.js"
+import { RuntimeSyncService } from "./terminal/runtime-sync-service.js"
+import { TerminalService } from "./terminal/terminal-service.js"
 import { ThreadService } from "./threads/thread-service.js"
 
 export function createBackendBanner(): string {
@@ -51,11 +54,24 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
     const sandboxPersistenceService = new SandboxPersistenceService(
       databaseRuntime.database,
     )
+    const sandboxService = new SandboxService(sandboxPersistenceService)
+    const terminalService = new TerminalService(
+      sandboxService,
+      new RuntimeProfileService(
+        databaseRuntime.database,
+        sandboxPersistenceService,
+      ),
+      new RuntimeSyncService(sandboxPersistenceService),
+    )
+    sandboxService.setActivationSyncHandler((projectId, sandboxId) => {
+      terminalService.syncRuntimeFilesForActivation(projectId, sandboxId)
+    })
     socketRuntime = await startSocketServer(socketPath, {
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
-      sandboxService: new SandboxService(sandboxPersistenceService),
+      sandboxService,
       systemService: new SystemService(),
+      terminalService,
       threadService,
     })
   } else {
