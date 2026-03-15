@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../shared/backend-status.js"
 import { AppShell } from "./components/AppShell.js"
-import { ProjectSelector } from "./components/ProjectSelector.js"
 import {
   AppStoreProvider,
   type ConnectionStatus,
@@ -44,25 +43,13 @@ describe("AppShell", () => {
     const markup = renderShell()
 
     expect(markup).toContain('data-page="chat"')
-    expect(markup).toContain('aria-current="page"')
-    expect(markup).toContain(">Chat</button>")
-    expect(markup).toContain("New Chat")
     expect(markup).toContain("Open Project")
   })
 
-  it("marks only the selected pill as active", () => {
-    const markup = renderShell({ currentPage: "browser" })
-
-    expect(markup).toContain(">Browser</button>")
-    expect(markup.match(/aria-current="page"/g)).toHaveLength(1)
-  })
-
-  it("renders the title bar with project selector and nav", () => {
+  it("renders the title bar", () => {
     const markup = renderShell()
 
     expect(markup).toContain("title-bar")
-    expect(markup).toContain("project-selector")
-    expect(markup).toContain("top-nav")
   })
 
   it("keeps all page shells mounted in the router", () => {
@@ -329,107 +316,6 @@ describe("app store", () => {
 
       commandSpy.mockRestore()
     })
-  })
-})
-
-describe("ProjectSelector", () => {
-  it("renders trigger with project name when project is active", () => {
-    const markup = renderToStaticMarkup(
-      <ProjectSelector
-        activeProject={makeProject("proj-1", "Alpha")}
-        recentProjects={[]}
-        canOpenProjects={true}
-        openStatus="idle"
-        openError={null}
-        onOpenProject={() => undefined}
-        onOpenRecentProject={() => undefined}
-      />,
-    )
-
-    expect(markup).toContain("Alpha")
-    expect(markup).toContain("project-selector__trigger")
-  })
-
-  it("renders 'Open Project' trigger when no project is active", () => {
-    const markup = renderToStaticMarkup(
-      <ProjectSelector
-        activeProject={null}
-        recentProjects={[]}
-        canOpenProjects={true}
-        openStatus="idle"
-        openError={null}
-        onOpenProject={() => undefined}
-        onOpenRecentProject={() => undefined}
-      />,
-    )
-
-    expect(markup).toContain("Open Project")
-  })
-
-  it("renders 'Opening...' when status is opening", () => {
-    const markup = renderToStaticMarkup(
-      <ProjectSelector
-        activeProject={null}
-        recentProjects={[]}
-        canOpenProjects={true}
-        openStatus="opening"
-        openError={null}
-        onOpenProject={() => undefined}
-        onOpenRecentProject={() => undefined}
-      />,
-    )
-
-    expect(markup).toContain("Opening")
-  })
-
-  it("starts with popover closed", () => {
-    const markup = renderToStaticMarkup(
-      <ProjectSelector
-        activeProject={makeProject("proj-1", "Alpha")}
-        recentProjects={[makeProject("proj-2", "Beta")]}
-        canOpenProjects={true}
-        openStatus="idle"
-        openError={null}
-        onOpenProject={() => undefined}
-        onOpenRecentProject={() => undefined}
-      />,
-    )
-
-    expect(markup).toContain("Alpha")
-    expect(markup).not.toContain("project-selector__popover")
-  })
-
-  it("applies muted attribute when canOpenProjects is false", () => {
-    const markup = renderToStaticMarkup(
-      <ProjectSelector
-        activeProject={makeProject("proj-1", "Alpha")}
-        recentProjects={[]}
-        canOpenProjects={false}
-        openStatus="idle"
-        openError={null}
-        onOpenProject={() => undefined}
-        onOpenRecentProject={() => undefined}
-      />,
-    )
-
-    expect(markup).toContain("data-muted")
-  })
-
-  it("renders aria attributes on trigger", () => {
-    const markup = renderToStaticMarkup(
-      <ProjectSelector
-        activeProject={null}
-        recentProjects={[]}
-        canOpenProjects={true}
-        openStatus="idle"
-        openError={null}
-        onOpenProject={() => undefined}
-        onOpenRecentProject={() => undefined}
-      />,
-    )
-
-    expect(markup).toContain('aria-expanded="false"')
-    expect(markup).toContain('aria-haspopup="menu"')
   })
 })
 

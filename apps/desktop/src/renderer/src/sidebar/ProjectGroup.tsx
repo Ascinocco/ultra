@@ -20,6 +20,7 @@ export function ProjectGroup({
   onSelectChat,
   onChatContextMenu,
   onRetryFetch,
+  onNewChat,
 }: {
   project: ProjectSnapshot
   isExpanded: boolean
@@ -30,35 +31,51 @@ export function ProjectGroup({
   onSelectChat: (chatId: string) => void
   onChatContextMenu: (event: React.MouseEvent, chat: ChatSummary) => void
   onRetryFetch: () => void
+  onNewChat: () => void
 }) {
   return (
     <div className="project-group">
-      <button
-        className="project-group__row"
-        type="button"
-        onClick={onToggleExpand}
-        aria-expanded={isExpanded}
-      >
-        <span className="project-group__chevron" aria-hidden="true">
-          {isExpanded ? "\u25BE" : "\u25B8"}
-        </span>
-        <svg
-          className="project-group__icon"
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
+      <div className="project-group__header">
+        <button
+          className="project-group__row"
+          type="button"
+          onClick={onToggleExpand}
+          aria-expanded={isExpanded}
         >
-          <path
-            d="M1.5 2.5h4.667L8 4.5h6.5v9h-13z"
-            stroke="currentColor"
-            strokeWidth="1.2"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span className="project-group__name">{project.name}</span>
-      </button>
+          <span className="project-group__chevron" aria-hidden="true">
+            {isExpanded ? "\u25BE" : "\u25B8"}
+          </span>
+          <svg
+            className="project-group__icon"
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M1.5 2.5h4.667L8 4.5h6.5v9h-13z"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span className="project-group__name">{project.name}</span>
+        </button>
+        <button
+          className="project-group__new-chat"
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onNewChat()
+          }}
+          aria-label={`New chat in ${project.name}`}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
 
       {isExpanded ? (
         <div className="project-group__chats">

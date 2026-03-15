@@ -23,7 +23,7 @@ button {
 
 .app-shell {
   height: 100vh;
-  padding-top: 52px; /* title bar height */
+  padding-top: 28px; /* title bar height */
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   box-sizing: border-box;
@@ -222,14 +222,10 @@ button {
   top: 0;
   left: 0;
   right: 0;
-  height: 52px;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: 0 20px;
+  height: 28px;
   -webkit-app-region: drag;
   z-index: 100;
-  background: transparent;
+  background: var(--shell-bg);
   box-sizing: border-box;
 }
 
@@ -525,40 +521,6 @@ button {
   overflow: hidden;
 }
 
-.sidebar__header {
-  padding: 16px 14px 0;
-  flex-shrink: 0;
-}
-
-.sidebar__new-chat {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.84rem;
-  cursor: pointer;
-}
-
-.sidebar__new-chat:hover {
-  background: rgba(148, 163, 200, 0.08);
-}
-
-.sidebar__new-chat:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.sidebar__new-chat:disabled:hover {
-  background: transparent;
-}
-
 .sidebar__body {
   flex: 1;
   overflow-y: auto;
@@ -578,14 +540,17 @@ button {
   flex-shrink: 0;
   border-top: 1px solid var(--panel-border);
   padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.sidebar__settings {
+.sidebar__settings,
+.sidebar__open-project {
   appearance: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
   padding: 5px 8px;
   border: none;
   border-radius: 6px;
@@ -596,7 +561,8 @@ button {
   cursor: pointer;
 }
 
-.sidebar__settings:hover {
+.sidebar__settings:hover,
+.sidebar__open-project:hover {
   background: rgba(148, 163, 200, 0.08);
   color: var(--text-secondary);
 }
@@ -607,12 +573,44 @@ button {
   margin-bottom: 4px;
 }
 
+.project-group__header {
+  display: flex;
+  align-items: center;
+}
+
+.project-group__new-chat {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  margin-right: 4px;
+}
+
+.project-group__header:hover .project-group__new-chat {
+  opacity: 1;
+}
+
+.project-group__new-chat:hover {
+  background: rgba(148, 163, 200, 0.12);
+  color: var(--text-primary);
+}
+
 .project-group__row {
   appearance: none;
   display: flex;
   align-items: center;
   gap: 7px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 5px 8px;
   border: none;
   border-radius: 5px;

@@ -1,6 +1,6 @@
 import { Sidebar } from "../sidebar/Sidebar.js"
 
-export function ChatPageShell({ active }: { active: boolean }) {
+export function ChatPageShell({ active, onOpenProject }: { active: boolean; onOpenProject: () => void }) {
   return (
     <section
       aria-hidden={!active}
@@ -10,7 +10,7 @@ export function ChatPageShell({ active }: { active: boolean }) {
       <div className="chat-frame">
         <div className="chat-frame__grid">
           <aside className="chat-frame__rail">
-            <Sidebar />
+            <Sidebar onOpenProject={onOpenProject} />
           </aside>
 
           <section className="chat-frame__main">

@@ -14,20 +14,9 @@ import { TitleBar } from "./TitleBar.js"
 
 export function AppShell() {
   const app = useAppStore((state) => state.app)
-  const projects = useAppStore((state) => state.projects)
-  const setCurrentPage = useAppStore((state) => state.actions.setCurrentPage)
   const actions = useAppStore((state) => state.actions)
   const loadedProjectsSessionRef = useRef<string | null>(null)
 
-  const activeProject = app.activeProjectId
-    ? (projects.byId[app.activeProjectId] ?? null)
-    : null
-  const recentProjects = projects.allIds
-    .map((projectId) => projects.byId[projectId])
-    .filter(
-      (project): project is ProjectSnapshot =>
-        project !== undefined && project.id !== app.activeProjectId,
-    )
   const canOpenProjects =
     app.connectionStatus === "connected" &&
     Boolean(app.capabilities?.supportsProjects)
@@ -56,30 +45,15 @@ export function AppShell() {
     )
   }
 
-  async function handleOpenRecentProject(project: ProjectSnapshot) {
-    await openProjectFromPath(project.rootPath, actions, app.capabilities)
-  }
-
   return (
     <main className="app-shell">
-      <TitleBar
-        currentPage={app.currentPage}
-        onSelectPage={setCurrentPage}
-        activeProject={activeProject}
-        recentProjects={recentProjects}
-        canOpenProjects={canOpenProjects}
-        openStatus={app.projectOpenStatus}
-        openError={app.projectOpenError}
-        onOpenProject={() => {
-          void handleOpenProject()
-        }}
-        onOpenRecentProject={(project) => {
-          void handleOpenRecentProject(project)
-        }}
-      />
+      <TitleBar />
 
       <section className="app-shell__body">
-        <ChatPageShell active={app.currentPage === "chat"} />
+        <ChatPageShell
+          active={app.currentPage === "chat"}
+          onOpenProject={() => { void handleOpenProject() }}
+        />
         <EditorPageShell active={app.currentPage === "editor"} />
         <BrowserPageShell active={app.currentPage === "browser"} />
       </section>

@@ -14,17 +14,16 @@ function renderSidebar(setup?: (store: ReturnType<typeof createAppStore>) => voi
   store.getInitialState = () => currentState
   return renderToStaticMarkup(
     <AppStoreProvider store={store}>
-      <Sidebar />
+      <Sidebar onOpenProject={() => undefined} />
     </AppStoreProvider>,
   )
 }
 
 describe("Sidebar", () => {
-  it("renders the sidebar container with New Chat button", () => {
+  it("renders the sidebar container", () => {
     const markup = renderSidebar()
 
     expect(markup).toContain("sidebar")
-    expect(markup).toContain("New Chat")
   })
 
   it("renders project groups for all projects", () => {
@@ -45,16 +44,11 @@ describe("Sidebar", () => {
     expect(markup).toContain("Projects")
   })
 
-  it("renders Settings at the bottom", () => {
+  it("renders Settings and Open Project in the footer", () => {
     const markup = renderSidebar()
 
     expect(markup).toContain("Settings")
-  })
-
-  it("disables New Chat when no active project", () => {
-    const markup = renderSidebar()
-
-    expect(markup).toContain("disabled")
+    expect(markup).toContain("Open Project")
   })
 })
 
@@ -72,6 +66,15 @@ describe("ProjectGroup", () => {
 
     expect(markup).toContain("Design session")
     expect(markup).toContain("Backend review")
+  })
+
+  it("renders new chat button in project header", () => {
+    const markup = renderSidebar((store) => {
+      store.getState().actions.setProjects([makeProject("proj-1", "ultra")])
+    })
+
+    expect(markup).toContain("project-group__new-chat")
+    expect(markup).toContain("New chat in ultra")
   })
 
   it("shows loading state when chats are being fetched", () => {

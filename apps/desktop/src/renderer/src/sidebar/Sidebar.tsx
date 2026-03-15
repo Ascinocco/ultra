@@ -16,7 +16,11 @@ import {
   unpinChat,
 } from "./chat-workflows.js"
 
-export function Sidebar() {
+export function Sidebar({
+  onOpenProject,
+}: {
+  onOpenProject: () => void
+}) {
   const projects = useAppStore((s) => s.projects)
   const sidebar = useAppStore((s) => s.sidebar)
   const activeProjectId = useAppStore((s) => s.app.activeProjectId)
@@ -45,9 +49,8 @@ export function Sidebar() {
     actions.setLayoutField(projectId, { activeChatId: chatId })
   }
 
-  function handleNewChat() {
-    if (!activeProjectId) return
-    void createChat(activeProjectId, actions)
+  function handleNewChat(projectId: string) {
+    void createChat(projectId, actions)
   }
 
   function handleChatContextMenu(event: React.MouseEvent, chat: ChatSummary) {
@@ -77,17 +80,6 @@ export function Sidebar() {
 
   return (
     <div className="sidebar">
-      <div className="sidebar__header">
-        <button
-          className="sidebar__new-chat"
-          type="button"
-          disabled={!activeProjectId}
-          onClick={handleNewChat}
-        >
-          <span aria-hidden="true">+</span> New Chat
-        </button>
-      </div>
-
       <div className="sidebar__body">
         <p className="sidebar__section-label">Projects</p>
         {projects.allIds.map((projectId) => {
@@ -105,6 +97,7 @@ export function Sidebar() {
               onSelectChat={(chatId) => handleSelectChat(chatId, projectId)}
               onChatContextMenu={handleChatContextMenu}
               onRetryFetch={() => void loadChatsForProject(projectId, actions)}
+              onNewChat={() => handleNewChat(projectId)}
             />
           )
         })}
@@ -113,6 +106,13 @@ export function Sidebar() {
       <div className="sidebar__footer">
         <button className="sidebar__settings" type="button">
           Settings
+        </button>
+        <button
+          className="sidebar__open-project"
+          type="button"
+          onClick={onOpenProject}
+        >
+          Open Project
         </button>
       </div>
 
