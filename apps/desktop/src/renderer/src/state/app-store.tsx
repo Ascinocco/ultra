@@ -18,6 +18,7 @@ import { createInitialBackendStatus } from "../../../shared/backend-status.js"
 
 export type AppPage = "chat" | "editor" | "browser"
 export type { ConnectionStatus } from "@ultra/shared"
+export type ProjectOpenStatus = "idle" | "opening" | "error"
 
 type AppSlice = {
   currentPage: AppPage
@@ -25,6 +26,8 @@ type AppSlice = {
   connectionStatus: ConnectionStatus
   backendStatus: BackendStatusSnapshot
   capabilities: BackendCapabilities | null
+  projectOpenStatus: ProjectOpenStatus
+  projectOpenError: string | null
 }
 
 type ProjectsSlice = {
@@ -41,6 +44,11 @@ type AppActions = {
   setConnectionStatus: (status: ConnectionStatus) => void
   setBackendStatus: (status: BackendStatusSnapshot) => void
   setCapabilities: (capabilities: BackendCapabilities | null) => void
+  setActiveProjectId: (projectId: string | null) => void
+  setProjectOpenState: (
+    status: ProjectOpenStatus,
+    error?: string | null,
+  ) => void
   setProjects: (projects: ProjectSnapshot[]) => void
   upsertProject: (project: ProjectSnapshot) => void
   setLayoutForProject: (projectId: string, layout: ProjectLayoutState) => void
@@ -61,6 +69,8 @@ const defaultAppState: AppSlice = {
   connectionStatus: "connecting",
   backendStatus: createInitialBackendStatus(),
   capabilities: null,
+  projectOpenStatus: "idle",
+  projectOpenError: null,
 }
 
 const defaultProjectsState: ProjectsSlice = {
@@ -87,6 +97,8 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       setConnectionStatus: () => undefined,
       setBackendStatus: () => undefined,
       setCapabilities: () => undefined,
+      setActiveProjectId: () => undefined,
+      setProjectOpenState: () => undefined,
       setProjects: () => undefined,
       upsertProject: () => undefined,
       setLayoutForProject: () => undefined,
@@ -102,8 +114,6 @@ function normalizeProjects(projects: ProjectSnapshot[]): ProjectsSlice {
     byId[project.id] = project
     allIds.push(project.id)
   }
-
-  allIds.sort()
 
   return { byId, allIds }
 }
@@ -140,6 +150,20 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           ...state,
           app: { ...state.app, capabilities },
         })),
+      setActiveProjectId: (projectId) =>
+        set((state) => ({
+          ...state,
+          app: { ...state.app, activeProjectId: projectId },
+        })),
+      setProjectOpenState: (status, error = null) =>
+        set((state) => ({
+          ...state,
+          app: {
+            ...state.app,
+            projectOpenStatus: status,
+            projectOpenError: error,
+          },
+        })),
       setProjects: (projects) =>
         set((state) => ({
           ...state,
@@ -148,7 +172,9 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
       upsertProject: (project) =>
         set((state) => {
           const byId = { ...state.projects.byId, [project.id]: project }
-          const allIds = Object.keys(byId).sort()
+          const allIds = state.projects.allIds.includes(project.id)
+            ? state.projects.allIds
+            : [project.id, ...state.projects.allIds]
 
           return { ...state, projects: { byId, allIds } }
         }),

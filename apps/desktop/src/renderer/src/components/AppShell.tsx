@@ -1,6 +1,14 @@
+import type { ProjectSnapshot } from "@ultra/shared"
+import { useEffect, useRef } from "react"
+
 import { BrowserPageShell } from "../pages/BrowserPageShell.js"
 import { ChatPageShell } from "../pages/ChatPageShell.js"
 import { EditorPageShell } from "../pages/EditorPageShell.js"
+import {
+  loadRecentProjects,
+  openProjectFromPath,
+  openProjectFromPicker,
+} from "../projects/project-workflows.js"
 import { useAppStore } from "../state/app-store.js"
 import { ProjectFrame } from "./ProjectFrame.js"
 import { RuntimeIndicator } from "./RuntimeIndicator.js"
@@ -8,12 +16,68 @@ import { TopNav } from "./TopNav.js"
 
 export function AppShell() {
   const app = useAppStore((state) => state.app)
+  const projects = useAppStore((state) => state.projects)
   const setCurrentPage = useAppStore((state) => state.actions.setCurrentPage)
+  const actions = useAppStore((state) => state.actions)
+  const loadedProjectsSessionRef = useRef<string | null>(null)
+
+  const activeProject = app.activeProjectId
+    ? (projects.byId[app.activeProjectId] ?? null)
+    : null
+  const recentProjects = projects.allIds
+    .map((projectId) => projects.byId[projectId])
+    .filter(
+      (project): project is ProjectSnapshot =>
+        project !== undefined && project.id !== app.activeProjectId,
+    )
+  const canOpenProjects =
+    app.connectionStatus === "connected" &&
+    Boolean(app.capabilities?.supportsProjects)
+
+  useEffect(() => {
+    if (!canOpenProjects) {
+      loadedProjectsSessionRef.current = null
+      return
+    }
+
+    const sessionId = app.backendStatus.sessionId ?? "connected"
+    if (loadedProjectsSessionRef.current === sessionId) {
+      return
+    }
+
+    loadedProjectsSessionRef.current = sessionId
+
+    void loadRecentProjects(actions).catch(() => undefined)
+  }, [actions, app.backendStatus.sessionId, canOpenProjects])
+
+  async function handleOpenProject() {
+    await openProjectFromPicker(
+      () => window.ultraShell.pickProjectDirectory(),
+      actions,
+      app.capabilities,
+    )
+  }
+
+  async function handleOpenRecentProject(project: ProjectSnapshot) {
+    await openProjectFromPath(project.rootPath, actions, app.capabilities)
+  }
 
   return (
     <main className="app-shell">
       <header className="app-shell__header">
-        <ProjectFrame activeProjectId={app.activeProjectId} />
+        <ProjectFrame
+          activeProject={activeProject}
+          recentProjects={recentProjects}
+          canOpenProjects={canOpenProjects}
+          openStatus={app.projectOpenStatus}
+          openError={app.projectOpenError}
+          onOpenProject={() => {
+            void handleOpenProject()
+          }}
+          onOpenRecentProject={(project) => {
+            void handleOpenRecentProject(project)
+          }}
+        />
         <div className="app-shell__nav-wrap">
           <TopNav currentPage={app.currentPage} onSelectPage={setCurrentPage} />
         </div>

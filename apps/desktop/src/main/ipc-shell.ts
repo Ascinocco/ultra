@@ -1,5 +1,6 @@
 import type { CommandMethodName, QueryMethodName } from "@ultra/shared"
-import { BrowserWindow, ipcMain } from "electron"
+import type { OpenDialogOptions } from "electron"
+import { BrowserWindow, dialog, ipcMain } from "electron"
 
 import type { BackendConnection } from "./backend-connection.js"
 
@@ -9,11 +10,28 @@ const SYSTEM_PING_CHANNEL = "ultra-shell:system-ping"
 const GET_BACKEND_INFO_CHANNEL = "ultra-shell:get-backend-info"
 const IPC_QUERY_CHANNEL = "ultra-shell:ipc-query"
 const IPC_COMMAND_CHANNEL = "ultra-shell:ipc-command"
+const PICK_PROJECT_DIRECTORY_CHANNEL = "ultra-shell:pick-project-directory"
 
 export function registerShellIpc(connection: BackendConnection): () => void {
   ipcMain.handle(GET_BACKEND_STATUS_CHANNEL, () => connection.getStatus())
   ipcMain.handle(SYSTEM_PING_CHANNEL, () => connection.ping())
   ipcMain.handle(GET_BACKEND_INFO_CHANNEL, () => connection.getBackendInfo())
+  ipcMain.handle(PICK_PROJECT_DIRECTORY_CHANNEL, async () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow()
+    const firstWindow = BrowserWindow.getAllWindows()[0]
+    const pickerOptions: OpenDialogOptions = {
+      title: "Open Project",
+      buttonLabel: "Open Project",
+      properties: ["openDirectory"],
+    }
+
+    const ownerWindow = focusedWindow ?? firstWindow
+    const result = ownerWindow
+      ? await dialog.showOpenDialog(ownerWindow, pickerOptions)
+      : await dialog.showOpenDialog(pickerOptions)
+
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
   ipcMain.handle(IPC_QUERY_CHANNEL, (_event, name: string, payload: unknown) =>
     connection.query(name as QueryMethodName, payload),
   )
@@ -34,6 +52,7 @@ export function registerShellIpc(connection: BackendConnection): () => void {
     ipcMain.removeHandler(GET_BACKEND_STATUS_CHANNEL)
     ipcMain.removeHandler(SYSTEM_PING_CHANNEL)
     ipcMain.removeHandler(GET_BACKEND_INFO_CHANNEL)
+    ipcMain.removeHandler(PICK_PROJECT_DIRECTORY_CHANNEL)
     ipcMain.removeHandler(IPC_QUERY_CHANNEL)
     ipcMain.removeHandler(IPC_COMMAND_CHANNEL)
   }

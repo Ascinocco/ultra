@@ -13,6 +13,7 @@ const SYSTEM_PING_CHANNEL = "ultra-shell:system-ping"
 const GET_BACKEND_INFO_CHANNEL = "ultra-shell:get-backend-info"
 const IPC_QUERY_CHANNEL = "ultra-shell:ipc-query"
 const IPC_COMMAND_CHANNEL = "ultra-shell:ipc-command"
+const PICK_PROJECT_DIRECTORY_CHANNEL = "ultra-shell:pick-project-directory"
 
 const ultraShell = {
   appName: APP_NAME,
@@ -29,6 +30,10 @@ const ultraShell = {
     ipcRenderer.invoke(
       GET_BACKEND_INFO_CHANNEL,
     ) as Promise<BackendInfoSnapshot>,
+  pickProjectDirectory: () =>
+    ipcRenderer.invoke(PICK_PROJECT_DIRECTORY_CHANNEL) as Promise<
+      string | null
+    >,
   ipcQuery: (name: string, payload?: unknown) =>
     ipcRenderer.invoke(IPC_QUERY_CHANNEL, name, payload) as Promise<unknown>,
   ipcCommand: (name: string, payload?: unknown) =>

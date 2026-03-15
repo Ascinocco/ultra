@@ -13,7 +13,7 @@ const BACKEND_VERSION = "0.0.0"
 export class SystemService {
   private readonly sessionId = `sess_${randomUUID()}`
   private readonly capabilities: BackendCapabilities = {
-    supportsProjects: false,
+    supportsProjects: true,
     supportsLayoutPersistence: false,
     supportsSubscriptions: false,
     supportsBackendInfo: true,
