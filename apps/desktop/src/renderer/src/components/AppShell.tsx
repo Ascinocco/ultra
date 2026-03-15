@@ -5,7 +5,7 @@ import { BrowserPageShell } from "../pages/BrowserPageShell.js"
 import { ChatPageShell } from "../pages/ChatPageShell.js"
 import { EditorPageShell } from "../pages/EditorPageShell.js"
 import {
-  loadRecentProjects,
+  hydrateLastProject,
   openProjectFromPath,
   openProjectFromPicker,
 } from "../projects/project-workflows.js"
@@ -47,8 +47,8 @@ export function AppShell() {
 
     loadedProjectsSessionRef.current = sessionId
 
-    void loadRecentProjects(actions).catch(() => undefined)
-  }, [actions, app.backendStatus.sessionId, canOpenProjects])
+    void hydrateLastProject(actions, app.capabilities).catch(() => undefined)
+  }, [actions, app.backendStatus.sessionId, app.capabilities, canOpenProjects])
 
   async function handleOpenProject() {
     await openProjectFromPicker(

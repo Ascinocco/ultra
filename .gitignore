@@ -47,3 +47,7 @@ coverage/
 /.overstory/sessions.db
 /.overstory/sessions.db-shm
 /.overstory/sessions.db-wal
+
+# Superpowers brainstorm artifacts
+.superpowers/
+docs/superpowers/

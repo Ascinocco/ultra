@@ -9,7 +9,9 @@ import {
   parseProjectOpenInput,
   parseSystemHelloQuery,
   projectsGetInputSchema,
+  projectsGetLayoutInputSchema,
   projectsListQuerySchema,
+  projectsSetLayoutInputSchema,
   systemGetBackendInfoQuerySchema,
   systemPingQuerySchema,
 } from "@ultra/shared"
@@ -173,6 +175,24 @@ export async function routeIpcRequest(
           listQuery.request_id,
           services.projectService.list(),
         )
+      }
+      case "projects.get_layout": {
+        const getLayoutQuery = assertQueryRequest(request)
+        const { project_id } = projectsGetLayoutInputSchema.parse(
+          getLayoutQuery.payload,
+        )
+        return createSuccessResponse(
+          getLayoutQuery.request_id,
+          services.projectService.getLayout(project_id),
+        )
+      }
+      case "projects.set_layout": {
+        const setLayoutCommand = assertCommandRequest(request)
+        const { project_id, layout } = projectsSetLayoutInputSchema.parse(
+          setLayoutCommand.payload,
+        )
+        services.projectService.setLayout(project_id, layout)
+        return createSuccessResponse(setLayoutCommand.request_id, null)
       }
       default:
         throw new IpcProtocolError(

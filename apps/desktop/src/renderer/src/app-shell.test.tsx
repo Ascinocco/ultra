@@ -4,7 +4,7 @@ import type {
   ProjectSnapshot,
 } from "@ultra/shared"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../shared/backend-status.js"
 import { AppShell } from "./components/AppShell.js"
@@ -243,6 +243,99 @@ describe("app store", () => {
 
     expect(store.getState().app.projectOpenStatus).toBe("error")
     expect(store.getState().app.projectOpenError).toBe("Project open failed")
+  })
+
+  it("setLayoutField merges partial into existing layout", () => {
+    const store = createAppStore()
+    const fullLayout: ProjectLayoutState = {
+      currentPage: "chat",
+      rightTopCollapsed: false,
+      rightBottomCollapsed: false,
+      selectedRightPaneTab: null,
+      selectedBottomPaneTab: null,
+      activeChatId: null,
+      selectedThreadId: null,
+      lastEditorTargetId: null,
+    }
+
+    store.getState().actions.setLayoutForProject("proj-1", fullLayout)
+    store.getState().actions.setLayoutField("proj-1", { currentPage: "editor" })
+
+    const result = store.getState().layout.byProjectId["proj-1"]
+    expect(result.currentPage).toBe("editor")
+    expect(result.rightTopCollapsed).toBe(false)
+  })
+
+  it("setLayoutField creates default layout if project has no entry", () => {
+    const store = createAppStore()
+
+    store
+      .getState()
+      .actions.setLayoutField("proj-new", { rightTopCollapsed: true })
+
+    const result = store.getState().layout.byProjectId["proj-new"]
+    expect(result.currentPage).toBe("chat")
+    expect(result.rightTopCollapsed).toBe(true)
+  })
+
+  describe("setLayoutField debounced persist", () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it("coalesces rapid updates into a single IPC call after 300ms", async () => {
+      const { ipcClient } = await import("./ipc/ipc-client.js")
+      const commandSpy = vi
+        .spyOn(ipcClient, "command")
+        .mockResolvedValue(undefined)
+
+      const store = createAppStore()
+
+      store
+        .getState()
+        .actions.setLayoutField("proj-1", { currentPage: "editor" })
+      store
+        .getState()
+        .actions.setLayoutField("proj-1", { rightTopCollapsed: true })
+
+      expect(commandSpy).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(300)
+
+      expect(commandSpy).toHaveBeenCalledTimes(1)
+      expect(commandSpy).toHaveBeenCalledWith("projects.set_layout", {
+        project_id: "proj-1",
+        layout: store.getState().layout.byProjectId["proj-1"],
+      })
+
+      commandSpy.mockRestore()
+    })
+
+    it("per-project debounce: changes to one project do not cancel another", async () => {
+      const { ipcClient } = await import("./ipc/ipc-client.js")
+      const commandSpy = vi
+        .spyOn(ipcClient, "command")
+        .mockResolvedValue(undefined)
+
+      const store = createAppStore()
+
+      store
+        .getState()
+        .actions.setLayoutField("proj-a", { currentPage: "editor" })
+      store
+        .getState()
+        .actions.setLayoutField("proj-b", { currentPage: "browser" })
+
+      vi.advanceTimersByTime(300)
+
+      expect(commandSpy).toHaveBeenCalledTimes(2)
+
+      commandSpy.mockRestore()
+    })
   })
 })
 
