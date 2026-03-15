@@ -181,11 +181,13 @@ export class ProjectService {
               current_page,
               right_top_collapsed,
               right_bottom_collapsed,
+              selected_right_pane_tab,
+              selected_bottom_pane_tab,
               active_chat_id,
               selected_thread_id,
               last_editor_target_id,
               updated_at
-            ) VALUES (?, 'chat', 0, 0, NULL, NULL, NULL, ?)
+            ) VALUES (?, 'chat', 0, 0, NULL, NULL, NULL, NULL, NULL, ?)
           `,
         )
         .run(projectId, timestamp)
@@ -248,7 +250,7 @@ export class ProjectService {
     }
   }
 
-  getLayout(projectId: string): ProjectLayoutState {
+  getLayout(projectId: ProjectId): ProjectLayoutState {
     const row = this.database
       .prepare(
         `SELECT
@@ -301,7 +303,7 @@ export class ProjectService {
     }
   }
 
-  setLayout(projectId: string, layout: ProjectLayoutState): void {
+  setLayout(projectId: ProjectId, layout: ProjectLayoutState): void {
     this.database
       .prepare(
         `INSERT OR REPLACE INTO project_layout_state (
