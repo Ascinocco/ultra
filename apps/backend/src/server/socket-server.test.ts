@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createConnection } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -10,6 +10,9 @@ import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
 import { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
 import { SandboxService } from "../sandboxes/sandbox-service.js"
+import { RuntimeProfileService } from "../terminal/runtime-profile-service.js"
+import { RuntimeSyncService } from "../terminal/runtime-sync-service.js"
+import { TerminalService } from "../terminal/terminal-service.js"
 import { ThreadService } from "../threads/thread-service.js"
 import { startSocketServer } from "./socket-server.js"
 
@@ -20,12 +23,25 @@ async function createServerRuntime(directory: string, socketPath: string) {
   const sandboxPersistenceService = new SandboxPersistenceService(
     databaseRuntime.database,
   )
+  const sandboxService = new SandboxService(sandboxPersistenceService)
+  const terminalService = new TerminalService(
+    sandboxService,
+    new RuntimeProfileService(
+      databaseRuntime.database,
+      sandboxPersistenceService,
+    ),
+    new RuntimeSyncService(sandboxPersistenceService),
+  )
+  sandboxService.setActivationSyncHandler((projectId, sandboxId) => {
+    terminalService.syncRuntimeFilesForActivation(projectId, sandboxId)
+  })
   const runtime = await startSocketServer(
     socketPath,
     {
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
-      sandboxService: new SandboxService(sandboxPersistenceService),
+      sandboxService,
+      terminalService,
       threadService: new ThreadService(databaseRuntime.database),
     },
     {
@@ -637,6 +653,115 @@ describe("socket server", () => {
     expect(setActiveResponse.ok).toBe(true)
     if (setActiveResponse.ok) {
       expect(setActiveResponse.result.sandboxId).toBe(threadSandbox.sandboxId)
+    }
+
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips terminal runtime profile and sync methods over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const sandboxDirectory = join(projectDirectory, ".sandbox-thread-1")
+    const { runtime, databaseRuntime, sandboxPersistenceService } =
+      await createServerRuntime(directory, socketPath)
+    await mkdir(projectDirectory, { recursive: true })
+    await mkdir(sandboxDirectory, { recursive: true })
+    await writeFile(join(projectDirectory, ".env"), "API_KEY=socket\n")
+
+    const openProjectRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_open_project",
+      type: "command",
+      name: "projects.open",
+      payload: {
+        path: projectDirectory,
+      },
+    })
+    const openProjectResponse = parseIpcResponseEnvelope(openProjectRaw)
+
+    expect(openProjectResponse.ok).toBe(true)
+    if (!openProjectResponse.ok) {
+      throw new Error("Expected project open to succeed")
+    }
+
+    databaseRuntime.database
+      .prepare(
+        "INSERT INTO chats (id, project_id, title, status, provider, model, thinking_level, permission_level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "chat_terminal",
+        openProjectResponse.result.id,
+        "Terminal Chat",
+        "active",
+        "codex",
+        "gpt-5-codex",
+        "standard",
+        "supervised",
+        "2026-03-15T20:45:00Z",
+        "2026-03-15T20:45:00Z",
+      )
+    databaseRuntime.database
+      .prepare(
+        "INSERT INTO threads (id, project_id, source_chat_id, title, execution_state, review_state, publish_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "thread_terminal",
+        openProjectResponse.result.id,
+        "chat_terminal",
+        "Terminal Thread",
+        "queued",
+        "not_ready",
+        "not_requested",
+        "2026-03-15T20:45:00Z",
+        "2026-03-15T20:45:00Z",
+      )
+
+    const threadSandbox = sandboxPersistenceService.upsertThreadSandbox({
+      projectId: openProjectResponse.result.id,
+      threadId: "thread_terminal",
+      path: sandboxDirectory,
+      displayName: "Terminal Sandbox",
+      branchName: "thread/terminal",
+      baseBranch: "main",
+    })
+
+    const profileRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_profile",
+      type: "query",
+      name: "terminal.get_runtime_profile",
+      payload: {
+        project_id: openProjectResponse.result.id,
+        sandbox_id: threadSandbox.sandboxId,
+      },
+    })
+    const syncRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_sync",
+      type: "command",
+      name: "terminal.sync_runtime_files",
+      payload: {
+        project_id: openProjectResponse.result.id,
+        sandbox_id: threadSandbox.sandboxId,
+      },
+    })
+
+    const profileResponse = parseIpcResponseEnvelope(profileRaw)
+    const syncResponse = parseIpcResponseEnvelope(syncRaw)
+
+    expect(profileResponse.ok).toBe(true)
+    expect(syncResponse.ok).toBe(true)
+
+    if (profileResponse.ok) {
+      expect(profileResponse.result.sync.status).toBe("unknown")
+    }
+
+    if (syncResponse.ok) {
+      expect(syncResponse.result.sync.status).toBe("synced")
+      expect(syncResponse.result.sync.syncedFiles).toEqual([".env"])
     }
 
     await runtime.close()

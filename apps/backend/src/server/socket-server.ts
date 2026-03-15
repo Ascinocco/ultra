@@ -11,6 +11,7 @@ import { routeIpcRequest } from "../ipc/router.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import { SystemService } from "../system/system-service.js"
+import type { TerminalService } from "../terminal/terminal-service.js"
 import type { ThreadService } from "../threads/thread-service.js"
 
 type Logger = {
@@ -43,6 +44,7 @@ export async function startSocketServer(
     projectService: ProjectService
     threadService: ThreadService
     sandboxService: SandboxService
+    terminalService: TerminalService
   },
   logger: Logger = console,
 ): Promise<SocketServerRuntime> {
@@ -74,6 +76,7 @@ export async function startSocketServer(
             projectService: services.projectService,
             threadService: services.threadService,
             sandboxService: services.sandboxService,
+            terminalService: services.terminalService,
           },
           socket,
           logger,
@@ -106,6 +109,7 @@ async function handleLine(
     projectService: ProjectService
     threadService: ThreadService
     sandboxService: SandboxService
+    terminalService: TerminalService
   },
   socket: NodeJS.WritableStream,
   logger: Logger,

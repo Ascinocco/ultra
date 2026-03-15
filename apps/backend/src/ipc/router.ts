@@ -30,6 +30,8 @@ import {
   systemGetEnvironmentReadinessQuerySchema,
   systemPingQuerySchema,
   systemRecheckEnvironmentCommandSchema,
+  terminalGetRuntimeProfileInputSchema,
+  terminalSyncRuntimeFilesInputSchema,
   threadsGetEventsInputSchema,
   threadsGetInputSchema,
   threadsListByChatInputSchema,
@@ -39,6 +41,7 @@ import type { ChatService } from "../chats/chat-service.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import type { SystemService } from "../system/system-service.js"
+import type { TerminalService } from "../terminal/terminal-service.js"
 import type { ThreadService } from "../threads/thread-service.js"
 import { createErrorResponse, IpcProtocolError } from "./errors.js"
 
@@ -145,6 +148,7 @@ export async function routeIpcRequest(
     systemService: SystemService
     projectService: ProjectService
     sandboxService: SandboxService
+    terminalService: TerminalService
     threadService: ThreadService
   },
 ): Promise<SuccessResponseEnvelope | ReturnType<typeof createErrorResponse>> {
@@ -292,6 +296,24 @@ export async function routeIpcRequest(
           restoreCommand.request_id,
           services.chatService.restore(
             chatsRestoreInputSchema.parse(restoreCommand.payload).chat_id,
+          ),
+        )
+      }
+      case "terminal.get_runtime_profile": {
+        const profileQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          profileQuery.request_id,
+          services.terminalService.getRuntimeProfile(
+            terminalGetRuntimeProfileInputSchema.parse(profileQuery.payload),
+          ),
+        )
+      }
+      case "terminal.sync_runtime_files": {
+        const syncCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          syncCommand.request_id,
+          services.terminalService.syncRuntimeFiles(
+            terminalSyncRuntimeFilesInputSchema.parse(syncCommand.payload),
           ),
         )
       }

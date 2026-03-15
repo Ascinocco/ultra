@@ -432,30 +432,10 @@ export class SandboxPersistenceService {
 
   getRuntimeSync(sandboxId: string): SandboxRuntimeSyncSnapshot {
     const sandbox = this.getSandboxRowOrThrow(sandboxId)
-    const existing = readSandboxRuntimeSyncRow(
-      this.database
-        .prepare(
-          `
-            SELECT
-              sync_id,
-              sandbox_id,
-              project_id,
-              sync_mode,
-              status,
-              synced_files_json,
-              last_synced_at,
-              details_json,
-              created_at,
-              updated_at
-            FROM sandbox_runtime_syncs
-            WHERE sandbox_id = ?
-          `,
-        )
-        .get(sandboxId),
-    )
+    const existing = this.getPersistedRuntimeSync(sandboxId)
 
     if (existing) {
-      return mapSandboxRuntimeSyncRow(existing)
+      return existing
     }
 
     return {
@@ -558,6 +538,36 @@ export class SandboxPersistenceService {
     }
 
     return this.getRuntimeSync(input.sandboxId)
+  }
+
+  getPersistedRuntimeSync(
+    sandboxId: string,
+  ): SandboxRuntimeSyncSnapshot | null {
+    this.getSandboxRowOrThrow(sandboxId)
+
+    const existing = readSandboxRuntimeSyncRow(
+      this.database
+        .prepare(
+          `
+            SELECT
+              sync_id,
+              sandbox_id,
+              project_id,
+              sync_mode,
+              status,
+              synced_files_json,
+              last_synced_at,
+              details_json,
+              created_at,
+              updated_at
+            FROM sandbox_runtime_syncs
+            WHERE sandbox_id = ?
+          `,
+        )
+        .get(sandboxId),
+    )
+
+    return existing ? mapSandboxRuntimeSyncRow(existing) : null
   }
 
   upsertThreadSandbox(input: UpsertThreadSandboxInput): SandboxContextSnapshot {
