@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../shared/backend-status.js"
 import { AppShell } from "./components/AppShell.js"
-import { ProjectFrame } from "./components/ProjectFrame.js"
+import { ProjectSelector } from "./components/ProjectSelector.js"
 import {
   AppStoreProvider,
   type ConnectionStatus,
@@ -47,7 +47,6 @@ describe("AppShell", () => {
     expect(markup).toContain('aria-current="page"')
     expect(markup).toContain(">Chat</button>")
     expect(markup).toContain("No chats yet")
-    expect(markup).toContain("Starting local backend")
     expect(markup).toContain("Open Project")
   })
 
@@ -58,33 +57,12 @@ describe("AppShell", () => {
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1)
   })
 
-  it("renders every runtime status label", () => {
-    const statuses: ConnectionStatus[] = [
-      "connecting",
-      "connected",
-      "degraded",
-      "disconnected",
-    ]
+  it("renders the title bar with project selector and nav", () => {
+    const markup = renderShell()
 
-    const labels = statuses.map((status) =>
-      renderShell({ connectionStatus: status }),
-    )
-
-    expect(labels[0]).toContain("Connecting")
-    expect(labels[1]).toContain("Connected")
-    expect(labels[2]).toContain("Degraded")
-    expect(labels[3]).toContain("Disconnected")
-  })
-
-  it("renders backend detail messaging", () => {
-    const markup = renderShell({
-      backendStatus: {
-        connectionStatus: "degraded",
-        message: "Backend exited unexpectedly. Restarting (1/2)…",
-      },
-    })
-
-    expect(markup).toContain("Restarting (1/2)")
+    expect(markup).toContain("title-bar")
+    expect(markup).toContain("project-selector")
+    expect(markup).toContain("top-nav")
   })
 
   it("keeps all page shells mounted in the router", () => {
@@ -339,33 +317,11 @@ describe("app store", () => {
   })
 })
 
-describe("ProjectFrame", () => {
-  it("renders recent projects in the empty state", () => {
+describe("ProjectSelector", () => {
+  it("renders trigger with project name when project is active", () => {
     const markup = renderToStaticMarkup(
-      <ProjectFrame
-        activeProject={null}
-        recentProjects={[makeProject("proj-2", "Beta")]}
-        canOpenProjects={true}
-        openStatus="idle"
-        openError={null}
-        onOpenProject={() => undefined}
-        onOpenRecentProject={() => undefined}
-      />,
-    )
-
-    expect(markup).toContain("Open Project")
-    expect(markup).toContain("Recent projects")
-    expect(markup).toContain("Beta")
-  })
-
-  it("renders active project identity when a project is loaded", () => {
-    const markup = renderToStaticMarkup(
-      <ProjectFrame
-        activeProject={{
-          ...makeProject("proj-1", "Alpha"),
-          rootPath: "/repo/apps/web",
-          gitRootPath: "/repo",
-        }}
+      <ProjectSelector
+        activeProject={makeProject("proj-1", "Alpha")}
         recentProjects={[]}
         canOpenProjects={true}
         openStatus="idle"
@@ -376,9 +332,89 @@ describe("ProjectFrame", () => {
     )
 
     expect(markup).toContain("Alpha")
-    expect(markup).toContain("/repo/apps/web")
-    expect(markup).toContain("Repo root: /repo")
-    expect(markup).toContain("Switch Project")
+    expect(markup).toContain("project-selector__trigger")
+  })
+
+  it("renders 'Open Project' trigger when no project is active", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectSelector
+        activeProject={null}
+        recentProjects={[]}
+        canOpenProjects={true}
+        openStatus="idle"
+        openError={null}
+        onOpenProject={() => undefined}
+        onOpenRecentProject={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain("Open Project")
+  })
+
+  it("renders 'Opening...' when status is opening", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectSelector
+        activeProject={null}
+        recentProjects={[]}
+        canOpenProjects={true}
+        openStatus="opening"
+        openError={null}
+        onOpenProject={() => undefined}
+        onOpenRecentProject={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain("Opening")
+  })
+
+  it("starts with popover closed", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectSelector
+        activeProject={makeProject("proj-1", "Alpha")}
+        recentProjects={[makeProject("proj-2", "Beta")]}
+        canOpenProjects={true}
+        openStatus="idle"
+        openError={null}
+        onOpenProject={() => undefined}
+        onOpenRecentProject={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain("Alpha")
+    expect(markup).not.toContain("project-selector__popover")
+  })
+
+  it("applies muted attribute when canOpenProjects is false", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectSelector
+        activeProject={makeProject("proj-1", "Alpha")}
+        recentProjects={[]}
+        canOpenProjects={false}
+        openStatus="idle"
+        openError={null}
+        onOpenProject={() => undefined}
+        onOpenRecentProject={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain("data-muted")
+  })
+
+  it("renders aria attributes on trigger", () => {
+    const markup = renderToStaticMarkup(
+      <ProjectSelector
+        activeProject={null}
+        recentProjects={[]}
+        canOpenProjects={true}
+        openStatus="idle"
+        openError={null}
+        onOpenProject={() => undefined}
+        onOpenRecentProject={() => undefined}
+      />,
+    )
+
+    expect(markup).toContain('aria-expanded="false"')
+    expect(markup).toContain('aria-haspopup="menu"')
   })
 })
 

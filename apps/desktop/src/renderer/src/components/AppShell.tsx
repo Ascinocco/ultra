@@ -10,9 +10,7 @@ import {
   openProjectFromPicker,
 } from "../projects/project-workflows.js"
 import { useAppStore } from "../state/app-store.js"
-import { ProjectFrame } from "./ProjectFrame.js"
-import { RuntimeIndicator } from "./RuntimeIndicator.js"
-import { TopNav } from "./TopNav.js"
+import { TitleBar } from "./TitleBar.js"
 
 export function AppShell() {
   const app = useAppStore((state) => state.app)
@@ -64,28 +62,21 @@ export function AppShell() {
 
   return (
     <main className="app-shell">
-      <header className="app-shell__header">
-        <ProjectFrame
-          activeProject={activeProject}
-          recentProjects={recentProjects}
-          canOpenProjects={canOpenProjects}
-          openStatus={app.projectOpenStatus}
-          openError={app.projectOpenError}
-          onOpenProject={() => {
-            void handleOpenProject()
-          }}
-          onOpenRecentProject={(project) => {
-            void handleOpenRecentProject(project)
-          }}
-        />
-        <div className="app-shell__nav-wrap">
-          <TopNav currentPage={app.currentPage} onSelectPage={setCurrentPage} />
-        </div>
-        <RuntimeIndicator
-          status={app.connectionStatus}
-          detail={app.backendStatus.message}
-        />
-      </header>
+      <TitleBar
+        currentPage={app.currentPage}
+        onSelectPage={setCurrentPage}
+        activeProject={activeProject}
+        recentProjects={recentProjects}
+        canOpenProjects={canOpenProjects}
+        openStatus={app.projectOpenStatus}
+        openError={app.projectOpenError}
+        onOpenProject={() => {
+          void handleOpenProject()
+        }}
+        onOpenRecentProject={(project) => {
+          void handleOpenRecentProject(project)
+        }}
+      />
 
       <section className="app-shell__body">
         <ChatPageShell active={app.currentPage === "chat"} />
