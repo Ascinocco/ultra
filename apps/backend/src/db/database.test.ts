@@ -54,6 +54,9 @@ describe("database bootstrap", () => {
     expect(runtime.migrationResult.appliedMigrationIds).toContain(
       "0006_sandbox_context_and_runtime_sync",
     )
+    expect(runtime.migrationResult.appliedMigrationIds).toContain(
+      "0007_thread_events_foundation",
+    )
 
     const tables = runtime.database
       .prepare<[string], { name: string }>(
@@ -111,6 +114,13 @@ describe("database bootstrap", () => {
         )
         .all("sandbox_runtime_syncs"),
     ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("thread_events"),
+    ).toHaveLength(1)
 
     runtime.close()
   })
@@ -129,7 +139,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0006_sandbox_context_and_runtime_sync",
+      "0007_thread_events_foundation",
     )
 
     secondRuntime.close()

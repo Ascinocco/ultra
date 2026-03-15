@@ -17,6 +17,10 @@ export const queryMethodSchema = z.enum([
   "projects.list",
   "projects.get",
   "projects.get_layout",
+  "threads.list_by_project",
+  "threads.list_by_chat",
+  "threads.get",
+  "threads.get_events",
 ])
 
 export const commandMethodSchema = z.enum([
@@ -27,6 +31,8 @@ export const commandMethodSchema = z.enum([
   "chats.unpin",
   "chats.archive",
   "chats.restore",
+  "chats.start_thread",
+  "chats.promote_work_to_thread",
   "projects.open",
   "projects.set_layout",
 ])

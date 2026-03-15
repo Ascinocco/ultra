@@ -46,6 +46,7 @@ describe("migration runner", () => {
       "0004_runtime_registry",
       "0005_thread_core",
       "0006_sandbox_context_and_runtime_sync",
+      "0007_thread_events_foundation",
     ])
     expect(rows).toEqual([
       {
@@ -70,6 +71,10 @@ describe("migration runner", () => {
       },
       {
         id: "0006_sandbox_context_and_runtime_sync",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0007_thread_events_foundation",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
@@ -112,7 +117,7 @@ describe("migration runner", () => {
     database.close()
   })
 
-  it("applies 0005_thread_core and 0006_sandbox_context_and_runtime_sync on a fresh database", () => {
+  it("applies 0005_thread_core, 0006_sandbox_context_and_runtime_sync, and 0007_thread_events_foundation on a fresh database", () => {
     const database = createDatabase()
     const result = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
@@ -122,7 +127,10 @@ describe("migration runner", () => {
     expect(result.appliedMigrationIds).toContain(
       "0006_sandbox_context_and_runtime_sync",
     )
-    expect(result.totalMigrationCount).toBe(6)
+    expect(result.appliedMigrationIds).toContain(
+      "0007_thread_events_foundation",
+    )
+    expect(result.totalMigrationCount).toBe(7)
 
     // Verify threads table exists with correct columns
     const threadColumns = database
@@ -181,6 +189,12 @@ describe("migration runner", () => {
       .prepare("PRAGMA table_info(project_layout_state)")
       .all() as Array<{ name: string }>
     expect(layoutColumns.map((c) => c.name)).toContain("last_active_sandbox_id")
+
+    const threadEventColumns = database
+      .prepare("PRAGMA table_info(thread_events)")
+      .all() as Array<{ name: string }>
+    expect(threadEventColumns.map((c) => c.name)).toContain("event_id")
+    expect(threadEventColumns.map((c) => c.name)).toContain("sequence_number")
 
     database.close()
   })
@@ -403,25 +417,25 @@ describe("thread core FK constraints", () => {
     database.close()
   })
 
-  it("incremental apply on DB with 0001-0005 applies only 0006", () => {
+  it("incremental apply on DB with 0001-0006 applies only 0007", () => {
     const database = createDatabase()
 
-    // Apply only 0001-0005 first
+    // Apply only 0001-0006 first
     const firstResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
-      migrations: DATABASE_MIGRATIONS.slice(0, 5),
+      migrations: DATABASE_MIGRATIONS.slice(0, 6),
     })
-    expect(firstResult.appliedMigrationIds).toHaveLength(5)
+    expect(firstResult.appliedMigrationIds).toHaveLength(6)
 
-    // Now run full migrations — only 0006 should apply
+    // Now run full migrations — only 0007 should apply
     const secondResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
     })
 
     expect(secondResult.appliedMigrationIds).toEqual([
-      "0006_sandbox_context_and_runtime_sync",
+      "0007_thread_events_foundation",
     ])
-    expect(secondResult.totalMigrationCount).toBe(6)
+    expect(secondResult.totalMigrationCount).toBe(7)
 
     database.close()
   })
@@ -571,7 +585,7 @@ describe("thread core FK constraints", () => {
     })
 
     expect(result.appliedMigrationIds).toEqual([])
-    expect(result.totalMigrationCount).toBe(6)
+    expect(result.totalMigrationCount).toBe(7)
 
     database.close()
   })

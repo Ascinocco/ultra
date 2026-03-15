@@ -11,6 +11,7 @@ import {
   startSocketServer,
 } from "./server/socket-server.js"
 import { SystemService } from "./system/system-service.js"
+import { ThreadService } from "./threads/thread-service.js"
 
 export function createBackendBanner(): string {
   const target = buildPlaceholderProjectLabel(APP_NAME)
@@ -44,10 +45,12 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
   )
 
   if (socketPath) {
+    const threadService = new ThreadService(databaseRuntime.database)
     socketRuntime = await startSocketServer(socketPath, {
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
       systemService: new SystemService(),
+      threadService,
     })
   } else {
     console.log(

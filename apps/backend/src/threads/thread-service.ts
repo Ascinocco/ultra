@@ -1,0 +1,852 @@
+import { randomUUID } from "node:crypto"
+import type { DatabaseSync } from "node:sqlite"
+import type {
+  ChatsPromoteWorkToThreadInput,
+  ChatsStartThreadInput,
+  ProjectId,
+  ThreadCreatedEventPayload,
+  ThreadDetailResult,
+  ThreadEventSnapshot,
+  ThreadExecutionState,
+  ThreadId,
+  ThreadPublishState,
+  ThreadReviewState,
+  ThreadSnapshot,
+  ThreadSpecRefInput,
+  ThreadSpecRefSnapshot,
+  ThreadSummary,
+  ThreadTicketRefInput,
+  ThreadTicketRefSnapshot,
+  ThreadsGetEventsResult,
+  ThreadsListResult,
+} from "@ultra/shared"
+
+import { IpcProtocolError } from "../ipc/errors.js"
+import { ThreadEventService } from "./thread-event-service.js"
+import { ThreadProjectionService } from "./thread-projection-service.js"
+
+type ChatRow = {
+  id: string
+  project_id: string
+}
+
+type ThreadRow = {
+  id: string
+  project_id: string
+  source_chat_id: string
+  title: string
+  summary: string | null
+  execution_state: ThreadExecutionState
+  review_state: ThreadReviewState
+  publish_state: ThreadPublishState
+  backend_health: string
+  coordinator_health: string
+  watch_health: string
+  ov_project_id: string | null
+  ov_coordinator_id: string | null
+  ov_thread_key: string | null
+  worktree_id: string | null
+  branch_name: string | null
+  base_branch: string | null
+  latest_commit_sha: string | null
+  pr_provider: string | null
+  pr_number: string | null
+  pr_url: string | null
+  last_event_sequence: number
+  restart_count: number
+  failure_reason: string | null
+  created_by_message_id: string | null
+  created_at: string
+  updated_at: string
+  last_activity_at: string | null
+  approved_at: string | null
+  completed_at: string | null
+}
+
+type ThreadSpecRefRow = {
+  thread_id: string
+  spec_path: string
+  spec_slug: string
+  created_at: string
+}
+
+type ThreadTicketRefRow = {
+  thread_id: string
+  provider: string
+  external_id: string
+  display_label: string
+  url: string | null
+  metadata_json: string | null
+  created_at: string
+}
+
+function readThreadRow(result: unknown): ThreadRow | null {
+  if (!result || typeof result !== "object") {
+    return null
+  }
+
+  return result as ThreadRow
+}
+
+function readChatRow(result: unknown): ChatRow | null {
+  if (!result || typeof result !== "object") {
+    return null
+  }
+
+  return result as ChatRow
+}
+
+function parseMetadata(
+  metadataJson: string | null,
+): Record<string, unknown> | null {
+  if (!metadataJson) {
+    return null
+  }
+
+  const parsed = JSON.parse(metadataJson) as unknown
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Thread ticket metadata JSON must decode to an object.")
+  }
+
+  return parsed as Record<string, unknown>
+}
+
+function mapThreadRow(row: ThreadRow): ThreadSnapshot {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    sourceChatId: row.source_chat_id,
+    title: row.title,
+    summary: row.summary,
+    executionState: row.execution_state,
+    reviewState: row.review_state,
+    publishState: row.publish_state,
+    backendHealth: row.backend_health,
+    coordinatorHealth: row.coordinator_health,
+    watchHealth: row.watch_health,
+    ovProjectId: row.ov_project_id,
+    ovCoordinatorId: row.ov_coordinator_id,
+    ovThreadKey: row.ov_thread_key,
+    worktreeId: row.worktree_id,
+    branchName: row.branch_name,
+    baseBranch: row.base_branch,
+    latestCommitSha: row.latest_commit_sha,
+    prProvider: row.pr_provider,
+    prNumber: row.pr_number,
+    prUrl: row.pr_url,
+    lastEventSequence: row.last_event_sequence,
+    restartCount: row.restart_count,
+    failureReason: row.failure_reason,
+    createdByMessageId: row.created_by_message_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastActivityAt: row.last_activity_at,
+    approvedAt: row.approved_at,
+    completedAt: row.completed_at,
+  }
+}
+
+function mapThreadSpecRefRow(row: ThreadSpecRefRow): ThreadSpecRefSnapshot {
+  return {
+    threadId: row.thread_id,
+    specPath: row.spec_path,
+    specSlug: row.spec_slug,
+    createdAt: row.created_at,
+  }
+}
+
+function mapThreadTicketRefRow(row: ThreadTicketRefRow): ThreadTicketRefSnapshot {
+  return {
+    threadId: row.thread_id,
+    provider: row.provider,
+    externalId: row.external_id,
+    displayLabel: row.display_label,
+    url: row.url,
+    metadata: parseMetadata(row.metadata_json),
+    createdAt: row.created_at,
+  }
+}
+
+type CreateThreadRecordInput = {
+  chatId: string
+  projectId: ProjectId
+  title: string
+  summary?: string | null
+  createdByMessageId: string
+}
+
+export class ThreadService {
+  private readonly eventService: ThreadEventService
+
+  private readonly projectionService: ThreadProjectionService
+
+  constructor(
+    private readonly database: DatabaseSync,
+    private readonly now: () => string = () => new Date().toISOString(),
+  ) {
+    this.eventService = new ThreadEventService(database, now)
+    this.projectionService = new ThreadProjectionService(database)
+  }
+
+  startThread(input: ChatsStartThreadInput): ThreadDetailResult {
+    const existing = this.getThreadByCreatedByMessageId(input.start_request_message_id)
+
+    if (existing) {
+      return this.getThread(existing.id)
+    }
+
+    const chat = this.assertChatExists(input.chat_id)
+    this.assertChatMessageType(
+      input.chat_id,
+      input.plan_approval_message_id,
+      "plan_approval",
+    )
+    this.assertChatMessageType(
+      input.chat_id,
+      input.spec_approval_message_id,
+      "spec_approval",
+    )
+    this.assertChatMessageType(
+      input.chat_id,
+      input.start_request_message_id,
+      "thread_start_request",
+    )
+
+    const threadId = this.createThreadWithInitialEvent(
+      {
+        chatId: input.chat_id,
+        projectId: chat.project_id,
+        title: input.title,
+        summary: input.summary ?? null,
+        createdByMessageId: input.start_request_message_id,
+      },
+      input.spec_refs,
+      input.ticket_refs,
+      this.buildCreatedPayload({
+        chatId: input.chat_id,
+        title: input.title,
+        summary: input.summary ?? null,
+        specRefs: input.spec_refs,
+        ticketRefs: input.ticket_refs,
+        creationSource: "start_thread",
+      }),
+    )
+
+    return this.getThread(threadId)
+  }
+
+  promoteWorkToThread(input: ChatsPromoteWorkToThreadInput): ThreadDetailResult {
+    if (!input.promotion_summary.trim()) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Promotion summary is required.",
+      )
+    }
+
+    const existing = this.getThreadByCreatedByMessageId(input.start_request_message_id)
+
+    if (existing) {
+      return this.getThread(existing.id)
+    }
+
+    const chat = this.assertChatExists(input.chat_id)
+
+    this.assertChatMessageType(
+      input.chat_id,
+      input.start_request_message_id,
+      "thread_start_request",
+    )
+
+    if (input.plan_approval_message_id) {
+      this.assertChatMessageType(
+        input.chat_id,
+        input.plan_approval_message_id,
+        "plan_approval",
+      )
+    }
+
+    if (input.spec_approval_message_id) {
+      this.assertChatMessageType(
+        input.chat_id,
+        input.spec_approval_message_id,
+        "spec_approval",
+      )
+    }
+
+    this.assertMessagesBelongToChat(input.chat_id, input.selected_message_ids)
+    this.assertCheckpointsBelongToChat(
+      input.chat_id,
+      input.selected_checkpoint_ids,
+    )
+
+    const threadId = this.createThreadWithInitialEvent(
+      {
+        chatId: input.chat_id,
+        projectId: chat.project_id,
+        title: input.title,
+        summary: input.summary ?? null,
+        createdByMessageId: input.start_request_message_id,
+      },
+      input.spec_refs,
+      input.ticket_refs,
+      this.buildCreatedPayload({
+        chatId: input.chat_id,
+        title: input.title,
+        summary: input.summary ?? null,
+        specRefs: input.spec_refs,
+        ticketRefs: input.ticket_refs,
+        creationSource: "promotion",
+        promotionSummary: input.promotion_summary,
+        carriedMessageIds: input.selected_message_ids,
+        carriedCheckpointIds: input.selected_checkpoint_ids,
+        carriedArtifactRefs: input.carried_artifact_refs,
+        carriedSeedRefs: input.carried_seed_refs,
+      }),
+    )
+
+    return this.getThread(threadId)
+  }
+
+  listByProject(projectId: ProjectId): ThreadsListResult {
+    this.assertProjectExists(projectId)
+
+    const rows = this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            project_id,
+            source_chat_id,
+            title,
+            summary,
+            execution_state,
+            review_state,
+            publish_state,
+            backend_health,
+            coordinator_health,
+            watch_health,
+            ov_project_id,
+            ov_coordinator_id,
+            ov_thread_key,
+            worktree_id,
+            branch_name,
+            base_branch,
+            latest_commit_sha,
+            pr_provider,
+            pr_number,
+            pr_url,
+            last_event_sequence,
+            restart_count,
+            failure_reason,
+            created_by_message_id,
+            created_at,
+            updated_at,
+            last_activity_at,
+            approved_at,
+            completed_at
+          FROM threads
+          WHERE project_id = ?
+          ORDER BY last_activity_at DESC, created_at DESC
+        `,
+      )
+      .all(projectId) as ThreadRow[]
+
+    return {
+      threads: rows.map((row) => mapThreadRow(row)),
+    }
+  }
+
+  listByChat(chatId: string): ThreadsListResult {
+    this.assertChatExists(chatId)
+
+    const rows = this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            project_id,
+            source_chat_id,
+            title,
+            summary,
+            execution_state,
+            review_state,
+            publish_state,
+            backend_health,
+            coordinator_health,
+            watch_health,
+            ov_project_id,
+            ov_coordinator_id,
+            ov_thread_key,
+            worktree_id,
+            branch_name,
+            base_branch,
+            latest_commit_sha,
+            pr_provider,
+            pr_number,
+            pr_url,
+            last_event_sequence,
+            restart_count,
+            failure_reason,
+            created_by_message_id,
+            created_at,
+            updated_at,
+            last_activity_at,
+            approved_at,
+            completed_at
+          FROM threads
+          WHERE source_chat_id = ?
+          ORDER BY last_activity_at DESC, created_at DESC
+        `,
+      )
+      .all(chatId) as ThreadRow[]
+
+    return {
+      threads: rows.map((row) => mapThreadRow(row)),
+    }
+  }
+
+  getThread(threadId: ThreadId): ThreadDetailResult {
+    const thread = this.getThreadSnapshot(threadId)
+
+    return {
+      thread,
+      specRefs: this.listSpecRefs(threadId),
+      ticketRefs: this.listTicketRefs(threadId),
+    }
+  }
+
+  getEvents(threadId: ThreadId, fromSequence?: number): ThreadsGetEventsResult {
+    return {
+      events: this.eventService.listEvents(threadId, fromSequence),
+    }
+  }
+
+  private createThreadWithInitialEvent(
+    threadInput: CreateThreadRecordInput,
+    specRefs: ThreadSpecRefInput[],
+    ticketRefs: ThreadTicketRefInput[],
+    eventPayload: ThreadCreatedEventPayload,
+  ): ThreadId {
+    const timestamp = this.now()
+    const threadId = `thread_${randomUUID()}`
+
+    this.database.exec("BEGIN")
+
+    try {
+      this.database
+        .prepare(
+          `
+            INSERT INTO threads (
+              id,
+              project_id,
+              source_chat_id,
+              title,
+              summary,
+              execution_state,
+              review_state,
+              publish_state,
+              backend_health,
+              coordinator_health,
+              watch_health,
+              ov_project_id,
+              ov_coordinator_id,
+              ov_thread_key,
+              worktree_id,
+              branch_name,
+              base_branch,
+              latest_commit_sha,
+              pr_provider,
+              pr_number,
+              pr_url,
+              last_event_sequence,
+              restart_count,
+              failure_reason,
+              created_by_message_id,
+              created_at,
+              updated_at,
+              last_activity_at,
+              approved_at,
+              completed_at
+            ) VALUES (?, ?, ?, ?, ?, 'queued', 'not_ready', 'not_requested', 'healthy', 'healthy', 'healthy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, NULL, ?, ?, ?, NULL, NULL, NULL)
+          `,
+        )
+        .run(
+          threadId,
+          threadInput.projectId,
+          threadInput.chatId,
+          threadInput.title,
+          threadInput.summary ?? null,
+          threadInput.createdByMessageId,
+          timestamp,
+          timestamp,
+        )
+
+      this.insertSpecRefs(threadId, specRefs, timestamp)
+      this.insertTicketRefs(threadId, ticketRefs, timestamp)
+      this.database
+        .prepare(
+          `
+            INSERT INTO chat_thread_refs (
+              chat_id,
+              thread_id,
+              reference_type,
+              created_at
+            ) VALUES (?, ?, 'spawned', ?)
+          `,
+        )
+        .run(threadInput.chatId, threadId, timestamp)
+
+      const event = this.eventService.appendEvent({
+        projectId: threadInput.projectId,
+        threadId,
+        eventType: "thread.created",
+        actorType: "chat",
+        actorId: threadInput.chatId,
+        source: "ultra.chat",
+        payload: eventPayload,
+        occurredAt: timestamp,
+      })
+
+      this.projectionService.applyEvent(event)
+
+      this.database.exec("COMMIT")
+    } catch (error) {
+      this.database.exec("ROLLBACK")
+      throw error
+    }
+
+    return threadId
+  }
+
+  private buildCreatedPayload(input: {
+    chatId: string
+    title: string
+    summary: string | null
+    specRefs: ThreadSpecRefInput[]
+    ticketRefs: ThreadTicketRefInput[]
+    creationSource: "start_thread" | "promotion"
+    promotionSummary?: string | null
+    carriedMessageIds?: string[]
+    carriedCheckpointIds?: string[]
+    carriedArtifactRefs?: string[]
+    carriedSeedRefs?: string[]
+  }): ThreadCreatedEventPayload {
+    return {
+      sourceChatId: input.chatId,
+      title: input.title,
+      summary: input.summary,
+      initialSpecIds: input.specRefs.map((ref) => ref.spec_path),
+      initialTicketRefs: input.ticketRefs.map((ref) => ({
+        provider: ref.provider,
+        externalId: ref.external_id,
+        displayLabel: ref.display_label,
+        url: ref.url ?? null,
+        metadata: ref.metadata ?? null,
+      })),
+      initialExecutionState: "queued",
+      initialReviewState: "not_ready",
+      initialPublishState: "not_requested",
+      creationSource: input.creationSource,
+      promotionSummary: input.promotionSummary ?? null,
+      carriedMessageIds: input.carriedMessageIds ?? [],
+      carriedCheckpointIds: input.carriedCheckpointIds ?? [],
+      carriedArtifactRefs: input.carriedArtifactRefs ?? [],
+      carriedSeedRefs: input.carriedSeedRefs ?? [],
+    }
+  }
+
+  private insertSpecRefs(
+    threadId: ThreadId,
+    specRefs: ThreadSpecRefInput[],
+    createdAt: string,
+  ): void {
+    const statement = this.database.prepare(
+      `
+        INSERT INTO thread_specs (
+          thread_id,
+          spec_path,
+          spec_slug,
+          created_at
+        ) VALUES (?, ?, ?, ?)
+      `,
+    )
+
+    for (const specRef of specRefs) {
+      statement.run(threadId, specRef.spec_path, specRef.spec_slug, createdAt)
+    }
+  }
+
+  private insertTicketRefs(
+    threadId: ThreadId,
+    ticketRefs: ThreadTicketRefInput[],
+    createdAt: string,
+  ): void {
+    const statement = this.database.prepare(
+      `
+        INSERT INTO thread_ticket_refs (
+          thread_id,
+          provider,
+          external_id,
+          display_label,
+          url,
+          metadata_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+    )
+
+    for (const ticketRef of ticketRefs) {
+      statement.run(
+        threadId,
+        ticketRef.provider,
+        ticketRef.external_id,
+        ticketRef.display_label,
+        ticketRef.url ?? null,
+        ticketRef.metadata ? JSON.stringify(ticketRef.metadata) : null,
+        createdAt,
+      )
+    }
+  }
+
+  private listSpecRefs(threadId: ThreadId): ThreadSpecRefSnapshot[] {
+    return (
+      this.database
+        .prepare(
+          `
+            SELECT thread_id, spec_path, spec_slug, created_at
+            FROM thread_specs
+            WHERE thread_id = ?
+            ORDER BY created_at ASC, spec_path ASC
+          `,
+        )
+        .all(threadId) as ThreadSpecRefRow[]
+    ).map((row) => mapThreadSpecRefRow(row))
+  }
+
+  private listTicketRefs(threadId: ThreadId): ThreadTicketRefSnapshot[] {
+    return (
+      this.database
+        .prepare(
+          `
+            SELECT
+              thread_id,
+              provider,
+              external_id,
+              display_label,
+              url,
+              metadata_json,
+              created_at
+            FROM thread_ticket_refs
+            WHERE thread_id = ?
+            ORDER BY created_at ASC, provider ASC, external_id ASC
+          `,
+        )
+        .all(threadId) as ThreadTicketRefRow[]
+    ).map((row) => mapThreadTicketRefRow(row))
+  }
+
+  private getThreadSnapshot(threadId: ThreadId): ThreadSnapshot {
+    const row = readThreadRow(
+      this.database
+        .prepare(
+          `
+            SELECT
+              id,
+              project_id,
+              source_chat_id,
+              title,
+              summary,
+              execution_state,
+              review_state,
+              publish_state,
+              backend_health,
+              coordinator_health,
+              watch_health,
+              ov_project_id,
+              ov_coordinator_id,
+              ov_thread_key,
+              worktree_id,
+              branch_name,
+              base_branch,
+              latest_commit_sha,
+              pr_provider,
+              pr_number,
+              pr_url,
+              last_event_sequence,
+              restart_count,
+              failure_reason,
+              created_by_message_id,
+              created_at,
+              updated_at,
+              last_activity_at,
+              approved_at,
+              completed_at
+            FROM threads
+            WHERE id = ?
+          `,
+        )
+        .get(threadId),
+    )
+
+    if (!row) {
+      throw new IpcProtocolError("not_found", `Thread not found: ${threadId}`)
+    }
+
+    return mapThreadRow(row)
+  }
+
+  private getThreadByCreatedByMessageId(messageId: string): ThreadRow | null {
+    return readThreadRow(
+      this.database
+        .prepare(
+          `
+            SELECT
+              id,
+              project_id,
+              source_chat_id,
+              title,
+              summary,
+              execution_state,
+              review_state,
+              publish_state,
+              backend_health,
+              coordinator_health,
+              watch_health,
+              ov_project_id,
+              ov_coordinator_id,
+              ov_thread_key,
+              worktree_id,
+              branch_name,
+              base_branch,
+              latest_commit_sha,
+              pr_provider,
+              pr_number,
+              pr_url,
+              last_event_sequence,
+              restart_count,
+              failure_reason,
+              created_by_message_id,
+              created_at,
+              updated_at,
+              last_activity_at,
+              approved_at,
+              completed_at
+            FROM threads
+            WHERE created_by_message_id = ?
+          `,
+        )
+        .get(messageId),
+    )
+  }
+
+  private assertProjectExists(projectId: ProjectId): void {
+    const row = this.database
+      .prepare("SELECT id FROM projects WHERE id = ?")
+      .get(projectId)
+
+    if (!row) {
+      throw new IpcProtocolError("not_found", `Project not found: ${projectId}`)
+    }
+  }
+
+  private assertChatExists(chatId: string): ChatRow {
+    const row = readChatRow(
+      this.database
+        .prepare("SELECT id, project_id FROM chats WHERE id = ?")
+        .get(chatId),
+    )
+
+    if (!row) {
+      throw new IpcProtocolError("not_found", `Chat not found: ${chatId}`)
+    }
+
+    return row
+  }
+
+  private assertChatMessageType(
+    chatId: string,
+    messageId: string,
+    expectedType: string,
+  ): void {
+    const row = this.database
+      .prepare(
+        `
+          SELECT chat_id, message_type
+          FROM chat_messages
+          WHERE id = ?
+        `,
+      )
+      .get(messageId) as
+      | {
+          chat_id: string
+          message_type: string
+        }
+      | undefined
+
+    if (!row) {
+      throw new IpcProtocolError("not_found", `Chat message not found: ${messageId}`)
+    }
+
+    if (row.chat_id !== chatId) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        `Chat message ${messageId} does not belong to chat ${chatId}.`,
+      )
+    }
+
+    if (row.message_type !== expectedType) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        `Chat message ${messageId} must have type ${expectedType}.`,
+      )
+    }
+  }
+
+  private assertMessagesBelongToChat(chatId: string, messageIds: string[]): void {
+    for (const messageId of messageIds) {
+      const row = this.database
+        .prepare("SELECT chat_id FROM chat_messages WHERE id = ?")
+        .get(messageId) as { chat_id: string } | undefined
+
+      if (!row) {
+        throw new IpcProtocolError(
+          "not_found",
+          `Chat message not found: ${messageId}`,
+        )
+      }
+
+      if (row.chat_id !== chatId) {
+        throw new IpcProtocolError(
+          "invalid_request",
+          `Chat message ${messageId} does not belong to chat ${chatId}.`,
+        )
+      }
+    }
+  }
+
+  private assertCheckpointsBelongToChat(
+    chatId: string,
+    checkpointIds: string[],
+  ): void {
+    for (const checkpointId of checkpointIds) {
+      const row = this.database
+        .prepare("SELECT chat_id FROM chat_action_checkpoints WHERE id = ?")
+        .get(checkpointId) as { chat_id: string } | undefined
+
+      if (!row) {
+        throw new IpcProtocolError(
+          "not_found",
+          `Chat checkpoint not found: ${checkpointId}`,
+        )
+      }
+
+      if (row.chat_id !== chatId) {
+        throw new IpcProtocolError(
+          "invalid_request",
+          `Chat checkpoint ${checkpointId} does not belong to chat ${chatId}.`,
+        )
+      }
+    }
+  }
+}

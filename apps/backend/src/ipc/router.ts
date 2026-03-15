@@ -8,9 +8,11 @@ import {
   chatsCreateInputSchema,
   chatsGetInputSchema,
   chatsListInputSchema,
+  chatsPromoteWorkToThreadInputSchema,
   chatsPinInputSchema,
   chatsRenameInputSchema,
   chatsRestoreInputSchema,
+  chatsStartThreadInputSchema,
   chatsUnpinInputSchema,
   IPC_PROTOCOL_VERSION,
   parseEnvironmentReadinessSnapshot,
@@ -25,10 +27,15 @@ import {
   systemGetEnvironmentReadinessQuerySchema,
   systemPingQuerySchema,
   systemRecheckEnvironmentCommandSchema,
+  threadsGetEventsInputSchema,
+  threadsGetInputSchema,
+  threadsListByChatInputSchema,
+  threadsListByProjectInputSchema,
 } from "@ultra/shared"
 import type { ChatService } from "../chats/chat-service.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { SystemService } from "../system/system-service.js"
+import type { ThreadService } from "../threads/thread-service.js"
 import { createErrorResponse, IpcProtocolError } from "./errors.js"
 
 function createSuccessResponse(
@@ -133,6 +140,7 @@ export async function routeIpcRequest(
     chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
+    threadService: ThreadService
   },
 ): Promise<SuccessResponseEnvelope | ReturnType<typeof createErrorResponse>> {
   try {
@@ -282,6 +290,24 @@ export async function routeIpcRequest(
           ),
         )
       }
+      case "chats.start_thread": {
+        const startThreadCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          startThreadCommand.request_id,
+          services.threadService.startThread(
+            chatsStartThreadInputSchema.parse(startThreadCommand.payload),
+          ),
+        )
+      }
+      case "chats.promote_work_to_thread": {
+        const promoteCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          promoteCommand.request_id,
+          services.threadService.promoteWorkToThread(
+            chatsPromoteWorkToThreadInputSchema.parse(promoteCommand.payload),
+          ),
+        )
+      }
       case "projects.get_layout": {
         const getLayoutQuery = assertQueryRequest(request)
         const { project_id } = projectsGetLayoutInputSchema.parse(
@@ -299,6 +325,45 @@ export async function routeIpcRequest(
         )
         services.projectService.setLayout(project_id, layout)
         return createSuccessResponse(setLayoutCommand.request_id, null)
+      }
+      case "threads.list_by_project": {
+        const listThreadsQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          listThreadsQuery.request_id,
+          services.threadService.listByProject(
+            threadsListByProjectInputSchema.parse(listThreadsQuery.payload)
+              .project_id,
+          ),
+        )
+      }
+      case "threads.list_by_chat": {
+        const listThreadsByChatQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          listThreadsByChatQuery.request_id,
+          services.threadService.listByChat(
+            threadsListByChatInputSchema.parse(listThreadsByChatQuery.payload)
+              .chat_id,
+          ),
+        )
+      }
+      case "threads.get": {
+        const getThreadQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          getThreadQuery.request_id,
+          services.threadService.getThread(
+            threadsGetInputSchema.parse(getThreadQuery.payload).thread_id,
+          ),
+        )
+      }
+      case "threads.get_events": {
+        const getThreadEventsQuery = assertQueryRequest(request)
+        const { thread_id, from_sequence } = threadsGetEventsInputSchema.parse(
+          getThreadEventsQuery.payload,
+        )
+        return createSuccessResponse(
+          getThreadEventsQuery.request_id,
+          services.threadService.getEvents(thread_id, from_sequence),
+        )
       }
       default:
         throw new IpcProtocolError(
