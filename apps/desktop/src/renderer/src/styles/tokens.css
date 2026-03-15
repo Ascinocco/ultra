@@ -1,0 +1,26 @@
+:root {
+  color-scheme: dark;
+  --shell-bg: #07111f;
+  --shell-bg-accent:
+    radial-gradient(circle at top, rgba(51, 94, 193, 0.18), transparent 34%),
+    linear-gradient(180deg, #0a1629 0%, #07111f 100%);
+  --surface-1: rgba(12, 23, 39, 0.82);
+  --surface-2: rgba(15, 28, 48, 0.92);
+  --surface-3: rgba(24, 39, 63, 0.98);
+  --surface-border: rgba(148, 163, 184, 0.16);
+  --text-primary: #e5eefb;
+  --text-secondary: #b4c2da;
+  --text-muted: #8ca0bc;
+  --accent: #68a0ff;
+  --accent-strong: #dce9ff;
+  --accent-surface: rgba(104, 160, 255, 0.16);
+  --success: #6ee7b7;
+  --warning: #facc15;
+  --danger: #fb7185;
+  --idle: #94a3b8;
+  --shadow-lg: 0 26px 80px rgba(3, 8, 18, 0.4);
+  --shadow-md: 0 18px 40px rgba(3, 8, 18, 0.3);
+  --radius-xl: 24px;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+}
