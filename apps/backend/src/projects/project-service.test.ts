@@ -133,6 +133,155 @@ describe("ProjectService", () => {
     runtime.close()
   })
 
+  it("getLayout returns default layout when no row exists", () => {
+    const { directory, databasePath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const service = new ProjectService(runtime.database)
+
+    const layout = service.getLayout("proj_nonexistent")
+
+    expect(layout).toEqual({
+      currentPage: "chat",
+      rightTopCollapsed: false,
+      rightBottomCollapsed: false,
+      selectedRightPaneTab: null,
+      selectedBottomPaneTab: null,
+      activeChatId: null,
+      selectedThreadId: null,
+      lastEditorTargetId: null,
+    })
+
+    runtime.close()
+  })
+
+  it("setLayout persists and getLayout retrieves layout state", () => {
+    const { directory, databasePath } = createWorkspace()
+    const projectDir = join(directory, "my-project")
+    mkdirSync(projectDir)
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const service = new ProjectService(
+      runtime.database,
+      () => "2026-03-15T12:00:00Z",
+    )
+
+    const project = service.open({ path: projectDir })
+    service.setLayout(project.id, {
+      currentPage: "editor",
+      rightTopCollapsed: true,
+      rightBottomCollapsed: false,
+      selectedRightPaneTab: "files",
+      selectedBottomPaneTab: null,
+      activeChatId: "chat_abc",
+      selectedThreadId: null,
+      lastEditorTargetId: "target_xyz",
+    })
+
+    const layout = service.getLayout(project.id)
+
+    expect(layout).toEqual({
+      currentPage: "editor",
+      rightTopCollapsed: true,
+      rightBottomCollapsed: false,
+      selectedRightPaneTab: "files",
+      selectedBottomPaneTab: null,
+      activeChatId: "chat_abc",
+      selectedThreadId: null,
+      lastEditorTargetId: "target_xyz",
+    })
+
+    runtime.close()
+  })
+
+  it("setLayout upserts — second call overwrites first", () => {
+    const { directory, databasePath } = createWorkspace()
+    const projectDir = join(directory, "upsert-project")
+    mkdirSync(projectDir)
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const service = new ProjectService(
+      runtime.database,
+      () => "2026-03-15T12:00:00Z",
+    )
+
+    const project = service.open({ path: projectDir })
+
+    service.setLayout(project.id, {
+      currentPage: "chat",
+      rightTopCollapsed: false,
+      rightBottomCollapsed: false,
+      selectedRightPaneTab: null,
+      selectedBottomPaneTab: null,
+      activeChatId: null,
+      selectedThreadId: null,
+      lastEditorTargetId: null,
+    })
+
+    service.setLayout(project.id, {
+      currentPage: "browser",
+      rightTopCollapsed: true,
+      rightBottomCollapsed: true,
+      selectedRightPaneTab: "timeline",
+      selectedBottomPaneTab: "logs",
+      activeChatId: "chat_123",
+      selectedThreadId: "thread_456",
+      lastEditorTargetId: "target_789",
+    })
+
+    const layout = service.getLayout(project.id)
+
+    expect(layout.currentPage).toBe("browser")
+    expect(layout.rightTopCollapsed).toBe(true)
+    expect(layout.rightBottomCollapsed).toBe(true)
+    expect(layout.selectedRightPaneTab).toBe("timeline")
+    expect(layout.selectedBottomPaneTab).toBe("logs")
+    expect(layout.activeChatId).toBe("chat_123")
+    expect(layout.selectedThreadId).toBe("thread_456")
+    expect(layout.lastEditorTargetId).toBe("target_789")
+
+    runtime.close()
+  })
+
+  it("getLayout converts SQLite integers to booleans for collapse fields", () => {
+    const { directory, databasePath } = createWorkspace()
+    const projectDir = join(directory, "bool-project")
+    mkdirSync(projectDir)
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const service = new ProjectService(
+      runtime.database,
+      () => "2026-03-15T12:00:00Z",
+    )
+
+    const project = service.open({ path: projectDir })
+    const layout = service.getLayout(project.id)
+
+    expect(layout.rightTopCollapsed).toBe(false)
+    expect(layout.rightBottomCollapsed).toBe(false)
+    expect(typeof layout.rightTopCollapsed).toBe("boolean")
+    expect(typeof layout.rightBottomCollapsed).toBe("boolean")
+
+    runtime.close()
+  })
+
+  it("setLayout rejects writes for non-existent project due to FK constraint", () => {
+    const { databasePath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const service = new ProjectService(runtime.database)
+
+    expect(() =>
+      service.setLayout("proj_nonexistent", {
+        currentPage: "chat",
+        rightTopCollapsed: false,
+        rightBottomCollapsed: false,
+        selectedRightPaneTab: null,
+        selectedBottomPaneTab: null,
+        activeChatId: null,
+        selectedThreadId: null,
+        lastEditorTargetId: null,
+      }),
+    ).toThrow()
+
+    runtime.close()
+  })
+
   it("rejects missing paths, file paths, and unknown project ids", () => {
     const { directory, databasePath } = createWorkspace()
     const filePath = join(directory, "file.txt")

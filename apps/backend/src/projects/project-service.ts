@@ -5,6 +5,7 @@ import { basename, resolve } from "node:path"
 import type { DatabaseSync } from "node:sqlite"
 import type {
   ProjectId,
+  ProjectLayoutState,
   ProjectOpenInput,
   ProjectSnapshot,
 } from "@ultra/shared"
@@ -245,5 +246,88 @@ export class ProjectService {
     return {
       projects: rows.map((row) => mapProjectRow(row)),
     }
+  }
+
+  getLayout(projectId: string): ProjectLayoutState {
+    const row = this.database
+      .prepare(
+        `SELECT
+          current_page,
+          right_top_collapsed,
+          right_bottom_collapsed,
+          selected_right_pane_tab,
+          selected_bottom_pane_tab,
+          active_chat_id,
+          selected_thread_id,
+          last_editor_target_id
+        FROM project_layout_state
+        WHERE project_id = ?`,
+      )
+      .get(projectId) as
+      | {
+          current_page: string
+          right_top_collapsed: number
+          right_bottom_collapsed: number
+          selected_right_pane_tab: string | null
+          selected_bottom_pane_tab: string | null
+          active_chat_id: string | null
+          selected_thread_id: string | null
+          last_editor_target_id: string | null
+        }
+      | undefined
+
+    if (!row) {
+      return {
+        currentPage: "chat",
+        rightTopCollapsed: false,
+        rightBottomCollapsed: false,
+        selectedRightPaneTab: null,
+        selectedBottomPaneTab: null,
+        activeChatId: null,
+        selectedThreadId: null,
+        lastEditorTargetId: null,
+      }
+    }
+
+    return {
+      currentPage: row.current_page as ProjectLayoutState["currentPage"],
+      rightTopCollapsed: row.right_top_collapsed === 1,
+      rightBottomCollapsed: row.right_bottom_collapsed === 1,
+      selectedRightPaneTab: row.selected_right_pane_tab,
+      selectedBottomPaneTab: row.selected_bottom_pane_tab,
+      activeChatId: row.active_chat_id,
+      selectedThreadId: row.selected_thread_id,
+      lastEditorTargetId: row.last_editor_target_id,
+    }
+  }
+
+  setLayout(projectId: string, layout: ProjectLayoutState): void {
+    this.database
+      .prepare(
+        `INSERT OR REPLACE INTO project_layout_state (
+          project_id,
+          current_page,
+          right_top_collapsed,
+          right_bottom_collapsed,
+          selected_right_pane_tab,
+          selected_bottom_pane_tab,
+          active_chat_id,
+          selected_thread_id,
+          last_editor_target_id,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        projectId,
+        layout.currentPage,
+        layout.rightTopCollapsed ? 1 : 0,
+        layout.rightBottomCollapsed ? 1 : 0,
+        layout.selectedRightPaneTab,
+        layout.selectedBottomPaneTab,
+        layout.activeChatId,
+        layout.selectedThreadId,
+        layout.lastEditorTargetId,
+        this.now(),
+      )
   }
 }
