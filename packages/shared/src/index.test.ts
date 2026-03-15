@@ -230,6 +230,28 @@ describe("shared contracts", () => {
     expect(result.chats).toHaveLength(1)
   })
 
+  it("accepts claude as a chat provider", () => {
+    const snapshot = parseChatSnapshot({
+      id: "chat_456",
+      projectId: "proj_123",
+      title: "Claude Chat",
+      status: "active",
+      provider: "claude",
+      model: "sonnet",
+      thinkingLevel: "default",
+      permissionLevel: "supervised",
+      isPinned: false,
+      pinnedAt: null,
+      archivedAt: null,
+      lastCompactedAt: null,
+      currentSessionId: "chat_sess_456",
+      createdAt: "2026-03-14T12:00:00Z",
+      updatedAt: "2026-03-14T12:00:00Z",
+    })
+
+    expect(snapshot.provider).toBe("claude")
+  })
+
   it("accepts the milestone one project layout state", () => {
     const layout = parseProjectLayoutState({
       currentPage: "chat",
