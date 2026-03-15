@@ -1,3 +1,4 @@
+import type { ConnectionStatus } from "@ultra/shared"
 import {
   createContext,
   type PropsWithChildren,
@@ -7,22 +8,23 @@ import {
 import type { StoreApi } from "zustand"
 import { createStore, useStore } from "zustand"
 
+import type { BackendStatusSnapshot } from "../../../shared/backend-status.js"
+import { createInitialBackendStatus } from "../../../shared/backend-status.js"
+
 export type AppPage = "chat" | "editor" | "browser"
-export type ConnectionStatus =
-  | "connecting"
-  | "connected"
-  | "degraded"
-  | "disconnected"
+export type { ConnectionStatus } from "@ultra/shared"
 
 type AppSlice = {
   currentPage: AppPage
   activeProjectId: string | null
   connectionStatus: ConnectionStatus
+  backendStatus: BackendStatusSnapshot
 }
 
 type AppActions = {
   setCurrentPage: (page: AppPage) => void
   setConnectionStatus: (status: ConnectionStatus) => void
+  setBackendStatus: (status: BackendStatusSnapshot) => void
 }
 
 export type AppStoreState = {
@@ -35,7 +37,8 @@ type AppStore = StoreApi<AppStoreState>
 const defaultAppState: AppSlice = {
   currentPage: "chat",
   activeProjectId: null,
-  connectionStatus: "disconnected",
+  connectionStatus: "connecting",
+  backendStatus: createInitialBackendStatus(),
 }
 
 function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
@@ -49,6 +52,7 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
     actions: {
       setCurrentPage: () => undefined,
       setConnectionStatus: () => undefined,
+      setBackendStatus: () => undefined,
     },
   }
 }
@@ -71,6 +75,15 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           app: {
             ...state.app,
             connectionStatus: status,
+          },
+        })),
+      setBackendStatus: (status) =>
+        set((state) => ({
+          ...state,
+          app: {
+            ...state.app,
+            connectionStatus: status.connectionStatus,
+            backendStatus: status,
           },
         })),
     },

@@ -13,7 +13,7 @@
     ]
   },
   "scripts": {
-    "dev": "concurrently -n shared,backend,desktop -c magenta,blue,green \"pnpm --filter @ultra/shared dev\" \"pnpm --filter @ultra/backend dev\" \"pnpm --filter @ultra/desktop dev\"",
+    "dev": "concurrently -n shared,desktop -c magenta,green \"pnpm --filter @ultra/shared dev\" \"pnpm --filter @ultra/desktop dev\"",
     "build": "pnpm -r build",
     "typecheck": "tsc -b",
     "lint": "biome check .",

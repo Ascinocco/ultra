@@ -26,7 +26,13 @@ export function getConnectionStatusMeta(status: ConnectionStatus) {
   return statusMeta[status]
 }
 
-export function RuntimeIndicator({ status }: { status: ConnectionStatus }) {
+export function RuntimeIndicator({
+  status,
+  detail,
+}: {
+  status: ConnectionStatus
+  detail?: string
+}) {
   const meta = getConnectionStatusMeta(status)
 
   return (
@@ -38,6 +44,9 @@ export function RuntimeIndicator({ status }: { status: ConnectionStatus }) {
         <span aria-hidden="true" className="runtime-indicator__dot" />
         {meta.label}
       </span>
+      {detail ? (
+        <span className="runtime-indicator__detail">{detail}</span>
+      ) : null}
     </div>
   )
 }

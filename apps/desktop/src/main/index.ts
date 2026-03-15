@@ -3,7 +3,17 @@ import { fileURLToPath } from "node:url"
 import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
 import { app, BrowserWindow } from "electron"
 
+import { createBackendLaunchConfig } from "./backend-config.js"
+import { BackendProcessManager } from "./backend-process.js"
+import { registerShellIpc } from "./ipc-shell.js"
+
 const __dirname = fileURLToPath(new URL(".", import.meta.url))
+const backendManager = new BackendProcessManager({
+  config: createBackendLaunchConfig(app),
+})
+
+let unregisterShellIpc: (() => void) | null = null
+let isQuitting = false
 
 function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -32,12 +42,28 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  unregisterShellIpc = registerShellIpc(backendManager)
+  backendManager.start()
   createMainWindow()
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow()
     }
+  })
+})
+
+app.on("before-quit", (event) => {
+  if (isQuitting) {
+    return
+  }
+
+  isQuitting = true
+  event.preventDefault()
+
+  void backendManager.stop().finally(() => {
+    unregisterShellIpc?.()
+    app.exit(0)
   })
 })
 

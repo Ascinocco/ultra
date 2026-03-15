@@ -1,3 +1,8 @@
+import type {
+  BackendStatusListener,
+  BackendStatusSnapshot,
+} from "../../shared/backend-status.js"
+
 declare global {
   interface Window {
     ultraShell: {
@@ -5,8 +10,8 @@ declare global {
       chromeVersion: string
       electronVersion: string
       nodeVersion: string
+      getBackendStatus: () => Promise<BackendStatusSnapshot>
+      onBackendStatusChange: (listener: BackendStatusListener) => () => void
     }
   }
 }
-
-export {}

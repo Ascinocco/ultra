@@ -20,7 +20,10 @@ export function AppShell() {
           <span className="app-shell__brand">{APP_NAME}</span>
           <TopNav currentPage={app.currentPage} onSelectPage={setCurrentPage} />
         </div>
-        <RuntimeIndicator status={app.connectionStatus} />
+        <RuntimeIndicator
+          status={app.connectionStatus}
+          detail={app.backendStatus.message}
+        />
       </header>
 
       <section className="app-shell__body">
