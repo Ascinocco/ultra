@@ -1,0 +1,3 @@
+[submodule "vendor/code-oss"]
+	path = vendor/code-oss
+	url = https://github.com/gitpod-io/openvscode-server
