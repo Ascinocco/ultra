@@ -38,10 +38,11 @@ function createConfig(
 ): BackendLaunchConfig {
   return {
     command: "tsx",
-    args: ["watch", "src/index.ts"],
+    args: ["src/index.ts"],
     cwd: "/Users/tony/Projects/ultra/apps/backend",
     env: {},
     socketPath: "/tmp/ultra-backend.sock",
+    databasePath: "/tmp/ultra.db",
     startupGraceMs: 25,
     shutdownTimeoutMs: 25,
     restartDelayMs: 25,

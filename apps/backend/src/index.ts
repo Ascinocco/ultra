@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url"
 import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
 
+import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import {
   type SocketServerRuntime,
   startSocketServer,
@@ -13,14 +14,22 @@ export function createBackendBanner(): string {
 
 export type BackendRuntime = {
   socketPath: string | null
+  databasePath: string
   stop: () => Promise<void>
 }
 
 export async function startBackendScaffold(): Promise<BackendRuntime> {
   const socketPath = process.env.ULTRA_SOCKET_PATH ?? null
+  let databaseRuntime: DatabaseRuntime | null = null
   let socketRuntime: SocketServerRuntime | null = null
 
   console.log(createBackendBanner())
+
+  databaseRuntime = bootstrapDatabase()
+
+  console.log(
+    `[backend] database ready at ${databaseRuntime.databasePath} (${databaseRuntime.migrationResult.appliedMigrationIds.length} migrations applied)`,
+  )
 
   if (socketPath) {
     socketRuntime = await startSocketServer(socketPath)
@@ -32,8 +41,10 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
 
   return {
     socketPath,
+    databasePath: databaseRuntime.databasePath,
     stop: async () => {
       await socketRuntime?.close()
+      databaseRuntime?.close()
     },
   }
 }
@@ -49,14 +60,21 @@ if (entryPath && currentPath === entryPath) {
     process.exit(0)
   }
 
-  void startBackendScaffold().then((resolvedRuntime) => {
-    runtime = resolvedRuntime
+  void startBackendScaffold()
+    .then((resolvedRuntime) => {
+      runtime = resolvedRuntime
 
-    process.once("SIGINT", () => {
-      void shutdown()
+      process.once("SIGINT", () => {
+        void shutdown()
+      })
+      process.once("SIGTERM", () => {
+        void shutdown()
+      })
     })
-    process.once("SIGTERM", () => {
-      void shutdown()
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+
+      console.error(`[backend] failed to start: ${message}`)
+      process.exit(1)
     })
-  })
 }
