@@ -1,26 +1,41 @@
 :root {
   color-scheme: dark;
-  --shell-bg: #070a0d;
+
+  /* Cool blue-dark shell */
+  --shell-bg: #0f1117;
   --shell-bg-accent:
-    radial-gradient(circle at top, rgba(124, 138, 172, 0.1), transparent 34%),
-    linear-gradient(180deg, #0c1016 0%, #070a0d 100%);
-  --surface-1: rgba(10, 13, 18, 0.94);
-  --surface-2: rgba(14, 18, 24, 0.96);
-  --surface-3: rgba(18, 22, 28, 0.98);
-  --surface-border: rgba(226, 232, 240, 0.22);
-  --text-primary: #f8fbff;
-  --text-secondary: #d5ddea;
-  --text-muted: #a0adbf;
-  --accent: #e7edf6;
-  --accent-strong: #ffffff;
-  --accent-surface: rgba(255, 255, 255, 0.12);
+    radial-gradient(ellipse at top left, rgba(56, 89, 160, 0.1), transparent 50%),
+    radial-gradient(ellipse at bottom right, rgba(80, 60, 140, 0.06), transparent 50%),
+    linear-gradient(180deg, #12141c 0%, #0f1117 100%);
+
+  /* Blue-tinted surfaces */
+  --surface-1: rgba(16, 19, 28, 0.95);
+  --surface-2: rgba(22, 26, 38, 0.92);
+  --surface-3: rgba(28, 33, 46, 0.94);
+  --surface-border: rgba(148, 163, 200, 0.1);
+
+  /* Cool blue-white text */
+  --text-primary: #eef1f8;
+  --text-secondary: #b0bbd0;
+  --text-muted: #6b7a94;
+
+  /* Blue accent */
+  --accent: #5b8def;
+  --accent-strong: #7aa5ff;
+  --accent-surface: rgba(91, 141, 239, 0.12);
+
+  /* Status colors */
   --success: #6ee7b7;
   --warning: #facc15;
   --danger: #fb7185;
-  --idle: #94a3b8;
-  --shadow-lg: 0 26px 80px rgba(3, 8, 18, 0.4);
-  --shadow-md: 0 18px 40px rgba(3, 8, 18, 0.3);
-  --radius-xl: 0;
-  --radius-lg: 0;
-  --radius-md: 0;
+  --idle: #6b7a94;
+
+  /* Shadows */
+  --shadow-lg: 0 24px 64px rgba(4, 6, 14, 0.5);
+  --shadow-md: 0 12px 32px rgba(4, 6, 14, 0.35);
+
+  /* Rounded corners */
+  --radius-xl: 16px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
 }
