@@ -5,6 +5,7 @@ import type {
 } from "@ultra/shared"
 import {
   IPC_PROTOCOL_VERSION,
+  parseEnvironmentReadinessSnapshot,
   parseIpcRequestEnvelope,
   parseProjectOpenInput,
   parseSystemHelloQuery,
@@ -13,7 +14,9 @@ import {
   projectsListQuerySchema,
   projectsSetLayoutInputSchema,
   systemGetBackendInfoQuerySchema,
+  systemGetEnvironmentReadinessQuerySchema,
   systemPingQuerySchema,
+  systemRecheckEnvironmentCommandSchema,
 } from "@ultra/shared"
 import type { ProjectService } from "../projects/project-service.js"
 import type { SystemService } from "../system/system-service.js"
@@ -148,6 +151,26 @@ export async function routeIpcRequest(
         return createSuccessResponse(
           pingQuery.request_id,
           services.systemService.ping(),
+        )
+      }
+      case "system.get_environment_readiness": {
+        const readinessQuery = assertSystemQuery(request)
+        systemGetEnvironmentReadinessQuerySchema.parse(readinessQuery)
+        return createSuccessResponse(
+          readinessQuery.request_id,
+          parseEnvironmentReadinessSnapshot(
+            await services.systemService.getEnvironmentReadiness(),
+          ),
+        )
+      }
+      case "system.recheck_environment": {
+        const recheckCommand = assertCommandRequest(request)
+        systemRecheckEnvironmentCommandSchema.parse(recheckCommand)
+        return createSuccessResponse(
+          recheckCommand.request_id,
+          parseEnvironmentReadinessSnapshot(
+            await services.systemService.recheckEnvironment(),
+          ),
         )
       }
       case "projects.open": {

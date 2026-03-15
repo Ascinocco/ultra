@@ -14,6 +14,7 @@ Related docs:
 - [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
 - [sqlite-schema.md](/Users/tony/Projects/ultra/docs/sqlite-schema.md)
 - [ui-layout-and-navigation.md](/Users/tony/Projects/ultra/docs/ui-layout-and-navigation.md)
+- [environment-readiness.md](/Users/tony/Projects/ultra/docs/environment-readiness.md)
 
 ## Purpose
 

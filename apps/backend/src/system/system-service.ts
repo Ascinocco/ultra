@@ -3,10 +3,13 @@ import { randomUUID } from "node:crypto"
 import type {
   BackendCapabilities,
   BackendInfoSnapshot,
+  EnvironmentReadinessSnapshot,
   SystemHelloResult,
   SystemPingResult,
 } from "@ultra/shared"
 import { IPC_PROTOCOL_VERSION } from "@ultra/shared"
+
+import { EnvironmentReadinessService } from "./environment-readiness-service.js"
 
 const BACKEND_VERSION = "0.0.0"
 
@@ -18,6 +21,10 @@ export class SystemService {
     supportsSubscriptions: false,
     supportsBackendInfo: true,
   }
+
+  constructor(
+    private readonly environmentReadinessService = new EnvironmentReadinessService(),
+  ) {}
 
   hello(): SystemHelloResult {
     return {
@@ -46,5 +53,13 @@ export class SystemService {
       status: "ok",
       timestamp: now(),
     }
+  }
+
+  async getEnvironmentReadiness(): Promise<EnvironmentReadinessSnapshot> {
+    return this.environmentReadinessService.getEnvironmentReadiness()
+  }
+
+  async recheckEnvironment(): Promise<EnvironmentReadinessSnapshot> {
+    return this.environmentReadinessService.recheckEnvironment()
   }
 }

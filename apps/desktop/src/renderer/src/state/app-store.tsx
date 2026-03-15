@@ -1,6 +1,7 @@
 import type {
   BackendCapabilities,
   ConnectionStatus,
+  EnvironmentReadinessSnapshot,
   ProjectLayoutState,
   ProjectSnapshot,
 } from "@ultra/shared"
@@ -31,6 +32,15 @@ type AppSlice = {
   projectOpenError: string | null
 }
 
+type ReadinessStatus = "idle" | "checking" | "ready" | "blocked" | "error"
+
+type ReadinessSlice = {
+  status: ReadinessStatus
+  snapshot: EnvironmentReadinessSnapshot | null
+  error: string | null
+  systemToolsOpen: boolean
+}
+
 type ProjectsSlice = {
   byId: Record<string, ProjectSnapshot>
   allIds: string[]
@@ -57,10 +67,16 @@ type AppActions = {
     projectId: string,
     partial: Partial<ProjectLayoutState>,
   ) => void
+  setReadinessChecking: () => void
+  setReadinessSnapshot: (snapshot: EnvironmentReadinessSnapshot) => void
+  setReadinessError: (error: string) => void
+  resetReadiness: () => void
+  setSystemToolsOpen: (open: boolean) => void
 }
 
 export type AppStoreState = {
   app: AppSlice
+  readiness: ReadinessSlice
   projects: ProjectsSlice
   layout: LayoutSlice
   actions: AppActions
@@ -81,6 +97,13 @@ const defaultAppState: AppSlice = {
 const defaultProjectsState: ProjectsSlice = {
   byId: {},
   allIds: [],
+}
+
+const defaultReadinessState: ReadinessSlice = {
+  status: "idle",
+  snapshot: null,
+  error: null,
+  systemToolsOpen: false,
 }
 
 const defaultLayoutState: LayoutSlice = {
@@ -138,6 +161,7 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
 
   return {
     app,
+    readiness: { ...defaultReadinessState },
     projects: { ...defaultProjectsState },
     layout: { ...defaultLayoutState },
     actions: {
@@ -151,6 +175,11 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       upsertProject: () => undefined,
       setLayoutForProject: () => undefined,
       setLayoutField: () => undefined,
+      setReadinessChecking: () => undefined,
+      setReadinessSnapshot: () => undefined,
+      setReadinessError: () => undefined,
+      resetReadiness: () => undefined,
+      setSystemToolsOpen: () => undefined,
     },
   }
 }
@@ -254,6 +283,47 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             },
           }
         }),
+      setReadinessChecking: () =>
+        set((state) => ({
+          ...state,
+          readiness: {
+            ...state.readiness,
+            status: "checking",
+            error: null,
+          },
+        })),
+      setReadinessSnapshot: (snapshot) =>
+        set((state) => ({
+          ...state,
+          readiness: {
+            ...state.readiness,
+            snapshot,
+            status: snapshot.status,
+            error: null,
+          },
+        })),
+      setReadinessError: (error) =>
+        set((state) => ({
+          ...state,
+          readiness: {
+            ...state.readiness,
+            status: "error",
+            error,
+          },
+        })),
+      resetReadiness: () =>
+        set((state) => ({
+          ...state,
+          readiness: { ...defaultReadinessState },
+        })),
+      setSystemToolsOpen: (open) =>
+        set((state) => ({
+          ...state,
+          readiness: {
+            ...state.readiness,
+            systemToolsOpen: open,
+          },
+        })),
     },
   }))
 }

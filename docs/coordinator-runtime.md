@@ -12,6 +12,7 @@ Related specs:
 - [chat-contract.md](/Users/tony/Projects/ultra/docs/chat-contract.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [thread-event-schema.md](/Users/tony/Projects/ultra/docs/thread-event-schema.md)
+- [environment-readiness.md](/Users/tony/Projects/ultra/docs/environment-readiness.md)
 
 ## Purpose
 

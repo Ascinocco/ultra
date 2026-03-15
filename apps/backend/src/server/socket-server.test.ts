@@ -141,6 +141,36 @@ describe("socket server", () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  it("round-trips environment readiness queries", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const { runtime, databaseRuntime } = await createServerRuntime(
+      directory,
+      socketPath,
+    )
+
+    const rawResponse = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_readiness",
+      type: "query",
+      name: "system.get_environment_readiness",
+      payload: {},
+    })
+    const response = parseIpcResponseEnvelope(rawResponse)
+
+    expect(response.ok).toBe(true)
+    if (response.ok) {
+      expect(response.result).toMatchObject({
+        status: expect.any(String),
+        checks: expect.any(Array),
+      })
+    }
+
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
   it("round-trips projects.open, projects.get, and projects.list", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
     const socketPath = join(directory, "backend.sock")
