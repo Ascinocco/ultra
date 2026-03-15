@@ -11,6 +11,7 @@ Related docs:
 - [implementation-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/implementation-plan.md)
 - [01-foundations.md](/Users/tony/Projects/ultra/docs/implementation-plan/01-foundations.md)
 - [01-foundations-architecture.md](/Users/tony/Projects/ultra/docs/implementation-plan/01-foundations-architecture.md)
+- [local-development.md](/Users/tony/Projects/ultra/docs/local-development.md)
 
 ## Sprint Goal
 

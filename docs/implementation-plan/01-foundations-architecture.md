@@ -15,6 +15,7 @@ Related docs:
 - [sqlite-schema.md](/Users/tony/Projects/ultra/docs/sqlite-schema.md)
 - [ui-layout-and-navigation.md](/Users/tony/Projects/ultra/docs/ui-layout-and-navigation.md)
 - [environment-readiness.md](/Users/tony/Projects/ultra/docs/environment-readiness.md)
+- [local-development.md](/Users/tony/Projects/ultra/docs/local-development.md)
 
 ## Purpose
 

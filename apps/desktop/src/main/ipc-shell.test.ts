@@ -99,4 +99,24 @@ describe("registerShellIpc", () => {
 
     unregister()
   })
+
+  it("registers a retry-startup IPC method on the desktop bridge", async () => {
+    const connection = {
+      getStatus: vi.fn(() => ({ phase: "running" })),
+      ping: vi.fn(),
+      getBackendInfo: vi.fn(),
+      retryStartup: vi.fn(async () => ({ phase: "starting" })),
+      query: vi.fn(),
+      command: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+    }
+
+    const unregister = registerShellIpc(connection as never)
+
+    await handlers.get("ultra-shell:retry-backend-startup")?.()
+
+    expect(connection.retryStartup).toHaveBeenCalledOnce()
+
+    unregister()
+  })
 })

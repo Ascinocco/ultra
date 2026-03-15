@@ -54,7 +54,16 @@ button {
   place-items: center;
 }
 
+.foundation-startup-gate {
+  min-height: 100vh;
+  padding: 32px 20px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+}
+
 .readiness-gate__card,
+.foundation-startup-gate__card,
 .system-tools-panel {
   width: min(900px, 100%);
   background: var(--surface-2);
@@ -69,13 +78,20 @@ button {
   gap: 20px;
 }
 
+.foundation-startup-gate__card {
+  display: grid;
+  gap: 20px;
+}
+
 .readiness-gate__header,
+.foundation-startup-gate__header,
 .system-tools-panel__header {
   display: grid;
   gap: 8px;
 }
 
 .readiness-gate__title,
+.foundation-startup-gate__title,
 .system-tools-panel__title {
   margin: 0;
   font-size: 1.4rem;
@@ -83,8 +99,10 @@ button {
 }
 
 .readiness-gate__summary,
+.foundation-startup-gate__summary,
 .system-tools-panel__summary,
 .readiness-gate__meta,
+.foundation-startup-gate__meta,
 .system-tools-panel__empty {
   margin: 0;
   color: var(--text-secondary);
@@ -94,6 +112,11 @@ button {
 .system-tools-panel__error {
   margin: 0;
   color: var(--danger);
+}
+
+.foundation-startup-gate__recovery {
+  margin: 0;
+  color: var(--text-secondary);
 }
 
 .readiness-gate__checks,
@@ -163,6 +186,7 @@ button {
 }
 
 .readiness-gate__actions,
+.foundation-startup-gate__actions,
 .system-tools-panel__actions {
   display: flex;
   flex-wrap: wrap;
@@ -170,6 +194,7 @@ button {
 }
 
 .readiness-gate__button,
+.foundation-startup-gate__button,
 .system-tools-panel__button {
   appearance: none;
   border: 1px solid var(--surface-border);
@@ -180,6 +205,7 @@ button {
 }
 
 .readiness-gate__button--ghost,
+.foundation-startup-gate__button--ghost,
 .system-tools-panel__button--ghost {
   background: var(--surface-3);
 }

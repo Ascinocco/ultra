@@ -136,4 +136,78 @@ describe("BackendProcessManager", () => {
     expect(child.killSignals).toContain("SIGTERM")
     expect(manager.getStatus().phase).toBe("stopped")
   })
+
+  it("surfaces launch failures as failed backend-unavailable state", () => {
+    const manager = new BackendProcessManager({
+      config: createConfig(),
+      spawnProcess: () => {
+        throw new Error("spawn tsx ENOENT")
+      },
+      now: () => "2026-03-14T00:00:00Z",
+      logger: { info: () => undefined, error: () => undefined },
+    })
+
+    manager.start()
+
+    expect(manager.getStatus().phase).toBe("failed")
+    expect(manager.getStatus().message).toContain("Backend failed to launch")
+  })
+
+  it("preserves startup stderr detail when retries are exhausted", async () => {
+    vi.useFakeTimers()
+
+    const firstChild = new FakeChildProcess(101)
+    const secondChild = new FakeChildProcess(202)
+    const thirdChild = new FakeChildProcess(303)
+    const spawnProcess = vi
+      .fn<
+        Parameters<
+          NonNullable<
+            ConstructorParameters<
+              typeof BackendProcessManager
+            >[0]["spawnProcess"]
+          >
+        >,
+        ReturnType<
+          NonNullable<
+            ConstructorParameters<
+              typeof BackendProcessManager
+            >[0]["spawnProcess"]
+          >
+        >
+      >()
+      .mockReturnValueOnce(firstChild)
+      .mockReturnValueOnce(secondChild)
+      .mockReturnValueOnce(thirdChild)
+
+    const manager = new BackendProcessManager({
+      config: createConfig(),
+      spawnProcess,
+      now: () => "2026-03-14T00:00:00Z",
+      logger: { info: () => undefined, error: () => undefined },
+    })
+
+    manager.start()
+    firstChild.stderr.emitData(
+      "[backend] failed to start: ULTRA_DB_PATH is required",
+    )
+    firstChild.emit("exit", 1, null)
+    await vi.advanceTimersByTimeAsync(30)
+
+    secondChild.stderr.emitData(
+      "[backend] failed to start: ULTRA_DB_PATH is required",
+    )
+    secondChild.emit("exit", 1, null)
+    await vi.advanceTimersByTimeAsync(30)
+
+    thirdChild.stderr.emitData(
+      "[backend] failed to start: ULTRA_DB_PATH is required",
+    )
+    thirdChild.emit("exit", 1, null)
+
+    expect(manager.getStatus().phase).toBe("failed")
+    expect(manager.getStatus().message).toContain("ULTRA_DB_PATH is required")
+
+    vi.useRealTimers()
+  })
 })

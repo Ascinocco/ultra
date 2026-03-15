@@ -49,6 +49,7 @@ export class BackendProcessManager {
   private stopPromise: Promise<void> | null = null
   private isStopping = false
   private status = createInitialBackendStatus()
+  private lastStartupErrorMessage: string | null = null
 
   constructor(options: BackendProcessManagerOptions) {
     this.config = options.config
@@ -77,6 +78,11 @@ export class BackendProcessManager {
 
     this.isStopping = false
     this.spawnBackend("Starting local backend…")
+  }
+
+  async restart(): Promise<void> {
+    await this.stop()
+    this.start()
   }
 
   async stop(): Promise<void> {
@@ -126,6 +132,7 @@ export class BackendProcessManager {
   }
 
   private spawnBackend(message: string): void {
+    this.lastStartupErrorMessage = null
     this.updateStatus({
       phase: this.status.restartCount > 0 ? "degraded" : "starting",
       connectionStatus:
@@ -196,7 +203,11 @@ export class BackendProcessManager {
 
       this.logger.error(`[backend:stderr] ${messageText}`)
 
-      if (this.status.phase === "starting") {
+      if (
+        this.status.phase === "starting" ||
+        this.status.phase === "degraded"
+      ) {
+        this.lastStartupErrorMessage = messageText
         this.updateStatus({
           message: `Backend reported an error while starting: ${messageText}`,
         })
@@ -282,10 +293,14 @@ export class BackendProcessManager {
     this.logger.error(`[desktop] ${reason}`)
 
     if (!previousChild || nextRestartCount > this.config.maxRestartAttempts) {
+      const failureMessage = this.lastStartupErrorMessage
+        ? `Backend failed during startup: ${this.lastStartupErrorMessage}`
+        : `Backend exited unexpectedly and retries were exhausted. ${reason}`
+
       this.updateStatus({
         phase: "failed",
         connectionStatus: "disconnected",
-        message: `Backend exited unexpectedly and retries were exhausted. ${reason}`,
+        message: failureMessage,
         sessionId: null,
         backendVersion: null,
         capabilities: null,
@@ -304,7 +319,9 @@ export class BackendProcessManager {
     this.updateStatus({
       phase: "degraded",
       connectionStatus: "degraded",
-      message: `Backend exited unexpectedly. Restarting (${nextRestartCount}/${this.config.maxRestartAttempts})…`,
+      message: this.lastStartupErrorMessage
+        ? `Backend failed during startup. Restarting (${nextRestartCount}/${this.config.maxRestartAttempts})… ${this.lastStartupErrorMessage}`
+        : `Backend exited unexpectedly. Restarting (${nextRestartCount}/${this.config.maxRestartAttempts})…`,
       sessionId: null,
       backendVersion: null,
       capabilities: null,
