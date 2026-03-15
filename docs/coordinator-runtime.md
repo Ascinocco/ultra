@@ -2,87 +2,76 @@
 
 ## Status
 
-Draft v0.1
+Draft v0.2
 
-This document defines how Ultra supervises Overstory runtime processes and how project threads are mapped onto coordinator infrastructure.
+This document is the normative v1 contract for how the Ultra backend supervises project coordinators and exchanges control traffic with them.
 
 Related specs:
 
 - [product-spec.md](/Users/tony/Projects/ultra/docs/product-spec.md)
-- [chat-contract.md](/Users/tony/Projects/ultra/docs/chat-contract.md)
 - [thread-contract.md](/Users/tony/Projects/ultra/docs/thread-contract.md)
 - [thread-event-schema.md](/Users/tony/Projects/ultra/docs/thread-event-schema.md)
-- [environment-readiness.md](/Users/tony/Projects/ultra/docs/environment-readiness.md)
+- [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
+- [wiring/runtime-wiring.md](/Users/tony/Projects/ultra/docs/wiring/runtime-wiring.md)
+- [examples/coordinator-ndjson-examples.md](/Users/tony/Projects/ultra/docs/examples/coordinator-ndjson-examples.md)
 
 ## Purpose
 
-Ultra needs a runtime model that is:
+Ultra needs a coordinator contract that is:
 
-- simple enough for v1
-- durable enough to recover from process failure
-- observable enough to explain thread behavior
-- lightweight enough that Ultra does not become a custom scheduler for Overstory internals
+- specific enough for `RuntimeSupervisor`, `CoordinatorService`, and recovery work to implement without reopening protocol questions
+- durable enough to survive process restart and backend recovery
+- observable enough to explain thread behavior and runtime degradation
+- narrow enough that Ultra still supervises Overstory instead of reimplementing it
 
-The product should supervise Overstory, not reimplement it.
+This document is the source of truth for coordinator transport, envelopes, command names, event names, identifiers, and persistence ownership in v1.
 
 ## Runtime Topology
 
 Ultra runtime is composed of:
 
-- one Ultra backend process for the machine
-- one global `ov watch` process for the machine
+- one Ultra backend process per machine
+- one global `ov watch` process per machine
 - one long-lived project coordinator process per active project
-- one per-project watchdog loop for each active project coordinator
-- many Overstory worker processes managed behind the coordinator/watch layer
+- one per-project watchdog loop per active project coordinator
+- many Overstory-managed workers behind the coordinator
 
-## Responsibility Split
+### Responsibility Split
 
-### Ultra Owns
+Ultra owns:
 
-- process supervision
+- outer process supervision
+- command routing
 - health checks
 - restart policy
-- thread records and thread event emission
-- routing thread start/review/publish actions into project runtime
+- SQLite persistence
+- thread and runtime projections
 - recovery after backend restart
 
-### Overstory Owns
+Overstory owns:
 
-- execution orchestration inside the project runtime
+- execution orchestration behind the project coordinator
 - worker fan-out
-- worker coordination
 - internal task execution semantics
-
-### Product Rule
-
-Ultra should not micromanage worker scheduling in v1.
-
-Ultra should supervise outer lifecycle and let Overstory handle worker-level orchestration.
 
 ## Project Coordinator Model
 
 Each active project gets one long-lived coordinator process.
 
-### Why
+Coordinator rules:
 
-- thread identity should survive process restarts
-- multiple threads may exist concurrently for one project
-- the user should think in project runtime terms, not ephemeral run-process terms
+- one project has one stable `coordinator_id`
+- one coordinator may manage multiple active threads concurrently
+- coordinator restarts create a new `coordinator_instance_id`
+- coordinator restarts must not create new thread identities
+- the backend persists coordinator identity and instance metadata separately from thread identity
 
-### Coordinator Rules
-
-- coordinator is project-scoped
-- coordinator is long-lived
-- coordinator may manage multiple active threads concurrently
-- coordinator restarts do not create new thread identities
-- Ultra persists the coordinator identity and instance metadata separately from thread identity
-
-### Recommended Coordinator Metadata
+Recommended persisted metadata:
 
 - `project_id`
 - `coordinator_id`
-- `process_id`
-- `instance_id`
+- `coordinator_instance_id`
+- `coordinator_pid`
 - `started_at`
 - `last_heartbeat_at`
 - `restart_count`
@@ -90,134 +79,110 @@ Each active project gets one long-lived coordinator process.
 
 ## Global `ov watch`
 
-`ov watch` is a utility provided by Overstory to help keep worker threads alive.
+`ov watch` is a machine-scoped Overstory helper process.
 
-Ultra should run it once globally on behalf of the user.
-
-### Rules
+Rules:
 
 - exactly one global `ov watch` process per machine in v1
-- it is not project-specific
-- it should be started by the Ultra backend
-- the backend supervises and restarts it when unhealthy
-- its health should be surfaced to the user when degraded or down
-
-### Why Global
-
-- `ov watch` supports all agents across projects
-- per-project duplication would add unnecessary process noise
-- the user should not need to reason about it unless it fails
+- the Ultra backend starts and supervises it
+- it does not share the coordinator transport
+- its health is surfaced separately from project-scoped coordinator health
 
 ## Per-Project Watchdog
 
-Ultra should run a lightweight internal watchdog loop for each active project coordinator.
+Ultra runs one lightweight watchdog loop per active project coordinator.
 
-### Purpose
-
-The watchdog exists to detect cases where the coordinator is alive but not making useful progress.
-
-Examples:
-
-- coordinator is stuck
-- coordinator is inactive despite active thread work
-- coordinator is failing to surface status updates
-- project runtime needs a nudge or restart after inactivity
-
-### v1 Implementation
-
-For v1, a small backend-launched bash script is acceptable.
-
-It should remain an internal implementation detail. The product contract is the watchdog behavior, not the script language.
-
-### Watchdog Rules
+Rules:
 
 - one watchdog per active project coordinator
-- watchdog is started and monitored by the Ultra backend
-- watchdog emits health/recovery signals back to the backend
-- watchdog does not own thread state
-- watchdog does not replace the coordinator
+- the watchdog is backend-launched and backend-supervised
+- it uses its own helper path and does not share the coordinator stdio transport
+- it emits health signals back to the backend only
+- it never owns thread state and never writes SQLite directly
 
-### Check Cadence
+Cadence:
 
-- when active work exists: check every 60 seconds
-- when the project runtime is idle: check every 5 minutes
+- every `60 seconds` while active work exists
+- every `5 minutes` while the project runtime is idle
 
-This is the fixed v1 cadence.
+## Transport Contract
 
-## Thread Routing
+The backend launches the coordinator as a project-scoped child process and exchanges UTF-8 newline-delimited JSON over the child process `stdin` and `stdout`.
 
-Threads are logical execution streams owned by Ultra and routed into the project coordinator.
+Transport rules:
 
-### Thread Start Flow
+- every message is exactly one JSON object per line
+- wire keys are `snake_case`
+- `stderr` is diagnostics only and never product state
+- the backend owns startup, shutdown, restart, and correlation
+- the watchdog remains on its own helper transport
 
-1. chat completes plan approval and spec approval
-2. user explicitly confirms `start work`
-3. Ultra creates the thread record
-4. Ultra emits `thread.created`
-5. Ultra submits a `start_thread` request to the project coordinator
-6. coordinator begins execution for that thread
+### Protocol Version
 
-### Important Rule
+The coordinator contract is locked to:
 
-Threads are not the same as coordinator instances.
+- `protocol_version: "1.0"`
 
-The coordinator is infrastructure. The thread is the product object.
+## Envelope Shapes
 
-## Coordinator Command Contract
+### Command Envelope
 
-Ultra should treat the coordinator as a supervised child process with a backend-owned command protocol.
-
-### Transport
-
-For v1, the backend should launch the coordinator process directly and communicate over newline-delimited JSON on the child process stdin/stdout streams.
-
-Why this transport:
-
-- it keeps lifecycle ownership inside the backend supervisor
-- it avoids a second local socket contract between backend and coordinator
-- it makes per-project process startup, shutdown, and restart easier to reason about
-
-The watchdog remains a separate backend-owned helper process. It does not share the coordinator transport.
-
-### Envelope Types
-
-Coordinator traffic should use three envelope kinds:
-
-- `command`
-- `response`
-- `event`
-
-Recommended command envelope:
+Commands sent from backend to coordinator must contain:
 
 - `kind`
+- `protocol_version`
 - `request_id`
 - `command`
 - `project_id`
-- `thread_id`
+- optional `thread_id`
+- optional `coordinator_id`
 - `payload`
 
-Recommended response envelope:
+### Response Envelope
+
+Responses sent from coordinator to backend must contain:
 
 - `kind`
+- `protocol_version`
 - `request_id`
 - `ok`
-- `payload`
-- `error`
+- optional `result`
+- optional `error`
 
-Recommended event envelope:
+If `ok` is `false`, `error` must contain:
+
+- `code`
+- `message`
+- optional `details`
+
+### Event Envelope
+
+Events sent from coordinator to backend must contain:
 
 - `kind`
+- `protocol_version`
+- `event_id`
+- `sequence_number`
 - `event_type`
+- `project_id`
 - `coordinator_id`
 - `coordinator_instance_id`
-- `project_id`
-- `thread_id`
+- optional `thread_id`
 - `occurred_at`
 - `payload`
 
-### Required v1 Commands
+## Ordering and Identity Rules
 
-The v1 coordinator command surface should be:
+- `request_id` correlates one command with one response
+- `sequence_number` is monotonic within one `coordinator_instance_id`
+- a restarted coordinator gets a new `coordinator_instance_id`
+- a restarted coordinator resets `sequence_number` back to `1`
+- backend deduplication and replay keys off `coordinator_instance_id + sequence_number`
+- `coordinator_id` is stable for the project runtime, while `coordinator_instance_id` changes over time
+
+## Required v1 Commands
+
+The v1 command surface is:
 
 - `hello`
 - `ping`
@@ -229,17 +194,181 @@ The v1 coordinator command surface should be:
 - `resume_project_runtime`
 - `shutdown`
 
-`hello` and `ping` exist for capability and liveness checks.
+### `hello`
 
-`start_thread` is the required execution entrypoint after Ultra creates the thread record.
+Payload:
 
-`send_thread_message` carries coordinator conversation messages from the thread detail surface.
+- `backend_instance_id`
+- `supported_protocol_versions`
 
-`retry_thread`, `pause_project_runtime`, and `resume_project_runtime` support the runtime-control paths already defined in the app wiring.
+Success result:
 
-### Required v1 Events
+- `accepted_protocol_version`
+- `coordinator_id`
+- `coordinator_instance_id`
+- `coordinator_version`
+- `capabilities`
 
-The coordinator should emit enough structured events for Ultra to project thread and runtime state durably:
+`capabilities` should contain at least:
+
+- `supports_thread_retry`
+- `supports_project_pause`
+- `supports_project_resume`
+- `supports_thread_messages`
+
+### `ping`
+
+Payload:
+
+- empty object
+
+Success result:
+
+- `status`
+- `checked_at`
+
+### `get_runtime_status`
+
+Payload:
+
+- optional `include_threads`
+
+Success result:
+
+- `status`
+- `last_heartbeat_at`
+- `active_thread_ids`
+- `queued_thread_ids`
+- `active_agent_count`
+- `restart_count`
+
+### `start_thread`
+
+Required envelope field:
+
+- `thread_id`
+
+Payload:
+
+- `thread_title`
+- `execution_summary`
+- `spec_markdown`
+- `ticket_refs`
+- `chat_refs`
+- `checkout_context`
+- `attachments`
+
+Behavior rules:
+
+- idempotent by `thread_id`
+- repeated delivery must not create duplicate thread execution
+- durable state changes are projected from events, not from the response
+
+Success result:
+
+- `accepted`
+- `queued`
+- optional `message`
+
+### `send_thread_message`
+
+Required envelope field:
+
+- `thread_id`
+
+Payload:
+
+- `message_id`
+- `role`
+- `content_markdown`
+- `attachments`
+
+Success result:
+
+- `accepted`
+- optional `message`
+
+### `retry_thread`
+
+Required envelope field:
+
+- `thread_id`
+
+Payload:
+
+- `reason`
+- optional `checkpoint_id`
+
+Success result:
+
+- `accepted`
+- optional `message`
+
+### `pause_project_runtime`
+
+Payload:
+
+- `reason`
+
+Behavior rules:
+
+- project-scoped only
+- idempotent
+
+Success result:
+
+- `accepted`
+- optional `message`
+
+### `resume_project_runtime`
+
+Payload:
+
+- `reason`
+
+Behavior rules:
+
+- project-scoped only
+- idempotent
+
+Success result:
+
+- `accepted`
+- optional `message`
+
+### `shutdown`
+
+Payload:
+
+- `graceful`
+- `reason`
+
+Success result:
+
+- `accepted`
+- optional `message`
+
+## Response Error Codes
+
+Coordinator responses may return only these fixed v1 error codes:
+
+- `invalid_request`
+- `unsupported_protocol_version`
+- `thread_not_found`
+- `runtime_unavailable`
+- `busy`
+- `not_supported`
+- `internal_error`
+
+Behavior rules:
+
+- `unsupported_protocol_version` is returned before any command-specific handling
+- retry, pause, resume, and shutdown never mutate SQLite directly
+- all SQLite-facing product effects come from backend projection of coordinator events
+
+## Required v1 Events
+
+The coordinator must emit these events:
 
 - `heartbeat`
 - `runtime_status_changed`
@@ -254,62 +383,201 @@ The coordinator should emit enough structured events for Ultra to project thread
 - `thread_log_chunk`
 - `error`
 
-Ultra should map these into thread snapshots, thread events, thread messages, and runtime health records.
+### `heartbeat`
 
-### Persistence Rule
+Payload:
 
-The coordinator must never write directly into Ultra's SQLite database.
+- `status`
+- `last_heartbeat_at`
+- `active_thread_ids`
+- `active_agent_count`
 
-Ultra backend remains the only writer for:
+Backend projection:
+
+- update `project_runtimes`
+- update `runtime_components`
+- append or update `runtime_health_checks`
+
+### `runtime_status_changed`
+
+Payload:
+
+- `from_status`
+- `to_status`
+- `reason`
+- `restart_count`
+
+Backend projection:
+
+- update runtime component state
+- recompute aggregate project runtime health
+- emit runtime-facing subscription updates
+
+### `thread_execution_state_changed`
+
+Payload:
+
+- `from_state`
+- `to_state`
+- `reason`
+
+Backend projection:
+
+- update thread snapshot execution state
+- append `thread.execution_state_changed`
+
+### `thread_blocked`
+
+Payload:
+
+- `blocked_reason`
+- `requires_user_input`
+- optional `checkpoint_id`
+
+Backend projection:
+
+- update thread blocked state
+- append `thread.blocked`
+
+### `thread_message_emitted`
+
+Payload:
+
+- `message_id`
+- `role`
+- `message_type`
+- `content_markdown`
+- optional `attachments`
+
+Backend projection:
+
+- append to `thread_messages`
+- append a thread event only when the message implies a state change or milestone
+
+### `thread_review_ready`
+
+Payload:
+
+- `worktree_path`
+- `branch_name`
+- `base_branch`
+- `commit_id`
+- `changed_file_count`
+
+Backend projection:
+
+- update thread review-ready snapshot fields
+- append `thread.review_ready`
+
+### `thread_agent_started`
+
+Payload:
+
+- `agent_id`
+- `agent_type`
+- `display_name`
+- optional `parent_agent_id`
+- optional `work_item_ref`
+
+Backend projection:
+
+- update thread agent projection
+- append `thread.agent_started`
+
+### `thread_agent_progressed`
+
+Payload:
+
+- `agent_id`
+- `summary`
+- `progress_state`
+
+Backend projection:
+
+- update thread agent projection
+- append `thread.agent_progressed`
+
+### `thread_agent_finished`
+
+Payload:
+
+- `agent_id`
+- `summary`
+- `result`
+
+Backend projection:
+
+- update thread agent projection
+- append `thread.agent_finished`
+
+### `thread_agent_failed`
+
+Payload:
+
+- `agent_id`
+- `summary`
+- `error_code`
+- `error_message`
+
+Backend projection:
+
+- update thread agent projection
+- append `thread.agent_failed`
+
+### `thread_log_chunk`
+
+Payload:
+
+- `stream`
+- optional `agent_id`
+- optional `agent_type`
+- `chunk`
+- `chunk_index`
+
+Backend projection:
+
+- append `thread.log_chunk`
+- expose through logs and diagnostics views, not the main milestone timeline
+
+### `error`
+
+Payload:
+
+- `scope`
+- `code`
+- `message`
+- optional `details`
+- `retryable`
+
+Backend projection:
+
+- update runtime health
+- if `thread_id` is present, append a thread recovery or failure event, or equivalent visible thread state change
+
+## Persistence Rule
+
+The coordinator must never write directly into Ultra SQLite.
+
+The backend is the only writer for:
 
 - `threads`
 - `thread_events`
 - `thread_messages`
+- `thread_agents`
 - `project_runtimes`
 - `runtime_components`
 - `runtime_health_checks`
 
-That keeps recovery, replay, and product-state ownership in one place.
+Coordinator output is always projected through backend-owned persistence and replay logic.
 
-## Concurrency Model
+## Health and Recovery Rules
 
-One project may have many threads.
+The backend should treat coordinator signals at two levels:
 
-One project has one coordinator.
+- project aggregate runtime health
+- per-component health
 
-The coordinator may manage multiple active threads concurrently.
-
-Overstory may fan out as many workers as it wants behind that coordinator.
-
-Ultra does not impose worker-level caps in the product model.
-
-## Health Model
-
-Ultra should track runtime health at two levels:
-
-- aggregate project runtime health
-- component health
-
-### Aggregate Project Runtime Health
-
-Project runtime health summarizes whether the project's execution system is healthy enough to continue work.
-
-Statuses:
-
-- `healthy`
-- `degraded`
-- `down`
-
-### Component Health
-
-Tracked components:
-
-- Ultra backend
-- global `ov watch`
-- project coordinator
-- project watchdog
-
-Recommended health fields:
+Runtime component state should include at least:
 
 - `component_id`
 - `component_type`
@@ -319,178 +587,22 @@ Recommended health fields:
 - `restart_count`
 - `reason`
 
-### Product Surface
+On backend restart:
 
-Health should be visible in the UI, but not as an operations console with restart buttons.
-
-It should answer:
-
-- is the project runtime healthy?
-- if not, which component is the problem?
-
-## Restart Policy
-
-Ultra owns outer restart behavior.
-
-### Default Policy
-
-- automatically restart failed coordinator/watch/watchdog processes
-- use capped retries with backoff
-- if restart attempts exceed threshold, mark component `degraded` or `down`
-- emit thread/project health events when this happens
-
-### Restart Backoff
-
-- attempt 1: immediate
-- attempt 2: after 5 seconds
-- attempt 3: after 30 seconds
-- attempt 4+: exponential backoff with degradation surfaced
-
-This is the v1 restart policy. Ultra uses bounded self-healing rather than infinite restart loops.
-
-## Stuck / Inactive Detection
-
-The watchdog should distinguish between:
-
-- legitimately idle coordinator
-- active work with no recent progress
-- coordinator process missing heartbeat
-- coordinator producing no status while threads are active
-
-### Signals
-
-- time since last coordinator heartbeat
-- time since last thread event
-- count of active threads
-- count of active worker tasks if available
-- last successful status probe
-
-### Suggested Heuristics
-
-- `idle`: no active threads and no expected work
-- `suspect`: active threads but no coordinator heartbeat or no meaningful progress for 5 minutes
-- `stuck`: active threads and no useful progress for 10+ minutes, or repeated failed probes
-
-These thresholds are fixed for v1.
-
-## Recovery Model
-
-Ultra backend restart should not silently orphan runtime state.
-
-### On Backend Restart
-
-- attempt to reconnect to global `ov watch`
-- attempt to reconnect to each known active project coordinator
-- re-establish watchdog processes where needed
-- rebuild project runtime health
-- emit recovery events when state is restored or when recovery fails
-
-### Thread Behavior During Recovery
-
-- thread identity remains stable
-- active threads are rebound to recovered coordinator state when possible
-- if recovery fails, threads emit visible recovery/failure events
-
-## User Control Model
-
-Ultra should not expose dedicated runtime-operation buttons such as `Restart Coordinator` in v1.
-
-### Control Path
-
-- the user asks from the main project chat
-- the chat model can inspect project runtime state
-- the chat model can reference the project coordinator automatically
-- coordinator identifiers may be shown in diagnostic surfaces, but runtime control still flows through chat
-
-### Why
-
-- this keeps the product chat-first
-- it avoids exposing a low-level ops panel too early
-- it preserves one clear control plane for the user
-
-## Runtime Identifiers
-
-The backend should persist enough identifiers for recovery, diagnostics, and chat-driven control.
-
-Recommended runtime records:
-
-- `project_runtime_id`
-- `project_id`
-- `coordinator_id`
-- `coordinator_instance_id`
-- `coordinator_pid`
-- `watchdog_pid`
-- `watchdog_status`
-- `global_watch_pid`
-
-The user does not need to memorize these, but the system should know them and make them inspectable.
-
-## Suggested Data Model Additions
-
-Recommended records:
-
-- `project_runtimes`
-- `runtime_components`
-- `runtime_health_checks`
-
-Recommended `project_runtimes` fields:
-
-- `project_runtime_id`
-- `project_id`
-- `coordinator_id`
-- `coordinator_instance_id`
-- `status`
-- `started_at`
-- `last_heartbeat_at`
-- `restart_count`
-
-Recommended `runtime_components` fields:
-
-- `component_id`
-- `project_id`
-- `component_type`
-- `scope`
-- `process_id`
-- `status`
-- `started_at`
-- `last_heartbeat_at`
-- `restart_count`
-- `reason`
-
-## Event Integration
-
-The backend should emit runtime-related thread and project events when:
-
-- coordinator starts
-- coordinator restarts
-- watchdog detects stall
-- watchdog clears a stall
-- recovery succeeds
-- recovery fails
-- `ov watch` becomes degraded or down
-
-Thread-level events should be emitted when runtime state affects a thread's execution.
-
-## Minimal v1 Operational Behavior
-
-1. Start global `ov watch` at backend startup if not already healthy
-2. Start project coordinator when project needs execution
-3. Start per-project watchdog when coordinator becomes active
-4. Route thread work into the coordinator
-5. Monitor health and restart components as needed
-6. Emit visible events when runtime instability affects user work
-7. Let the main chat act as the primary control interface for runtime actions
+- attempt to reconnect or restart global `ov watch`
+- attempt to reconnect or recreate each known project coordinator
+- re-establish watchdog loops where needed
+- rebuild aggregate runtime health
+- emit recovery success or failure into runtime and thread projections when user work is affected
 
 ## Locked Decisions
 
-1. Each project has one long-lived coordinator process
-2. `ov watch` is a single global supervised process
-3. Ultra owns outer process supervision and restart behavior
-4. Ultra runs one lightweight internal watchdog per active project
-5. The coordinator may manage multiple threads concurrently
-6. Project runtime health is shown as aggregate plus per-component status
-7. Runtime operations are controlled primarily through chat, not explicit ops buttons
-8. The backend launches coordinators and `ov watch` with explicit project/runtime metadata and interacts with them through the backend-owned command contract described by IPC and runtime services
-9. The per-project watchdog runs every `60 seconds` while work is active and every `5 minutes` while idle, emitting JSON lines with `project_id`, `status`, `checked_at`, `last_heartbeat_at`, and `reason`
-10. Runtime component and health persistence uses the first-class schema already defined for `runtime_components` and `runtime_health_checks`
-11. Runtime diagnostics remain in the existing status, logs, and thread views in v1 rather than adding a separate developer-only runtime page
+1. One project has one stable coordinator identity.
+2. One coordinator instance may manage multiple active threads concurrently.
+3. One restarted coordinator gets a new `coordinator_instance_id` and a fresh event sequence.
+4. The backend owns command correlation, deduplication, persistence, and replay.
+5. The watchdog never shares the coordinator transport.
+6. `stderr` remains diagnostics only.
+7. `start_thread` is idempotent by `thread_id`.
+8. Runtime control commands are explicit backend operations even when exposed only through chat.
+9. Runtime instability must become visible state through backend projections rather than raw process output.

@@ -10,6 +10,8 @@ This document covers:
 - runtime health
 - chat-driven runtime control
 
+The coordinator command and event envelopes referenced below are defined normatively in [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md).
+
 ## Flow: Ensure Project Runtime
 
 Trigger:
@@ -46,7 +48,7 @@ IPC:
 Backend:
 
 - ensure project coordinator exists
-- send thread start to coordinator
+- send `start_thread` to the coordinator over the NDJSON stdio contract
 - update thread execution state/events as work begins
 
 DB:
@@ -69,7 +71,8 @@ IPC:
 
 Backend:
 
-- update component state
+- coordinator `heartbeat` and `runtime_status_changed` events update component state
+- watchdog probe signals update or confirm health separately
 - recompute project aggregate health
 
 DB:
@@ -102,7 +105,12 @@ IPC:
 Backend:
 
 - fetch focused runtime context for the chat runtime
-- execute requested runtime action
+- execute the matching runtime action:
+  - `runtime.retry_thread` -> coordinator `retry_thread`
+  - `runtime.pause_project_runtime` -> coordinator `pause_project_runtime`
+  - `runtime.resume_project_runtime` -> coordinator `resume_project_runtime`
+  - `runtime.restart_coordinator` -> supervisor restart plus new coordinator handshake
+  - `runtime.restart_watchdog` -> watchdog helper restart
 - emit runtime and thread events as needed
 
 DB:
@@ -132,6 +140,7 @@ Backend:
 - reconnect to or restart global `ov watch`
 - reconnect to or restore project coordinators
 - restart watchdog loops if necessary
+- restore coordinator event ingestion keyed by `coordinator_instance_id + sequence_number`
 - emit recovery success/failure events
 
 DB:
