@@ -227,7 +227,7 @@ Note: The Electron `BrowserWindow` has `minWidth: 1024`, so breakpoints below th
 - Traffic lights positioned correctly on macOS
 - Popover opens/closes correctly
 - Nav pills remain centered at all window widths
-- Progressive compacting at 900px and 600px breakpoints
+- Progressive compacting at 900px breakpoint
 - No vertical stacking at any width
 
 ## Scope Boundaries
