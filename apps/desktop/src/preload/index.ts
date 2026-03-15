@@ -11,6 +11,8 @@ const GET_BACKEND_STATUS_CHANNEL = "ultra-shell:get-backend-status"
 const BACKEND_STATUS_CHANGED_CHANNEL = "ultra-shell:backend-status-changed"
 const SYSTEM_PING_CHANNEL = "ultra-shell:system-ping"
 const GET_BACKEND_INFO_CHANNEL = "ultra-shell:get-backend-info"
+const IPC_QUERY_CHANNEL = "ultra-shell:ipc-query"
+const IPC_COMMAND_CHANNEL = "ultra-shell:ipc-command"
 
 const ultraShell = {
   appName: APP_NAME,
@@ -27,6 +29,10 @@ const ultraShell = {
     ipcRenderer.invoke(
       GET_BACKEND_INFO_CHANNEL,
     ) as Promise<BackendInfoSnapshot>,
+  ipcQuery: (name: string, payload?: unknown) =>
+    ipcRenderer.invoke(IPC_QUERY_CHANNEL, name, payload) as Promise<unknown>,
+  ipcCommand: (name: string, payload?: unknown) =>
+    ipcRenderer.invoke(IPC_COMMAND_CHANNEL, name, payload) as Promise<unknown>,
   onBackendStatusChange: (listener: BackendStatusListener) => {
     const wrappedListener = (
       _event: Electron.IpcRendererEvent,

@@ -1,6 +1,8 @@
 import type {
   BackendCapabilities,
   BackendInfoSnapshot,
+  CommandMethodName,
+  QueryMethodName,
   SystemPingResult,
 } from "@ultra/shared"
 import {
@@ -63,7 +65,7 @@ export class BackendConnection {
     return parseBackendInfoSnapshot(response)
   }
 
-  private async query(name: "system.ping" | "system.get_backend_info") {
+  async query(name: QueryMethodName, payload?: unknown): Promise<unknown> {
     const socketPath = this.status.socketPath
 
     if (!socketPath) {
@@ -71,7 +73,24 @@ export class BackendConnection {
     }
 
     const client = new BackendSocketClient(socketPath, this.logger)
-    const response = await client.query(name)
+    const response = await client.query(name, payload ?? {})
+
+    if (!response.ok) {
+      throw new Error(response.error.message)
+    }
+
+    return response.result
+  }
+
+  async command(name: CommandMethodName, payload?: unknown): Promise<unknown> {
+    const socketPath = this.status.socketPath
+
+    if (!socketPath) {
+      throw new Error("Backend socket path is not available.")
+    }
+
+    const client = new BackendSocketClient(socketPath, this.logger)
+    const response = await client.command(name, payload ?? {})
 
     if (!response.ok) {
       throw new Error(response.error.message)
