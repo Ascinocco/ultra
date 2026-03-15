@@ -2,21 +2,21 @@
   color-scheme: dark;
 
   /* Flat dark shell */
-  --shell-bg: #0f1117;
+  --shell-bg: #1a1d27;
 
   /* Blue-tinted surfaces */
-  --surface-1: rgba(16, 19, 28, 0.95);
-  --surface-2: rgba(22, 26, 38, 0.92);
-  --surface-3: rgba(28, 33, 46, 0.94);
-  --surface-border: rgba(148, 163, 200, 0.1);
+  --surface-1: rgba(26, 30, 42, 0.95);
+  --surface-2: rgba(32, 36, 50, 0.92);
+  --surface-3: rgba(40, 45, 60, 0.94);
+  --surface-border: rgba(148, 163, 200, 0.13);
 
   /* Panel border — slightly stronger than surface-border for internal dividers */
-  --panel-border: rgba(148, 163, 200, 0.14);
+  --panel-border: rgba(148, 163, 200, 0.18);
 
   /* Cool blue-white text */
   --text-primary: #eef1f8;
   --text-secondary: #b0bbd0;
-  --text-muted: #6b7a94;
+  --text-muted: #8494b0;
 
   /* Blue accent */
   --accent: #5b8def;
