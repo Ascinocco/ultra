@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { IPC_PROTOCOL_VERSION, parseIpcResponseEnvelope } from "@ultra/shared"
 import { describe, expect, it } from "vitest"
 
+import { ChatService } from "../chats/chat-service.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
 import { startSocketServer } from "./socket-server.js"
@@ -16,6 +17,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
   const runtime = await startSocketServer(
     socketPath,
     {
+      chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
     },
     {
@@ -225,6 +227,140 @@ describe("socket server", () => {
 
     if (listResponse.ok) {
       expect(listResponse.result.projects).toHaveLength(1)
+    }
+
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips chat lifecycle methods over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const { runtime, databaseRuntime } = await createServerRuntime(
+      directory,
+      socketPath,
+    )
+    await mkdir(projectDirectory, { recursive: true })
+
+    const openProjectRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_open_project",
+      type: "command",
+      name: "projects.open",
+      payload: {
+        path: projectDirectory,
+      },
+    })
+    const openProjectResponse = parseIpcResponseEnvelope(openProjectRaw)
+
+    expect(openProjectResponse.ok).toBe(true)
+    if (!openProjectResponse.ok) {
+      throw new Error("Expected project open to succeed")
+    }
+
+    const createChatRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_create",
+      type: "command",
+      name: "chats.create",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const createChatResponse = parseIpcResponseEnvelope(createChatRaw)
+    expect(createChatResponse.ok).toBe(true)
+    if (!createChatResponse.ok) {
+      throw new Error("Expected chat create to succeed")
+    }
+
+    const renameRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_rename",
+      type: "command",
+      name: "chats.rename",
+      payload: {
+        chat_id: createChatResponse.result.id,
+        title: "Ship M2",
+      },
+    })
+    const pinRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_pin",
+      type: "command",
+      name: "chats.pin",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
+    })
+    const listRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_list",
+      type: "query",
+      name: "chats.list",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const getRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_get",
+      type: "query",
+      name: "chats.get",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
+    })
+    const archiveRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_archive",
+      type: "command",
+      name: "chats.archive",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
+    })
+    const restoreRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_restore",
+      type: "command",
+      name: "chats.restore",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
+    })
+    const unpinRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_unpin",
+      type: "command",
+      name: "chats.unpin",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
+    })
+
+    const renameResponse = parseIpcResponseEnvelope(renameRaw)
+    const pinResponse = parseIpcResponseEnvelope(pinRaw)
+    const listResponse = parseIpcResponseEnvelope(listRaw)
+    const getResponse = parseIpcResponseEnvelope(getRaw)
+    const archiveResponse = parseIpcResponseEnvelope(archiveRaw)
+    const restoreResponse = parseIpcResponseEnvelope(restoreRaw)
+    const unpinResponse = parseIpcResponseEnvelope(unpinRaw)
+
+    expect(renameResponse.ok).toBe(true)
+    expect(pinResponse.ok).toBe(true)
+    expect(listResponse.ok).toBe(true)
+    expect(getResponse.ok).toBe(true)
+    expect(archiveResponse.ok).toBe(true)
+    expect(restoreResponse.ok).toBe(true)
+    expect(unpinResponse.ok).toBe(true)
+
+    if (listResponse.ok) {
+      expect(listResponse.result.chats).toHaveLength(1)
+      expect(listResponse.result.chats[0]).toMatchObject({
+        title: "Ship M2",
+      })
     }
 
     await runtime.close()

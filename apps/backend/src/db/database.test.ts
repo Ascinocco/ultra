@@ -45,6 +45,9 @@ describe("database bootstrap", () => {
     expect(runtime.migrationResult.appliedMigrationIds).toContain(
       "0001_initial_foundations",
     )
+    expect(runtime.migrationResult.appliedMigrationIds).toContain(
+      "0003_chat_persistence",
+    )
 
     const tables = runtime.database
       .prepare<[string], { name: string }>(
@@ -53,6 +56,13 @@ describe("database bootstrap", () => {
       .all("projects")
 
     expect(tables).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("chats"),
+    ).toHaveLength(1)
 
     runtime.close()
   })
@@ -71,7 +81,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0002_add_layout_pane_tabs",
+      "0003_chat_persistence",
     )
 
     secondRuntime.close()

@@ -51,10 +51,7 @@ export function classifyFoundationStartupFailure(
     }
   }
 
-  if (
-    status.phase === "failed" ||
-    status.phase === "degraded"
-  ) {
+  if (status.phase === "failed" || status.phase === "degraded") {
     return {
       kind: "backend_unavailable",
       title: "Ultra could not start its local backend",

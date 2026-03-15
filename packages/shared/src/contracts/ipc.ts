@@ -12,6 +12,8 @@ export const queryMethodSchema = z.enum([
   "system.get_backend_info",
   "system.get_environment_readiness",
   "system.ping",
+  "chats.list",
+  "chats.get",
   "projects.list",
   "projects.get",
   "projects.get_layout",
@@ -19,6 +21,12 @@ export const queryMethodSchema = z.enum([
 
 export const commandMethodSchema = z.enum([
   "system.recheck_environment",
+  "chats.create",
+  "chats.rename",
+  "chats.pin",
+  "chats.unpin",
+  "chats.archive",
+  "chats.restore",
   "projects.open",
   "projects.set_layout",
 ])

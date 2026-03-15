@@ -42,6 +42,7 @@ describe("migration runner", () => {
     expect(result.appliedMigrationIds).toEqual([
       "0001_initial_foundations",
       "0002_add_layout_pane_tabs",
+      "0003_chat_persistence",
     ])
     expect(rows).toEqual([
       {
@@ -50,6 +51,10 @@ describe("migration runner", () => {
       },
       {
         id: "0002_add_layout_pane_tabs",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0003_chat_persistence",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
