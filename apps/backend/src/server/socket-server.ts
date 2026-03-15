@@ -7,6 +7,7 @@ import type {
 } from "@ultra/shared"
 
 import { routeIpcRequest } from "../ipc/router.js"
+import type { ProjectService } from "../projects/project-service.js"
 import { SystemService } from "../system/system-service.js"
 
 type Logger = {
@@ -33,11 +34,15 @@ async function removeStaleSocket(socketPath: string): Promise<void> {
 
 export async function startSocketServer(
   socketPath: string,
+  services: {
+    systemService?: SystemService
+    projectService: ProjectService
+  },
   logger: Logger = console,
 ): Promise<SocketServerRuntime> {
   await removeStaleSocket(socketPath)
 
-  const systemService = new SystemService()
+  const systemService = services.systemService ?? new SystemService()
   const server = createServer((socket) => {
     let buffer = ""
 
@@ -55,7 +60,12 @@ export async function startSocketServer(
           continue
         }
 
-        void handleLine(rawLine, systemService, socket, logger)
+        void handleLine(
+          rawLine,
+          { systemService, projectService: services.projectService },
+          socket,
+          logger,
+        )
       }
     })
   })
@@ -78,7 +88,10 @@ export async function startSocketServer(
 
 async function handleLine(
   rawLine: string,
-  systemService: SystemService,
+  services: {
+    systemService: SystemService
+    projectService: ProjectService
+  },
   socket: NodeJS.WritableStream,
   logger: Logger,
 ): Promise<void> {
@@ -103,7 +116,7 @@ async function handleLine(
     return
   }
 
-  const response = (await routeIpcRequest(raw, systemService)) as
+  const response = (await routeIpcRequest(raw, services)) as
     | SuccessResponseEnvelope
     | ErrorResponseEnvelope
 

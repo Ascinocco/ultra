@@ -43,10 +43,7 @@ type AppActions = {
   setCapabilities: (capabilities: BackendCapabilities | null) => void
   setProjects: (projects: ProjectSnapshot[]) => void
   upsertProject: (project: ProjectSnapshot) => void
-  setLayoutForProject: (
-    projectId: string,
-    layout: ProjectLayoutState,
-  ) => void
+  setLayoutForProject: (projectId: string, layout: ProjectLayoutState) => void
 }
 
 export type AppStoreState = {

@@ -86,6 +86,11 @@ export const projectsGetSuccessResponseSchema =
     result: projectSnapshotSchema,
   })
 
+export const projectsOpenSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: projectSnapshotSchema,
+  })
+
 export const projectsGetLayoutSuccessResponseSchema =
   successResponseEnvelopeSchema.extend({
     result: projectLayoutStateSchema,
@@ -108,6 +113,9 @@ export type ProjectSnapshot = z.infer<typeof projectSnapshotSchema>
 export type ProjectSummary = z.infer<typeof projectSummarySchema>
 export type ProjectOpenInput = z.infer<typeof projectOpenInputSchema>
 export type ProjectsGetInput = z.infer<typeof projectsGetInputSchema>
+export type ProjectsListResult = z.infer<
+  typeof projectsListSuccessResponseSchema
+>["result"]
 export type ProjectsUpdatedEventPayload = z.infer<
   typeof projectsUpdatedEventPayloadSchema
 >
@@ -125,4 +133,8 @@ export function parseProjectSnapshot(input: unknown): ProjectSnapshot {
 
 export function parseProjectOpenInput(input: unknown): ProjectOpenInput {
   return projectOpenInputSchema.parse(input)
+}
+
+export function parseProjectsListResult(input: unknown): ProjectsListResult {
+  return projectsListSuccessResponseSchema.shape.result.parse(input)
 }
