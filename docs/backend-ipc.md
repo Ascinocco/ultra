@@ -478,6 +478,8 @@ Purpose:
 - coordinator/watch/watchdog state
 - chat-driven runtime actions
 
+The backend-to-coordinator transport for project coordinators is specified separately in [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md). The `runtime.*` IPC surface remains the app-facing control layer above that contract.
+
 Recommended commands:
 
 - `runtime.restart_coordinator`

@@ -333,6 +333,8 @@ Payload:
 - `previous_instance_id`
 - `new_instance_id`
 
+This event is projected from coordinator runtime-state changes plus backend restart detection. The stable project-scoped `coordinator_id` remains constant while `coordinator_instance_id` changes.
+
 ### `thread.recovered`
 
 Emitted when Ultra successfully restores or rebinds thread state after backend or coordinator disruption.
@@ -341,6 +343,18 @@ Payload:
 
 - `recovery_type`
 - `summary`
+
+This event should be emitted when backend recovery logic successfully rebinds a thread to a recovered coordinator instance or restored runtime state.
+
+### `thread.recovery_failed`
+
+Emitted when Ultra cannot restore the thread's runtime relationship after backend or coordinator disruption.
+
+Payload:
+
+- `recovery_type`
+- `summary`
+- `reason`
 
 ### `thread.log_chunk`
 
@@ -355,6 +369,8 @@ Payload:
 - `chunk_index`
 
 `thread.log_chunk` exists for diagnostics and detailed inspection. It should not drive top-level timeline meaning.
+
+Coordinator `thread_log_chunk` events project directly into this event shape. Missing `agent_id` or `agent_type` is allowed when the log is coordinator-scoped rather than worker-scoped.
 
 ## Main Chat Interaction Events
 
@@ -394,6 +410,8 @@ Detailed raw output belongs in logs.
 - `status`
 - `summary`
 - `work_item_ref`
+
+Coordinator `thread_agent_started`, `thread_agent_progressed`, `thread_agent_finished`, and `thread_agent_failed` events should map directly into the agent projection and corresponding thread events without introducing a second naming scheme.
 
 ## Health and Recovery Visibility
 

@@ -14,6 +14,7 @@ Related docs:
 - [thread-event-schema.md](/Users/tony/Projects/ultra/docs/thread-event-schema.md)
 - [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
 - [sqlite-schema.md](/Users/tony/Projects/ultra/docs/sqlite-schema.md)
+- [examples/coordinator-ndjson-examples.md](/Users/tony/Projects/ultra/docs/examples/coordinator-ndjson-examples.md)
 
 ## Purpose
 
@@ -107,6 +108,7 @@ Milestone 4 backend should add:
 
 - ensure project coordinator exists
 - route thread-start and thread-runtime actions into that coordinator
+- treat [coordinator-runtime.md](/Users/tony/Projects/ultra/docs/coordinator-runtime.md) as the source of truth for coordinator envelopes, identifiers, command names, and event names
 
 `WatchService`:
 
@@ -144,6 +146,8 @@ Milestone 4 should persist:
 - process ID where useful
 - last heartbeat
 - restart count
+
+The meaning of `coordinator_id`, `coordinator_instance_id`, and per-instance event ordering is defined by the coordinator contract and should not be redefined elsewhere.
 
 ## Global `ov watch` Architecture
 
