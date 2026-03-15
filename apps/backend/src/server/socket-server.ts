@@ -10,6 +10,7 @@ import type { ChatService } from "../chats/chat-service.js"
 import { routeIpcRequest } from "../ipc/router.js"
 import type { ProjectService } from "../projects/project-service.js"
 import { SystemService } from "../system/system-service.js"
+import type { ThreadService } from "../threads/thread-service.js"
 
 type Logger = {
   info: (message: string) => void
@@ -39,6 +40,7 @@ export async function startSocketServer(
     chatService: ChatService
     systemService?: SystemService
     projectService: ProjectService
+    threadService: ThreadService
   },
   logger: Logger = console,
 ): Promise<SocketServerRuntime> {
@@ -68,6 +70,7 @@ export async function startSocketServer(
             chatService: services.chatService,
             systemService,
             projectService: services.projectService,
+            threadService: services.threadService,
           },
           socket,
           logger,
@@ -98,6 +101,7 @@ async function handleLine(
     chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
+    threadService: ThreadService
   },
   socket: NodeJS.WritableStream,
   logger: Logger,

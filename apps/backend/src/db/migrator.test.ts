@@ -45,6 +45,7 @@ describe("migration runner", () => {
       "0003_chat_persistence",
       "0004_runtime_registry",
       "0005_thread_core",
+      "0006_thread_events_foundation",
     ])
     expect(rows).toEqual([
       {
@@ -65,6 +66,10 @@ describe("migration runner", () => {
       },
       {
         id: "0005_thread_core",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0006_thread_events_foundation",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
@@ -107,14 +112,17 @@ describe("migration runner", () => {
     database.close()
   })
 
-  it("applies 0005_thread_core on a fresh database", () => {
+  it("applies 0006_thread_events_foundation on a fresh database", () => {
     const database = createDatabase()
     const result = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
     })
 
     expect(result.appliedMigrationIds).toContain("0005_thread_core")
-    expect(result.totalMigrationCount).toBe(5)
+    expect(result.appliedMigrationIds).toContain(
+      "0006_thread_events_foundation",
+    )
+    expect(result.totalMigrationCount).toBe(6)
 
     // Verify threads table exists with correct columns
     const threadColumns = database
@@ -150,6 +158,13 @@ describe("migration runner", () => {
       .all() as Array<{ name: string }>
     expect(ticketColumns.map((c) => c.name)).toContain("thread_id")
     expect(ticketColumns.map((c) => c.name)).toContain("provider")
+
+    const eventColumns = database
+      .prepare("PRAGMA table_info(thread_events)")
+      .all() as Array<{ name: string }>
+    expect(eventColumns.map((c) => c.name)).toContain("event_id")
+    expect(eventColumns.map((c) => c.name)).toContain("thread_id")
+    expect(eventColumns.map((c) => c.name)).toContain("sequence_number")
 
     database.close()
   })
@@ -387,8 +402,11 @@ describe("thread core FK constraints", () => {
       now: () => "2026-03-15T00:00:00.000Z",
     })
 
-    expect(secondResult.appliedMigrationIds).toEqual(["0005_thread_core"])
-    expect(secondResult.totalMigrationCount).toBe(5)
+    expect(secondResult.appliedMigrationIds).toEqual([
+      "0005_thread_core",
+      "0006_thread_events_foundation",
+    ])
+    expect(secondResult.totalMigrationCount).toBe(6)
 
     database.close()
   })
@@ -448,7 +466,7 @@ describe("thread core FK constraints", () => {
     })
 
     expect(result.appliedMigrationIds).toEqual([])
-    expect(result.totalMigrationCount).toBe(5)
+    expect(result.totalMigrationCount).toBe(6)
 
     database.close()
   })

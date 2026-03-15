@@ -19,6 +19,9 @@ import {
   parseRuntimeComponentSnapshot,
   parseRuntimeHealthCheckSnapshot,
   parseSystemHelloResult,
+  parseThreadDetailResult,
+  parseThreadEventSnapshot,
+  parseThreadsListResult,
   projectLayoutStateSchema,
 } from "./index.js"
 
@@ -81,6 +84,40 @@ describe("shared contracts", () => {
     })
 
     expect(command.name).toBe("chats.create")
+  })
+
+  it("parses a valid command envelope for chats.start_thread", () => {
+    const command = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_start",
+      type: "command",
+      name: "chats.start_thread",
+      payload: {
+        chat_id: "chat_123",
+        plan_approval_message_id: "chat_msg_plan",
+        spec_approval_message_id: "chat_msg_spec",
+        start_request_message_id: "chat_msg_start",
+        spec_refs: [],
+        ticket_refs: [],
+      },
+    })
+
+    expect(command.name).toBe("chats.start_thread")
+  })
+
+  it("parses a valid query envelope for threads.get_events", () => {
+    const query = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_events",
+      type: "query",
+      name: "threads.get_events",
+      payload: {
+        thread_id: "thread_123",
+        from_sequence: 1,
+      },
+    })
+
+    expect(query.name).toBe("threads.get_events")
   })
 
   it("parses the system hello result contract", () => {
@@ -254,6 +291,88 @@ describe("shared contracts", () => {
     })
 
     expect(snapshot.provider).toBe("claude")
+  })
+
+  it("parses thread detail and list contracts", () => {
+    const detail = parseThreadDetailResult({
+      thread: {
+        id: "thread_123",
+        projectId: "proj_123",
+        sourceChatId: "chat_123",
+        title: "Build thread services",
+        summary: "Create durable thread events",
+        executionState: "queued",
+        reviewState: "not_ready",
+        publishState: "not_requested",
+        backendHealth: "healthy",
+        coordinatorHealth: "healthy",
+        watchHealth: "healthy",
+        ovProjectId: null,
+        ovCoordinatorId: null,
+        ovThreadKey: null,
+        worktreeId: null,
+        branchName: null,
+        baseBranch: null,
+        latestCommitSha: null,
+        prProvider: null,
+        prNumber: null,
+        prUrl: null,
+        lastEventSequence: 1,
+        restartCount: 0,
+        failureReason: null,
+        createdByMessageId: "chat_msg_start",
+        createdAt: "2026-03-15T00:00:00Z",
+        updatedAt: "2026-03-15T00:00:00Z",
+        lastActivityAt: "2026-03-15T00:00:00Z",
+        approvedAt: null,
+        completedAt: null,
+      },
+      specRefs: [
+        {
+          threadId: "thread_123",
+          specPath: "docs/specs/thread.md",
+          specSlug: "thread",
+          createdAt: "2026-03-15T00:00:00Z",
+        },
+      ],
+      ticketRefs: [
+        {
+          threadId: "thread_123",
+          provider: "linear",
+          externalId: "ULR-25",
+          displayLabel: "ULR-25",
+          url: null,
+          metadataJson: null,
+          createdAt: "2026-03-15T00:00:00Z",
+        },
+      ],
+    })
+    const list = parseThreadsListResult({
+      threads: [detail.thread],
+    })
+
+    expect(detail.thread.executionState).toBe("queued")
+    expect(list.threads).toHaveLength(1)
+  })
+
+  it("parses thread event snapshots", () => {
+    const event = parseThreadEventSnapshot({
+      eventId: "thread_event_123",
+      projectId: "proj_123",
+      threadId: "thread_123",
+      sequenceNumber: 1,
+      eventType: "thread.created",
+      actorType: "chat",
+      actorId: "chat_123",
+      source: "ultra.chat",
+      payload: {
+        creationSource: "start_thread",
+      },
+      occurredAt: "2026-03-15T00:00:00Z",
+      recordedAt: "2026-03-15T00:00:00Z",
+    })
+
+    expect(event.eventType).toBe("thread.created")
   })
 
   it("parses runtime snapshots", () => {

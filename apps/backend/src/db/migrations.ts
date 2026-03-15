@@ -314,4 +314,31 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON thread_messages(thread_id, created_at);
     `,
   },
+  {
+    id: "0006_thread_events_foundation",
+    sql: `
+      CREATE TABLE IF NOT EXISTS thread_events (
+        event_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        thread_id TEXT NOT NULL,
+        sequence_number INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT,
+        source TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        occurred_at TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        UNIQUE (thread_id, sequence_number),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_thread_events_thread_sequence
+        ON thread_events(thread_id, sequence_number);
+
+      CREATE INDEX IF NOT EXISTS idx_thread_events_project_recorded
+        ON thread_events(project_id, recorded_at);
+    `,
+  },
 ]

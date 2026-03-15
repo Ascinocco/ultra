@@ -8,17 +8,22 @@ import { describe, expect, it } from "vitest"
 import { ChatService } from "../chats/chat-service.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
+import { ThreadService } from "../threads/thread-service.js"
 import { startSocketServer } from "./socket-server.js"
 
 async function createServerRuntime(directory: string, socketPath: string) {
   const databaseRuntime = bootstrapDatabase({
     ULTRA_DB_PATH: join(directory, "ultra.db"),
   })
+  const chatService = new ChatService(databaseRuntime.database)
+  const projectService = new ProjectService(databaseRuntime.database)
+  const threadService = new ThreadService(databaseRuntime.database)
   const runtime = await startSocketServer(
     socketPath,
     {
-      chatService: new ChatService(databaseRuntime.database),
-      projectService: new ProjectService(databaseRuntime.database),
+      chatService,
+      projectService,
+      threadService,
     },
     {
       info: () => undefined,
@@ -29,6 +34,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
   return {
     runtime,
     databaseRuntime,
+    chatService,
   }
 }
 
@@ -360,6 +366,147 @@ describe("socket server", () => {
       expect(listResponse.result.chats).toHaveLength(1)
       expect(listResponse.result.chats[0]).toMatchObject({
         title: "Ship M2",
+      })
+    }
+
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips thread creation and thread queries over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const { runtime, databaseRuntime, chatService } = await createServerRuntime(
+      directory,
+      socketPath,
+    )
+    await mkdir(projectDirectory, { recursive: true })
+
+    const openProjectRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_project_open",
+      type: "command",
+      name: "projects.open",
+      payload: {
+        path: projectDirectory,
+      },
+    })
+    const openProjectResponse = parseIpcResponseEnvelope(openProjectRaw)
+
+    expect(openProjectResponse.ok).toBe(true)
+    if (!openProjectResponse.ok) {
+      throw new Error("Expected project open to succeed")
+    }
+
+    const createChatRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_chat_create",
+      type: "command",
+      name: "chats.create",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const createChatResponse = parseIpcResponseEnvelope(createChatRaw)
+
+    expect(createChatResponse.ok).toBe(true)
+    if (!createChatResponse.ok) {
+      throw new Error("Expected chat create to succeed")
+    }
+
+    const planApproval = chatService.appendMessage({
+      chatId: createChatResponse.result.id,
+      role: "assistant",
+      messageType: "plan_approval",
+      contentMarkdown: "Plan approved",
+    })
+    const specApproval = chatService.appendMessage({
+      chatId: createChatResponse.result.id,
+      role: "assistant",
+      messageType: "spec_approval",
+      contentMarkdown: "Specs approved",
+    })
+    const startRequest = chatService.appendMessage({
+      chatId: createChatResponse.result.id,
+      role: "user",
+      messageType: "thread_start_request",
+      contentMarkdown: "Start work",
+    })
+
+    const startThreadRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_start",
+      type: "command",
+      name: "chats.start_thread",
+      payload: {
+        chat_id: createChatResponse.result.id,
+        plan_approval_message_id: planApproval.id,
+        spec_approval_message_id: specApproval.id,
+        start_request_message_id: startRequest.id,
+        spec_refs: [],
+        ticket_refs: [],
+      },
+    })
+    const startThreadResponse = parseIpcResponseEnvelope(startThreadRaw)
+
+    expect(startThreadResponse.ok).toBe(true)
+    if (!startThreadResponse.ok) {
+      throw new Error("Expected thread start to succeed")
+    }
+
+    const listThreadsRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_list",
+      type: "query",
+      name: "threads.list_by_project",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const getThreadRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_get",
+      type: "query",
+      name: "threads.get",
+      payload: {
+        thread_id: startThreadResponse.result.thread.id,
+      },
+    })
+    const getEventsRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_events",
+      type: "query",
+      name: "threads.get_events",
+      payload: {
+        thread_id: startThreadResponse.result.thread.id,
+      },
+    })
+
+    const listThreadsResponse = parseIpcResponseEnvelope(listThreadsRaw)
+    const getThreadResponse = parseIpcResponseEnvelope(getThreadRaw)
+    const getEventsResponse = parseIpcResponseEnvelope(getEventsRaw)
+
+    expect(listThreadsResponse.ok).toBe(true)
+    expect(getThreadResponse.ok).toBe(true)
+    expect(getEventsResponse.ok).toBe(true)
+
+    if (listThreadsResponse.ok) {
+      expect(listThreadsResponse.result.threads).toHaveLength(1)
+    }
+
+    if (getThreadResponse.ok) {
+      expect(getThreadResponse.result.thread.id).toBe(
+        startThreadResponse.result.thread.id,
+      )
+    }
+
+    if (getEventsResponse.ok) {
+      expect(getEventsResponse.result.events).toHaveLength(1)
+      expect(getEventsResponse.result.events[0]).toMatchObject({
+        eventType: "thread.created",
+        sequenceNumber: 1,
       })
     }
 

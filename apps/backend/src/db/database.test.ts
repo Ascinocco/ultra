@@ -87,6 +87,13 @@ describe("database bootstrap", () => {
         )
         .all("runtime_health_checks"),
     ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("thread_events"),
+    ).toHaveLength(1)
 
     runtime.close()
   })
@@ -105,7 +112,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0005_thread_core",
+      "0006_thread_events_foundation",
     )
 
     secondRuntime.close()
