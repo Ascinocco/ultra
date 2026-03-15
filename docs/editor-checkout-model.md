@@ -76,7 +76,7 @@ When the user changes the active editor target:
 - terminal launches use that target path as cwd
 - run/debug launches use that target path as workspace root
 - git and diff actions operate on that target
-- runtime file sync is checked and applied if needed
+- runtime file sync is checked and applied before the target becomes active when files are missing or stale
 
 ### Product Rule
 
@@ -154,7 +154,7 @@ When the user starts a run/debug action from the editor page:
 
 - workspace root is the active target path
 - process cwd is the active target path
-- runtime files are synced before launch if needed
+- runtime files are synced before launch when files are missing or stale
 - environment variables are injected from the project runtime profile where possible
 
 ### User Experience Goal
@@ -187,7 +187,7 @@ When a target is activated:
 - `View synced files`
 - `Change runtime file list`
 
-This should stay simple in v1. Advanced modes such as symlink or generated env materialization can come later if needed.
+This stays simple in v1. Advanced modes such as symlink or generated env materialization are out of scope.
 
 ## Runtime Profile
 
@@ -241,7 +241,7 @@ Ultra should acknowledge and design around the following:
 
 Ultra should prefer switching the editor page to the thread worktree instead of trying to remap the main checkout to the thread branch.
 
-If needed later, Ultra can support explicit creation of secondary review worktrees.
+Secondary review worktrees are out of scope for v1.
 
 ## Minimal UI Elements
 
@@ -255,7 +255,7 @@ The editor page should include:
 - open changed files action
 - run/debug actions
 
-Optional later additions:
+Out of scope for v1:
 
 - saved favorite targets
 - quick target search

@@ -277,12 +277,12 @@ This preserves privacy boundaries while still making the system practically usef
 
 ## Data Model Direction
 
-Likely records needed:
+Artifact sharing records:
 
 - `artifacts`
 - `artifact_shares`
 
-Suggested later `artifact_shares` fields:
+`artifact_shares` fields:
 
 - `share_id`
 - `artifact_id`
@@ -300,10 +300,7 @@ Suggested later `artifact_shares` fields:
 5. Browser page uses an explicit destination picker
 6. `Share All` is a first-class action
 7. Combined browser plus runtime sharing is supported
-
-## Open Follow-Ups
-
-1. exact artifact bundle schemas
-2. exact UI placement of share controls in Browser and Editor
-3. retention policy for large shared logs and screenshots
-4. whether Ultra should auto-summarize large bundles before attaching them
+8. Artifact bundle schemas are fixed per source type and stored as typed payloads in the shared package
+9. Share controls live in the Browser toolbar, side-browser header, terminal/debug surfaces, and thread/chat attachment affordances
+10. Large shared logs and screenshots follow the same retention policy as raw thread logs unless explicitly preserved as artifacts
+11. Ultra should automatically summarize oversized bundles before attaching them to a model context while keeping the raw bundle available as a linked artifact

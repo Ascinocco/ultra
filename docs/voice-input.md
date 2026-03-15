@@ -202,24 +202,17 @@ Voice input should visibly handle:
 
 - audio stays local to Ultra's local runtime path
 - voice input does not depend on vendor-hosted STT
-- recorded audio should be treated as transient unless the user explicitly preserves it later
+- recorded audio is transient and deleted after transcription completes or the capture is canceled
 
 ## Data Model Direction
 
-Voice input does not need a heavy persistent schema in v1.
+Voice input does not introduce dedicated persistent tables in v1.
 
-If persistence is needed later, likely records are:
-
-- `voice_sessions`
-- `voice_transcripts`
-
-For v1, transient in-memory handling is acceptable unless analytics or replay is explicitly required.
+Transcription state is transient until the user sends the resulting draft as a normal chat or thread message.
 
 ## Implementation Priority
 
-This feature should be treated as a reusable input enhancement, not a core platform milestone.
-
-It can be implemented after the main chat input exists cleanly.
+This feature is a reusable input enhancement implemented as part of the chat/thread input system.
 
 ## Locked Decisions
 
@@ -228,9 +221,6 @@ It can be implemented after the main chat input exists cleanly.
 3. The feature is reusable across main chat and thread chat
 4. Voice input is local-only and user-initiated
 5. No voice-command mode in v1
-
-## Open Follow-Ups
-
-1. exact audio capture transport between renderer and backend
-2. whether partial transcription streaming is worth supporting later
-3. exact default hotkey
+6. The renderer records microphone audio into a temporary local file and hands the file path to the backend STT service for transcription
+7. Partial transcription streaming is out of scope for v1; transcription happens after the user stops recording
+8. The default hotkey is `Cmd/Ctrl+Shift+I`, and the user may override it in settings

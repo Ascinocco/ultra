@@ -210,15 +210,13 @@ The browser is mainly for user convenience and manual QA. LLMs and coordinators 
 
 ## Data Model Direction
 
-Likely records needed later:
+Browser records:
 
 - `browser_profiles`
 - `browser_bookmarks`
 - `browser_sessions`
 - `thread_browser_runs`
 - `browser_artifacts`
-
-This should be defined in detail later once the browser implementation path is validated.
 
 ## UI Expectations
 
@@ -260,9 +258,6 @@ These should be validated with prototypes early, before they are assumed to be l
 4. Agents never access the manual browser
 5. Side browser split-view exists for Chat and Editor
 6. Manual browser uses a persistent user profile
-
-## Open Follow-Ups
-
-1. exact browser embedding/runtime approach
-2. exact automation browser artifact model
-3. exact bookmark persistence implementation details
+7. The manual browser is implemented with an Electron `WebContentsView` backed by one persistent `persist:manual-browser` session partition
+8. The automation browser is implemented separately with Playwright-backed, thread-scoped isolated profiles and artifacts
+9. Bookmark persistence is global-only in v1 and stored against the manual browser profile

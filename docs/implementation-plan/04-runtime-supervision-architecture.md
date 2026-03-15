@@ -360,9 +360,6 @@ If the system silently mutates runtime state after failure, users will not under
 4. Ultra owns outer supervision and restart policy
 5. Health is aggregate plus per-component
 6. Recovery and restart are visible user events
-
-## Open Follow-Ups
-
-1. exact probe contract between watchdog and backend
-2. exact process launch environment for coordinators and `ov watch`
-3. how much runtime telemetry to expose later in diagnostic views
+7. The watchdog/backend probe contract uses JSON-line status reports with fixed fields and fixed polling intervals
+8. Coordinators and `ov watch` launch from the backend with explicit environment shaping, working directories, and project metadata
+9. Runtime telemetry in v1 is limited to health, restart, heartbeat, and failure reasons shown in existing status and log surfaces

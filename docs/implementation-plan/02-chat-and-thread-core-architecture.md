@@ -136,6 +136,7 @@ Recommended `ActiveChatPane` composition:
 - `SpecApprovalBlock`
 - `ChatInputDock`
 - `VoiceInputButton`
+- `AttachmentPicker`
 
 Recommended `ThreadPane` composition:
 
@@ -152,6 +153,7 @@ Recommended `ThreadPane` composition:
 - `CoordinatorInputDock`
 
 The chat input dock and coordinator input dock should be able to share the same voice-input primitive.
+They should also be able to share the same attachment-input primitive.
 
 ## Chat Runtime Configuration Architecture
 
@@ -317,6 +319,7 @@ Milestone 2 backend should add these modules:
 - `threads`
 - `chat-runtime`
 - `voice-input`
+- `attachments`
 - `thread-projections`
 
 Recommended services:
@@ -325,6 +328,7 @@ Recommended services:
 - `ChatMessageService`
 - `ChatApprovalService`
 - `VoiceInputService`
+- `AttachmentStagingService`
 - `ThreadService`
 - `ThreadEventService`
 - `ThreadProjectionService`
@@ -358,6 +362,9 @@ Implement the next IPC slice for:
 - `voice.start_capture`
 - `voice.stop_capture`
 - `voice.cancel_capture`
+- `attachments.stage_files`
+- `attachments.remove_staged_file`
+- `attachments.clear_staged_files`
 - `threads.list_by_project`
 - `threads.list_by_chat`
 - `threads.get`
@@ -396,6 +403,8 @@ Milestone 2 should implement these schema areas for real:
 - `approvals` if thread UI needs it now
 
 Voice-entered messages should persist through normal `chat_messages` writes once submitted.
+
+Attachment metadata should also persist through normal transcript message payloads once submitted, while staged files may remain ephemeral outside SQLite in v1.
 
 ### Minimal Projection Fields
 
@@ -485,9 +494,6 @@ If thread lists, thread detail, and coordinator chat all use different state pat
 4. Plan/spec approvals are structured transitions
 5. Thread timeline is driven by append-only events
 6. Thread subscriptions are real in this milestone
-
-## Open Follow-Ups
-
-1. exact provider/runtime adapter design
-2. whether coordinator thread chat messages should live in `chat_messages` or a dedicated thread-message store later
-3. how much of `thread_agents` is worth implementing before Milestone 4
+7. Provider/runtime integration is handled through a backend-owned `ChatRuntimeAdapter` abstraction keyed by provider and model
+8. Coordinator thread-chat messages use a dedicated thread message store rather than `chat_messages`
+9. `thread_agents` is implemented as a thin projection sufficient for thread detail and logs, with deeper runtime detail deferred to Milestone 4

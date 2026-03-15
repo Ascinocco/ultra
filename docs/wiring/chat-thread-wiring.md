@@ -215,9 +215,11 @@ User action:
 IPC:
 
 - `threads.get`
+- `threads.get_messages`
 - `threads.get_events`
 - `threads.get_agents`
 - `threads.get_approvals`
+- subscribe to `threads.messages`
 - subscribe to `threads.events`
 
 Backend:
@@ -227,6 +229,7 @@ Backend:
 DB:
 
 - `threads`
+- `thread_messages`
 - `thread_events`
 - `thread_agents`
 - `approvals`
@@ -235,6 +238,31 @@ Store updates:
 
 - set `selectedThreadId`
 - hydrate thread detail slices
+
+## Flow: Send Coordinator Message
+
+User action:
+
+- send a message from the thread coordinator input
+
+IPC:
+
+- `threads.send_message`
+
+Backend:
+
+- validate thread exists
+- persist the user thread message
+- forward message to the coordinator runtime
+- persist assistant/coordinator replies as they arrive
+
+DB:
+
+- `thread_messages`
+
+Store updates:
+
+- append outbound and inbound messages under the selected thread
 
 ## Flow: Live Thread Update
 
@@ -245,6 +273,7 @@ Trigger:
 IPC:
 
 - `threads.updated`
+- `threads.messages`
 - `threads.events`
 
 Backend:
@@ -254,11 +283,13 @@ Backend:
 
 DB:
 
+- `thread_messages`
 - `thread_events`
 - `threads`
 
 Store updates:
 
 - patch thread snapshot
+- append any new thread messages
 - append event by `thread_id`
 - refresh visible thread card if needed

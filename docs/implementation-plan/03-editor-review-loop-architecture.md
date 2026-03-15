@@ -374,9 +374,6 @@ If `.env` copy happens invisibly without visible status, debugging trust will su
 4. `.env` managed copy is the default runtime file strategy
 5. New terminals and run/debug use the active target path
 6. Review transitions are implemented before publish
-
-## Open Follow-Ups
-
-1. exact Code-OSS embedding strategy
-2. exact run/debug integration surface
-3. whether `review_worktree` should be added earlier if thread worktree ownership becomes awkward
+7. The Editor page embeds a dedicated Code-OSS workbench surface inside the Ultra shell
+8. Run and debug are provided through the embedded Code-OSS workbench and inherit the active target path
+9. `review_worktree` remains deferred unless thread-owned worktrees prove to be a hard blocker during implementation

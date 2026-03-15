@@ -98,7 +98,7 @@ Ultra should run it once globally on behalf of the user.
 - exactly one global `ov watch` process per machine in v1
 - it is not project-specific
 - it should be started by the Ultra backend
-- the backend should supervise and restart it if needed
+- the backend supervises and restarts it when unhealthy
 - its health should be surfaced to the user when degraded or down
 
 ### Why Global
@@ -136,12 +136,12 @@ It should remain an internal implementation detail. The product contract is the 
 - watchdog does not own thread state
 - watchdog does not replace the coordinator
 
-### Recommended Check Cadence
+### Check Cadence
 
 - when active work exists: check every 60 seconds
 - when the project runtime is idle: check every 5 minutes
 
-This is a good v1 default because it is frequent enough to catch stalls without creating constant overhead.
+This is the fixed v1 cadence.
 
 ## Thread Routing
 
@@ -230,14 +230,14 @@ Ultra owns outer restart behavior.
 - if restart attempts exceed threshold, mark component `degraded` or `down`
 - emit thread/project health events when this happens
 
-### Recommended v1 Backoff
+### Restart Backoff
 
 - attempt 1: immediate
 - attempt 2: after 5 seconds
 - attempt 3: after 30 seconds
 - attempt 4+: exponential backoff with degradation surfaced
 
-Exact timings can be implementation-tuned later, but the product should assume bounded self-healing, not infinite restart loops.
+This is the v1 restart policy. Ultra uses bounded self-healing rather than infinite restart loops.
 
 ## Stuck / Inactive Detection
 
@@ -248,7 +248,7 @@ The watchdog should distinguish between:
 - coordinator process missing heartbeat
 - coordinator producing no status while threads are active
 
-### Recommended Signals
+### Signals
 
 - time since last coordinator heartbeat
 - time since last thread event
@@ -262,7 +262,7 @@ The watchdog should distinguish between:
 - `suspect`: active threads but no coordinator heartbeat or no meaningful progress for 5 minutes
 - `stuck`: active threads and no useful progress for 10+ minutes, or repeated failed probes
 
-These thresholds can later become configurable, but should start opinionated in v1.
+These thresholds are fixed for v1.
 
 ## Recovery Model
 
@@ -291,7 +291,7 @@ Ultra should not expose dedicated runtime-operation buttons such as `Restart Coo
 - the user asks from the main project chat
 - the chat model can inspect project runtime state
 - the chat model can reference the project coordinator automatically
-- if needed, coordinator identifiers can still be visible in diagnostic surfaces
+- coordinator identifiers may be shown in diagnostic surfaces, but runtime control still flows through chat
 
 ### Why
 
@@ -381,10 +381,7 @@ Thread-level events should be emitted when runtime state affects a thread's exec
 5. The coordinator may manage multiple threads concurrently
 6. Project runtime health is shown as aggregate plus per-component status
 7. Runtime operations are controlled primarily through chat, not explicit ops buttons
-
-## Open Follow-Ups
-
-1. exact coordinator command contract between backend and Overstory
-2. exact watchdog probe logic and output format
-3. exact persistence schema for runtime components and health checks
-4. whether some runtime diagnostics should appear in a dedicated developer/debug view later
+8. The backend launches coordinators and `ov watch` with explicit project/runtime metadata and interacts with them through the backend-owned command contract described by IPC and runtime services
+9. The per-project watchdog runs every `60 seconds` while work is active and every `5 minutes` while idle, emitting JSON lines with `project_id`, `status`, `checked_at`, `last_heartbeat_at`, and `reason`
+10. Runtime component and health persistence uses the first-class schema already defined for `runtime_components` and `runtime_health_checks`
+11. Runtime diagnostics remain in the existing status, logs, and thread views in v1 rather than adding a separate developer-only runtime page

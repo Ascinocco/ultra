@@ -206,6 +206,7 @@ The v1 IPC should expose these namespaces:
 - `editor.*`
 - `browser.*`
 - `voice.*`
+- `attachments.*`
 - `runtime.*`
 - `approvals.*`
 - `artifacts.*`
@@ -336,6 +337,7 @@ Recommended queries:
 - `threads.list_by_project`
 - `threads.list_by_chat`
 - `threads.get`
+- `threads.get_messages`
 - `threads.get_events`
 - `threads.get_changed_files`
 - `threads.get_agents`
@@ -345,6 +347,7 @@ Recommended queries:
 Recommended subscriptions:
 
 - `threads.updated`
+- `threads.messages`
 - `threads.events`
 - `threads.agents`
 - `threads.logs`
@@ -400,6 +403,31 @@ Recommended subscriptions:
 ### Product Rule
 
 Voice transcription inserts draft text for a chat or thread input. It does not directly submit a chat message.
+
+## `attachments.*`
+
+Purpose:
+
+- staged user file uploads
+- attachment lifecycle for chat/thread drafts
+
+Recommended commands:
+
+- `attachments.stage_files`
+- `attachments.remove_staged_file`
+- `attachments.clear_staged_files`
+
+Recommended queries:
+
+- `attachments.list_staged`
+
+Recommended subscriptions:
+
+- `attachments.staged_updated`
+
+### Product Rule
+
+Attachments are transient staged inputs. They are not a long-term storage system in v1.
 
 ### Replay Requirement
 
@@ -626,7 +654,7 @@ On chat select:
 
 - query chat details/messages
 - subscribe to chat message stream
-- subscribe to chat reference updates if needed
+- subscribe to chat reference updates
 
 On thread select:
 
@@ -688,10 +716,7 @@ If implementation needs to start narrower, these are the essential methods:
 5. Thread subscriptions support replay from checkpoint
 6. Runtime control actions exist as backend commands even if exposed only through chat
 7. Frontend state should be normalized rather than centered on one nested active-chat object
-
-## Open Follow-Ups
-
-1. exact payload schemas for each command/query/subscription
-2. whether some editor actions should be fire-and-forget UI bridge commands instead of true backend operations
-3. how log pagination should work for very large thread logs
-4. whether some query results should be cached in the frontend store across project switches
+8. Shared validation schemas for all payloads live in the shared package and are consumed by both frontend and backend
+9. Editor actions remain true backend operations in v1; the frontend never bypasses the backend with direct UI bridge commands
+10. Large log queries use cursor-based pagination keyed by thread and log cursor
+11. Frontend query results are cached per project in the normalized store until invalidated by subscriptions or explicit project switch

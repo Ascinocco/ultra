@@ -73,6 +73,7 @@ Tasks:
 - implement minimal direct-coding result rendering in transcript
 - implement `chat_action_checkpoints`
 - implement voice-input draft insertion path
+- implement attachment staging and draft attachment UI
 
 Exit criteria:
 
@@ -82,6 +83,7 @@ Exit criteria:
 - direct coding responses can appear in the transcript without forcing thread creation
 - structured checkpoints are persisted for later promotion
 - voice transcription can populate a draft before send
+- users can attach one or more files to a draft before send
 
 ### Sprint 3: Structured Plan and Spec Approvals
 
@@ -182,13 +184,14 @@ Recommended order:
 3. chat config and send-message path
 4. direct-coding transcript handling
 5. voice-input draft insertion
-6. structured plan/spec message types
-7. approval APIs and UI
-8. thread tables and repositories
-9. `chats.start_thread` and promotion flow
-10. thread list/detail
-11. thread event replay subscriptions
-12. hardening and tests
+6. file attachment staging and draft attachment UI
+7. structured plan/spec message types
+8. approval APIs and UI
+9. thread tables and repositories
+10. `chats.start_thread` and promotion flow
+11. thread list/detail
+12. thread event replay subscriptions
+13. hardening and tests
 
 Do not start fake thread UI before durable thread tables and event append logic exist.
 

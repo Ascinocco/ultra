@@ -412,10 +412,7 @@ If Milestone 1 tries to partially implement chats, runtime, and browser logic al
 4. Use shared DTO/types package from the beginning
 5. Keep DB schema narrow in Milestone 1
 6. Implement final-feeling page navigation early, even with placeholder pages
-
-## Open Follow-Ups
-
-1. exact framework/tooling stack for `apps/desktop`
-2. exact desktop shell/embedding strategy for Code-OSS later
-3. exact migration tool choice
-4. whether `packages/shared` should also own validation schemas
+7. `apps/desktop` uses Electron plus React plus TypeScript
+8. The desktop shell reserves a dedicated workbench surface for embedded Code-OSS later rather than designing around an extension-only shell
+9. SQLite migrations are applied through an explicit backend migration runner owned by the app
+10. `packages/shared` owns both shared DTO types and validation schemas

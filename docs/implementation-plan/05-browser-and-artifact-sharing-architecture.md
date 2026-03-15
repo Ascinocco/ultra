@@ -334,9 +334,6 @@ If embedding choices are unstable, this milestone can expand unexpectedly.
 3. Manual and automation browser systems are separate
 4. Artifact sharing is explicit and user-mediated
 5. `Share All` and combined context share are first-class
-
-## Open Follow-Ups
-
-1. exact browser embedding primitive
-2. exact artifact bundle storage thresholds
-3. exact bookmark persistence implementation details
+6. The manual browser uses an Electron `WebContentsView` backed by one persistent session partition
+7. Large artifact bundles spill to file-backed staged storage before being attached as artifact references
+8. Bookmarks are global-only in v1 and persist against the single manual browser profile

@@ -69,6 +69,8 @@ Ultra should treat the database as canonical for:
 
 Voice-entered messages do not need a dedicated persistence model in v1. Once submitted, they should persist through normal `chat_messages` records like any other message.
 
+User-uploaded chat attachments also do not need a durable first-class storage table in v1. Staged files may be managed outside SQLite, while attachment metadata can ride inside normal transcript message payloads.
+
 ## ID Strategy
 
 Use string IDs for all entities.
@@ -350,6 +352,26 @@ Primary key:
 
 - (`thread_id`, `provider`, `external_id`)
 
+### `thread_messages`
+
+Coordinator-chat message history scoped to a thread.
+
+Columns:
+
+- `message_id` TEXT PRIMARY KEY
+- `thread_id` TEXT NOT NULL REFERENCES `threads`(`thread_id`) ON DELETE CASCADE
+- `role` TEXT NOT NULL
+- `provider` TEXT
+- `model` TEXT
+- `message_type` TEXT NOT NULL
+- `content_json` TEXT NOT NULL
+- `artifact_refs_json` TEXT
+- `created_at` TEXT NOT NULL
+
+Indexes:
+
+- `idx_thread_messages_thread_created` on (`thread_id`, `created_at`)
+
 ## Thread Events and Logs
 
 ### `thread_events`
@@ -403,7 +425,7 @@ Indexes:
 
 Notes:
 
-- this table is eligible for rotation or compaction later
+- this table is subject to the raw-log retention and compaction policy
 - structured milestone events should remain durable even if raw logs are pruned
 
 ## Thread Agents and Approvals
@@ -744,6 +766,7 @@ Some tables are primary records, while others are projections updated from event
 - `chats`
 - `chat_sessions`
 - `chat_messages`
+- `thread_messages`
 - `threads`
 - `thread_events`
 - `thread_event_logs`
@@ -757,7 +780,7 @@ Some tables are primary records, while others are projections updated from event
 - `target_runtime_syncs`
 - `project_layout_state`
 
-The backend may rebuild some projections from durable history if needed.
+The backend rebuilds eligible projections from durable history during recovery or migration when necessary.
 
 ## Minimal v1 Schema
 
@@ -785,10 +808,8 @@ If implementation needs a narrower first slice, these tables are the true minimu
 5. Runtime supervision state is first-class DB state
 6. Layout state is persisted per project
 7. JSON columns are acceptable for evolving payloads in v1
-
-## Open Follow-Ups
-
-1. exact DDL and indexes for implementation
-2. whether some JSON columns should later be normalized further
-3. retention policy for `thread_event_logs` and `runtime_health_checks`
-4. whether thread publish metadata should be split into a dedicated table later
+8. DDL and indexes should be implemented directly from this schema, with additional indexes added only when query behavior proves they are necessary
+9. JSON columns stay in place for v1 unless a proven performance or correctness problem requires further normalization
+10. `thread_event_logs` are retained for `14 days` or until a project exceeds `100 MB` of raw logs, whichever comes first
+11. `runtime_health_checks` are retained for `7 days`
+12. Thread publish metadata remains on `threads` in v1 rather than moving to a dedicated table

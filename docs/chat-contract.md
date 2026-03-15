@@ -118,6 +118,7 @@ The chat input area should expose:
 - thinking level
 - permission level
 - voice input trigger
+- file attachment trigger
 
 ### Configuration Rules
 
@@ -217,13 +218,13 @@ This is intentional.
 - the chat starts on the main checkout by default
 - the chat may move to a branch or worktree if the user instructs it to
 - the chat may open files, diffs, terminals, or editor targets as part of the workflow
-- the user decides whether chat-local work stays chat-local or is later promoted into a thread
+- the user decides whether chat-local work stays chat-local or is promoted into a thread
 
 ### Promotion to Thread
 
 Chat-local work may remain outside thread tracking.
 
-If the user later wants durable execution tracking, thread review, or coordinator-driven continuation, the user may promote that work into a thread.
+If the user wants durable execution tracking, thread review, or coordinator-driven continuation, the user may promote that work into a thread.
 
 Promotion should be explicit, not automatic.
 
@@ -402,6 +403,18 @@ Chat inputs should support local speech-to-text as a draft-entry mechanism.
 - voice input should be reusable across main chat and thread chat
 - transcribed text persists like normal chat text once sent
 
+## File Attachments
+
+Chat inputs should support ephemeral user file attachments.
+
+### Rules
+
+- users can drag and drop files into the input
+- users can attach one or more files through a picker
+- attachments are visible in the draft before send
+- attachments are ephemeral and not intended for long-term document storage
+- attachment metadata may persist in normal transcript messages, but staged file contents do not need durable retention in v1
+
 ## Sidebar Contract
 
 The chat sidebar should support:
@@ -450,11 +463,9 @@ Recommended `chat_sessions` fields:
 - `compaction_summary`
 - `continuation_prompt`
 
-## Open Questions
+## Locked Decisions
 
-The major contract is now defined, but these implementation details still need follow-up:
-
-1. Exact vendor-to-UI mapping for `thinking_level`
-2. Whether promotion from chat-local work into a thread should preserve prior file/command history in thread timeline or only a summarized promotion event
-3. Exact schema for chat coding checkpoints and how they appear in transcript UI
-4. How thread references should be rendered inline in the chat transcript
+1. `thinking_level` uses the vendor's native visible options and labels rather than an Ultra-defined enum
+2. Promotion from chat-local work into a thread produces one summarized promotion event in the thread timeline plus linked references to the carried messages, checkpoints, specs, seeds, and artifacts
+3. Chat coding checkpoints are stored as structured records and appear in the transcript as compact activity entries
+4. Thread references render inline in the chat transcript as clickable chips or cards that open the referenced thread detail

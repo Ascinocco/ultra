@@ -357,9 +357,7 @@ Health records should include:
 - `restart_count`
 - `reason`
 
-## Open Decisions To Finalize
-
-The following decisions are now fixed:
+## Locked Decisions
 
 1. A thread keeps a stable identity even if the coordinator process restarts, and restart events appear in the timeline
 2. `awaiting_review` requires a branch in a dedicated worktree with reviewable changes
@@ -367,9 +365,6 @@ The following decisions are now fixed:
 4. Default publish flow is post-approval branch push plus draft PR creation
 5. `changes_requested` returns the same thread to `running`
 6. Thread detail is the primary review UI, but actions may also be triggered from the main chat
-
-Remaining follow-up decisions:
-
-1. Whether local auto-commit is mandatory before `awaiting_review` or whether staged/uncommitted work is allowed in special cases
-2. Whether publish should always target a draft PR in v1 or allow direct branch push without PR
-3. Whether direct code-editing actions from the main chat should create lightweight thread records automatically or remain chat-local until explicitly promoted
+7. Local auto-commit is mandatory before `awaiting_review`
+8. Publish targets a draft PR in v1 when publish is requested
+9. Direct code-editing actions from the main chat remain chat-local until explicitly promoted into a thread

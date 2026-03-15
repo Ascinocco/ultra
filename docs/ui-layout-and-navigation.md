@@ -88,12 +88,6 @@ For v1, it should be exactly three pill-style navigation controls:
 
 The visual treatment should feel simple, obvious, and mode-like rather than like a dense application toolbar.
 
-Optional later additions:
-
-- global command palette
-- recent projects switcher
-- notification center
-
 ## Page 1: Chat
 
 The Chat page is the command center.
@@ -146,6 +140,7 @@ Core contents:
 - chat input dock
 
 The chat input dock should support both typed input and voice-to-text input.
+It should also support drag-and-drop and picker-based file attachment.
 
 ### Top-Right Pane
 
@@ -167,7 +162,7 @@ Thread detail should include:
 - tabs for `Overview`, `Timeline`, `Agents`, `Files`, `Approvals`, `Logs`
 - coordinator input dock at the bottom
 
-The coordinator input dock should be able to reuse the same voice-input component later.
+The coordinator input dock reuses the same voice-input component and file-attachment input pattern as the main chat input.
 
 ### Bottom-Right Pane
 
@@ -305,7 +300,7 @@ When the user clicks `Open in Editor` from thread or chat UI:
 
 - switch to the Editor page
 - set the thread's checkout as the active editor target
-- sync runtime files if needed
+- sync runtime files when files are missing or stale
 - optionally open changed files or diff view based on context
 
 This is one of the most important page transitions in the product.
@@ -513,10 +508,7 @@ Recommended behavior:
 7. `Open in Editor` is a primary cross-page action
 8. Side browser split-view exists for Chat and Editor
 9. Cross-page state persists per project
-
-## Open Follow-Ups
-
-1. exact visual design system and component styling
-2. exact empty states for new projects and projects with no threads
-3. whether the Editor page should include a minimal thread context strip in v1
-4. exact notification model for review-ready and degraded-runtime states
+10. The app shell uses one fixed dark theme with no user-selectable shell themes
+11. New-project empty states should direct the user toward creating a chat or opening a project, and no-thread states should keep the thread pane visible with a clear “no threads yet” placeholder
+12. The Editor page does not include a thread context strip in v1
+13. Review-ready and degraded-runtime notifications appear as in-app toasts plus persistent indicators in the relevant page headers or status regions

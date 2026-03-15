@@ -252,9 +252,6 @@ Without retention and pagination discipline, the product will degrade quickly un
 2. Draft PR creation is part of the normal publish flow
 3. Publish failures are explicit and retryable
 4. Structured events remain durable while raw logs can be compacted
-
-## Open Follow-Ups
-
-1. exact PR provider integration details
-2. exact log retention thresholds
-3. whether some publish metadata should move into a dedicated table later
+5. GitHub is the only PR provider in v1, using the GitHub API with credentials stored in the OS keychain
+6. Raw thread logs are retained for `14 days` or until a project exceeds `100 MB` of logs; runtime health checks are retained for `7 days`; automation browser artifacts are retained for `14 days`
+7. Publish metadata remains on the `threads` record in v1 rather than moving into a dedicated table

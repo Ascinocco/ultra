@@ -425,12 +425,12 @@ Minimum snapshot fields driven by events:
 
 Structured milestone events should be retained durably.
 
-Raw log chunks may be compacted or rotated later.
+Raw log chunks are compacted or rotated under the defined retention policy.
 
 ### v1 Retention Rule
 
 - keep structured events permanently in the local store
-- allow `thread.log_chunk` records to be compacted, truncated, or archived later
+- compact, truncate, or archive `thread.log_chunk` records under the defined retention policy
 - preserve enough metadata so the user can still see that logs once existed even if raw chunks are rotated
 
 ## Suggested Storage Shape
@@ -471,11 +471,9 @@ Example happy-path sequence:
 18. `thread.publish_succeeded`
 19. `thread.publish_state_changed` to `published`
 
-## Open Follow-Ups
+## Locked Decisions
 
-This schema is sufficient for the current product direction, but these follow-up specs still matter:
-
-1. exact JSON payload schema per event type
-2. snapshot projection rules in the backend
-3. event subscription / IPC API for thread streaming
-4. log rotation and archival policy
+1. Exact event payload schemas live in the shared validation package and are enforced by both IPC and persistence layers
+2. The backend owns thread snapshot projection from append-only events
+3. Thread streaming is exposed through `threads.events` with replay via `from_sequence`
+4. Raw log rotation follows the hardening retention policy while structured milestone events remain durable
