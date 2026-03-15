@@ -11,7 +11,9 @@
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check package.json tsconfig.json electron.vite.config.ts src",
-    "test": "vitest run"
+    "test": "vitest run",
+    "editor-host:check": "node scripts/editor-host-check.mjs",
+    "editor-host:prepare": "node scripts/editor-host-prepare.mjs"
   },
   "dependencies": {
     "@ultra/shared": "workspace:*",

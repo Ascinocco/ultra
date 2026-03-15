@@ -6,6 +6,10 @@ import type {
   BackendStatusListener,
   BackendStatusSnapshot,
 } from "../shared/backend-status.js"
+import type {
+  EditorHostStatusListener,
+  EditorHostStatusSnapshot,
+} from "../shared/editor-host.js"
 
 const GET_BACKEND_STATUS_CHANNEL = "ultra-shell:get-backend-status"
 const BACKEND_STATUS_CHANGED_CHANNEL = "ultra-shell:backend-status-changed"
@@ -15,6 +19,13 @@ const RETRY_BACKEND_STARTUP_CHANNEL = "ultra-shell:retry-backend-startup"
 const IPC_QUERY_CHANNEL = "ultra-shell:ipc-query"
 const IPC_COMMAND_CHANNEL = "ultra-shell:ipc-command"
 const PICK_PROJECT_DIRECTORY_CHANNEL = "ultra-shell:pick-project-directory"
+const PICK_PROJECT_FILE_CHANNEL = "ultra-shell:pick-project-file"
+const SYNC_EDITOR_HOST_CHANNEL = "ultra-shell:sync-editor-host"
+const GET_EDITOR_HOST_STATUS_CHANNEL = "ultra-shell:get-editor-host-status"
+const EDITOR_HOST_STATUS_CHANGED_CHANNEL =
+  "ultra-shell:editor-host-status-changed"
+const EDITOR_OPEN_FILE_CHANNEL = "ultra-shell:editor-open-file"
+const EDITOR_OPEN_TERMINAL_CHANNEL = "ultra-shell:editor-open-terminal"
 
 const ultraShell = {
   appName: APP_NAME,
@@ -39,6 +50,27 @@ const ultraShell = {
     ipcRenderer.invoke(PICK_PROJECT_DIRECTORY_CHANNEL) as Promise<
       string | null
     >,
+  pickProjectFile: (rootPath?: string | null) =>
+    ipcRenderer.invoke(PICK_PROJECT_FILE_CHANNEL, rootPath ?? null) as Promise<
+      string | null
+    >,
+  syncEditorHost: (payload: unknown) =>
+    ipcRenderer.invoke(
+      SYNC_EDITOR_HOST_CHANNEL,
+      payload,
+    ) as Promise<EditorHostStatusSnapshot>,
+  getEditorHostStatus: () =>
+    ipcRenderer.invoke(
+      GET_EDITOR_HOST_STATUS_CHANNEL,
+    ) as Promise<EditorHostStatusSnapshot>,
+  openEditorFile: (path: string) =>
+    ipcRenderer.invoke(EDITOR_OPEN_FILE_CHANNEL, path) as Promise<void>,
+  openEditorTerminal: (cwd: string, label?: string) =>
+    ipcRenderer.invoke(
+      EDITOR_OPEN_TERMINAL_CHANNEL,
+      cwd,
+      label,
+    ) as Promise<void>,
   ipcQuery: (name: string, payload?: unknown) =>
     ipcRenderer.invoke(IPC_QUERY_CHANNEL, name, payload) as Promise<unknown>,
   ipcCommand: (name: string, payload?: unknown) =>
@@ -69,6 +101,23 @@ const ultraShell = {
 
     return () => {
       ipcRenderer.removeListener(OPEN_SYSTEM_TOOLS_CHANNEL, wrappedListener)
+    }
+  },
+  onEditorHostStatusChange: (listener: EditorHostStatusListener) => {
+    const wrappedListener = (
+      _event: Electron.IpcRendererEvent,
+      status: EditorHostStatusSnapshot,
+    ) => {
+      listener(status)
+    }
+
+    ipcRenderer.on(EDITOR_HOST_STATUS_CHANGED_CHANNEL, wrappedListener)
+
+    return () => {
+      ipcRenderer.removeListener(
+        EDITOR_HOST_STATUS_CHANGED_CHANNEL,
+        wrappedListener,
+      )
     }
   },
 }

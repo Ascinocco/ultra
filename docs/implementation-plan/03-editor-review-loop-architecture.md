@@ -15,6 +15,7 @@ Related docs:
 - [artifact-sharing.md](/Users/tony/Projects/ultra/docs/artifact-sharing.md)
 - [backend-ipc.md](/Users/tony/Projects/ultra/docs/backend-ipc.md)
 - [sqlite-schema.md](/Users/tony/Projects/ultra/docs/sqlite-schema.md)
+- [editor-host-spike.md](/Users/tony/Projects/ultra/docs/editor-host-spike.md)
 
 ## Purpose
 

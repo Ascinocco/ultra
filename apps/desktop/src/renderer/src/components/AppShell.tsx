@@ -80,7 +80,10 @@ export function AppShell() {
 
       <section className="app-shell__body">
         <ChatPageShell active={app.currentPage === "chat"} />
-        <EditorPageShell active={app.currentPage === "editor"} />
+        <EditorPageShell
+          active={app.currentPage === "editor"}
+          activeProject={activeProject}
+        />
         <BrowserPageShell active={app.currentPage === "browser"} />
       </section>
     </main>

@@ -9,6 +9,7 @@ import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../shared/backend-status.js"
 import { AppShell } from "./components/AppShell.js"
 import { ProjectSelector } from "./components/ProjectSelector.js"
+import { EditorPageShell } from "./pages/EditorPageShell.js"
 import {
   AppStoreProvider,
   type ConnectionStatus,
@@ -86,6 +87,20 @@ describe("AppShell", () => {
     expect(markup).toContain("chat-frame__rail")
     expect(markup).toContain("chat-frame__main")
     expect(markup).toContain("chat-frame__side")
+  })
+
+  it("renders the editor host slot when a project is active", () => {
+    const markup = renderToStaticMarkup(
+      <EditorPageShell
+        active={true}
+        activeProject={makeProject("proj-1", "Alpha")}
+      />,
+    )
+
+    expect(markup).toContain("Embedded Code-OSS workbench")
+    expect(markup).toContain("Open Project File")
+    expect(markup).toContain("Open Terminal")
+    expect(markup).toContain("editor-host__slot")
   })
 })
 

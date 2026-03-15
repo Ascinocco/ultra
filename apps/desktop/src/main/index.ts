@@ -1,4 +1,4 @@
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
 import { app, BrowserWindow, Menu } from "electron"
@@ -10,13 +10,21 @@ import {
 import { createBackendLaunchConfig } from "./backend-config.js"
 import { BackendConnection } from "./backend-connection.js"
 import { BackendProcessManager } from "./backend-process.js"
+import { CodeOssServer } from "./code-oss-server.js"
+import { EditorWorkspaceHost } from "./editor-workspace-host.js"
 import { registerShellIpc } from "./ipc-shell.js"
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url))
+const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url))
 const backendManager = new BackendProcessManager({
   config: createBackendLaunchConfig(app),
 })
 const backendConnection = new BackendConnection(backendManager)
+const codeOssServer = new CodeOssServer({
+  repoRoot,
+  runtimeDir: resolve(app.getPath("userData"), "desktop-runtime"),
+})
+const editorHost = new EditorWorkspaceHost(codeOssServer)
 
 let unregisterShellIpc: (() => void) | null = null
 let isQuitting = false
@@ -46,6 +54,8 @@ function createMainWindow(): BrowserWindow {
     void mainWindow.loadFile(join(__dirname, "../renderer/index.html"))
   }
 
+  editorHost.attachToWindow(mainWindow)
+
   return mainWindow
 }
 
@@ -56,7 +66,7 @@ function openSystemTools(): void {
 }
 
 app.whenReady().then(() => {
-  unregisterShellIpc = registerShellIpc(backendConnection)
+  unregisterShellIpc = registerShellIpc(backendConnection, editorHost)
   Menu.setApplicationMenu(
     Menu.buildFromTemplate(
       createApplicationMenuTemplate(APP_NAME, openSystemTools),
@@ -80,7 +90,7 @@ app.on("before-quit", (event) => {
   isQuitting = true
   event.preventDefault()
 
-  void backendManager.stop().finally(() => {
+  void Promise.all([backendManager.stop(), editorHost.stop()]).finally(() => {
     unregisterShellIpc?.()
     app.exit(0)
   })
