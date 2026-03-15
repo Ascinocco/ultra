@@ -67,6 +67,8 @@ Ultra should treat the database as canonical for:
 - approvals
 - local artifact metadata
 
+Voice-entered messages do not need a dedicated persistence model in v1. Once submitted, they should persist through normal `chat_messages` records like any other message.
+
 ## ID Strategy
 
 Use string IDs for all entities.
@@ -232,6 +234,29 @@ Columns:
 Primary key:
 
 - (`chat_id`, `thread_id`)
+
+### `chat_action_checkpoints`
+
+Structured milestone checkpoints for direct chat coding activity.
+
+Columns:
+
+- `checkpoint_id` TEXT PRIMARY KEY
+- `chat_id` TEXT NOT NULL REFERENCES `chats`(`chat_id`) ON DELETE CASCADE
+- `session_id` TEXT NOT NULL REFERENCES `chat_sessions`(`session_id`) ON DELETE CASCADE
+- `active_target_path` TEXT
+- `branch_name` TEXT
+- `worktree_path` TEXT
+- `action_type` TEXT NOT NULL
+- `affected_paths_json` TEXT NOT NULL
+- `command_metadata_json` TEXT
+- `result_summary` TEXT
+- `artifact_refs_json` TEXT
+- `created_at` TEXT NOT NULL
+
+Indexes:
+
+- `idx_chat_action_checkpoints_chat_created` on (`chat_id`, `created_at`)
 
 ### `chat_chat_refs`
 

@@ -10,6 +10,8 @@ The browser is valuable, but it should come after the core planning, execution, 
 
 Artifact sharing is the bridge that makes browser and manual debugging useful without violating privacy boundaries.
 
+The manual browser is a convenience feature, not a core programmable agent surface.
+
 ## Scope
 
 - Browser top pill page

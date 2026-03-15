@@ -56,6 +56,8 @@ The manual browser is the user-facing browser surface for:
 
 This browser should feel persistent and practical for daily use.
 
+It is a convenience feature, not a core programmable agent surface.
+
 ### 2. Automation Browser
 
 The automation browser is used by thread-driven QA automation.
@@ -88,6 +90,12 @@ The manual browser must support:
 - bookmarks
 - downloads
 - persistent browser session/profile
+
+### Bookmark Scope
+
+For v1, bookmarks should be global-only.
+
+Ultra does not need project-scoped bookmarks in v1.
 
 ## Side Browser
 
@@ -191,6 +199,8 @@ From Chat and Editor, Ultra should allow:
 
 The Browser page should also be reachable through the top pill navigation.
 
+The browser is mainly for user convenience and manual QA. LLMs and coordinators do not need deep direct interaction with the manual browser.
+
 ## Security and Privacy Rules
 
 - manual browser session is user-private
@@ -255,4 +265,4 @@ These should be validated with prototypes early, before they are assumed to be l
 
 1. exact browser embedding/runtime approach
 2. exact automation browser artifact model
-3. bookmark scope and persistence details
+3. exact bookmark persistence implementation details

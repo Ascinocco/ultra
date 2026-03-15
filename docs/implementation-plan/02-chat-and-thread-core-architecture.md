@@ -135,6 +135,7 @@ Recommended `ActiveChatPane` composition:
 - `PlanApprovalBlock`
 - `SpecApprovalBlock`
 - `ChatInputDock`
+- `VoiceInputButton`
 
 Recommended `ThreadPane` composition:
 
@@ -149,6 +150,8 @@ Recommended `ThreadPane` composition:
 - `ThreadApprovalsTab`
 - `ThreadLogsTab`
 - `CoordinatorInputDock`
+
+The chat input dock and coordinator input dock should be able to share the same voice-input primitive.
 
 ## Chat Runtime Configuration Architecture
 
@@ -167,6 +170,13 @@ Do not add internal sub-model roles in Milestone 2.
 
 One chat, one active config, one conversation contract.
 
+Thinking-level choices should map directly to what the selected vendor/runtime supports.
+
+Permission level should remain a simple Ultra-owned two-mode enum:
+
+- `supervised`
+- `full_access`
+
 ## Direct Chat Coding Architecture
 
 Milestone 2 should implement a minimal but real direct-coding path for chats.
@@ -180,6 +190,7 @@ Direct coding remains chat-local unless the user explicitly promotes it into a t
 - chat runtime operates against the current active checkout context
 - chat can produce file edits and command executions through the configured runtime
 - chat-local coding history remains part of chat transcript state
+- chat-local coding emits structured milestone checkpoints
 - later promotion into a thread is an explicit backend operation
 
 ### Backend Boundary
@@ -189,6 +200,11 @@ Use one narrow service boundary for runtime-backed chat actions:
 - `ChatRuntimeAdapter`
 
 That adapter should expose structured action results back into the chat transcript rather than leaking raw provider-specific behavior into frontend state.
+
+Recommended persistence:
+
+- transcript-visible structured messages
+- `chat_action_checkpoints` for machine-usable promotion history
 
 ## Chat Persistence Architecture
 
@@ -275,6 +291,7 @@ When starting a thread, the backend should write in one transaction where practi
 - thread-chat reference
 - initial thread event
 - any initial spec/ticket link rows
+- carried promotion metadata such as selected checkpoints, spec refs, and seed refs where applicable
 
 ## Thread Event Architecture
 
@@ -299,6 +316,7 @@ Milestone 2 backend should add these modules:
 - `chats`
 - `threads`
 - `chat-runtime`
+- `voice-input`
 - `thread-projections`
 
 Recommended services:
@@ -306,6 +324,7 @@ Recommended services:
 - `ChatService`
 - `ChatMessageService`
 - `ChatApprovalService`
+- `VoiceInputService`
 - `ThreadService`
 - `ThreadEventService`
 - `ThreadProjectionService`
@@ -336,6 +355,9 @@ Implement the next IPC slice for:
 - `chats.approve_specs`
 - `chats.start_thread`
 - `chats.promote_work_to_thread`
+- `voice.start_capture`
+- `voice.stop_capture`
+- `voice.cancel_capture`
 - `threads.list_by_project`
 - `threads.list_by_chat`
 - `threads.get`
@@ -372,6 +394,8 @@ Milestone 2 should implement these schema areas for real:
 - `thread_events`
 - `thread_agents` as a thin stub/projection if helpful
 - `approvals` if thread UI needs it now
+
+Voice-entered messages should persist through normal `chat_messages` writes once submitted.
 
 ### Minimal Projection Fields
 

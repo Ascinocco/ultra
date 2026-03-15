@@ -25,7 +25,7 @@ IPC:
 Backend:
 
 - load manual browser state
-- load bookmarks
+- load global bookmarks
 
 DB:
 
@@ -88,7 +88,7 @@ IPC:
 
 Backend:
 
-- persist bookmark in manual browser profile scope
+- persist bookmark in global manual browser profile scope
 
 DB:
 

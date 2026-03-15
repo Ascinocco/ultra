@@ -71,6 +71,8 @@ Tasks:
 - implement chat message subscription
 - render user and assistant messages in transcript
 - implement minimal direct-coding result rendering in transcript
+- implement `chat_action_checkpoints`
+- implement voice-input draft insertion path
 
 Exit criteria:
 
@@ -78,6 +80,8 @@ Exit criteria:
 - each chat persists transcript history
 - live chat updates work
 - direct coding responses can appear in the transcript without forcing thread creation
+- structured checkpoints are persisted for later promotion
+- voice transcription can populate a draft before send
 
 ### Sprint 3: Structured Plan and Spec Approvals
 
@@ -114,6 +118,7 @@ Tasks:
 - create thread snapshot rows
 - create initial thread event rows
 - create chat-thread references
+- carry selected checkpoints, spec refs, and seed refs into thread creation
 - build initial thread list population
 
 Exit criteria:
@@ -176,13 +181,14 @@ Recommended order:
 2. chat rail and transcript shell
 3. chat config and send-message path
 4. direct-coding transcript handling
-5. structured plan/spec message types
-6. approval APIs and UI
-7. thread tables and repositories
-8. `chats.start_thread` and promotion flow
-9. thread list/detail
-10. thread event replay subscriptions
-11. hardening and tests
+5. voice-input draft insertion
+6. structured plan/spec message types
+7. approval APIs and UI
+8. thread tables and repositories
+9. `chats.start_thread` and promotion flow
+10. thread list/detail
+11. thread event replay subscriptions
+12. hardening and tests
 
 Do not start fake thread UI before durable thread tables and event append logic exist.
 

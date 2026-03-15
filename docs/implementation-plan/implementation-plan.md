@@ -34,6 +34,10 @@ This keeps planning modular and makes it easier to iterate without rewriting one
    Architecture: [06-publish-and-hardening-architecture.md](/Users/tony/Projects/ultra/docs/implementation-plan/06-publish-and-hardening-architecture.md)
    Sprint plan: [06-publish-and-hardening-sprint-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/06-publish-and-hardening-sprint-plan.md)
 
+Cross-cutting input feature:
+
+- [voice-input.md](/Users/tony/Projects/ultra/docs/voice-input.md)
+
 ## Why This Structure
 
 Ultra now has enough product definition that implementation planning should move from broad feature ideation to staged execution.

@@ -205,6 +205,7 @@ The v1 IPC should expose these namespaces:
 - `threads.*`
 - `editor.*`
 - `browser.*`
+- `voice.*`
 - `runtime.*`
 - `approvals.*`
 - `artifacts.*`
@@ -294,6 +295,25 @@ Recommended subscriptions:
 - `thinking_level`
 - `permission_level`
 
+`thinking_level` should be provider-specific in value space, even if Ultra presents it in a normalized control.
+
+`permission_level` should use the Ultra-owned enum:
+
+- `supervised`
+- `full_access`
+
+### Promotion Payload
+
+`chats.promote_work_to_thread` should support:
+
+- `chat_id`
+- `source_message_ids`
+- `checkpoint_ids`
+- `promotion_summary`
+- `spec_refs`
+- `seed_refs`
+- `adopt_existing_checkout`
+
 ## `threads.*`
 
 Purpose:
@@ -356,6 +376,30 @@ Recommended subscriptions:
 
 - `browser.state_updated`
 - `browser.bookmarks_updated`
+
+## `voice.*`
+
+Purpose:
+
+- microphone capture lifecycle
+- local transcription
+- draft insertion support
+
+Recommended commands:
+
+- `voice.start_capture`
+- `voice.stop_capture`
+- `voice.cancel_capture`
+
+Recommended subscriptions:
+
+- `voice.capture_updated`
+- `voice.transcription_ready`
+- `voice.transcription_failed`
+
+### Product Rule
+
+Voice transcription inserts draft text for a chat or thread input. It does not directly submit a chat message.
 
 ### Replay Requirement
 

@@ -145,6 +145,8 @@ Core contents:
 - inline references to threads/chats when relevant
 - chat input dock
 
+The chat input dock should support both typed input and voice-to-text input.
+
 ### Top-Right Pane
 
 Purpose:
@@ -164,6 +166,8 @@ Thread detail should include:
 - summary
 - tabs for `Overview`, `Timeline`, `Agents`, `Files`, `Approvals`, `Logs`
 - coordinator input dock at the bottom
+
+The coordinator input dock should be able to reuse the same voice-input component later.
 
 ### Bottom-Right Pane
 

@@ -17,6 +17,7 @@ These documents exist to answer the question:
 - [editor-review-wiring.md](/Users/tony/Projects/ultra/docs/wiring/editor-review-wiring.md)
 - [runtime-wiring.md](/Users/tony/Projects/ultra/docs/wiring/runtime-wiring.md)
 - [browser-artifact-wiring.md](/Users/tony/Projects/ultra/docs/wiring/browser-artifact-wiring.md)
+- [voice-input-wiring.md](/Users/tony/Projects/ultra/docs/wiring/voice-input-wiring.md)
 
 ## Wiring Format
 

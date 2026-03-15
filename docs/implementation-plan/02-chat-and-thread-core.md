@@ -21,6 +21,7 @@ If this milestone is weak, the product is weak.
 - chat persistence
 - chat runtime config controls
 - direct chat coding in the active checkout
+- reusable voice input in chat text boxes
 - plan approval block UI
 - spec approval block UI
 - explicit `start work` flow
@@ -37,6 +38,7 @@ If this milestone is weak, the product is weak.
 - per-chat provider/model/thinking/perms config
 - chat transcript persistence
 - direct chat coding path in the active checkout
+- voice-to-text insertion into chat drafts
 - explicit plan approval interaction
 - explicit spec approval interaction
 - `start work` confirmation
@@ -63,6 +65,7 @@ If this milestone is weak, the product is weak.
 
 - a user can create a chat, get to plan approval, get to spec approval, confirm start work, and see a new thread appear
 - a user can use a chat for direct coding work in the active checkout without creating a thread
+- a user can use voice input to populate a chat draft before sending
 - thread detail loads from persisted state and live events
 - multiple chats can coexist without state corruption
 

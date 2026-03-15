@@ -101,7 +101,7 @@ Recommended `browser` state:
 - side browser open/closed state
 - side browser width
 - current browser destination context if side-open
-- bookmarks list or bookmark summaries
+- global bookmarks list or bookmark summaries
 
 ### Side Browser State
 
@@ -130,7 +130,7 @@ Milestone 5 backend should add:
 `ManualBrowserService`:
 
 - create/load persistent browser profile
-- manage bookmarks and basic browser state
+- manage global bookmarks and basic browser state
 
 `AutomationBrowserService`:
 
@@ -339,4 +339,4 @@ If embedding choices are unstable, this milestone can expand unexpectedly.
 
 1. exact browser embedding primitive
 2. exact artifact bundle storage thresholds
-3. whether bookmarks need project scope or only global scope
+3. exact bookmark persistence implementation details

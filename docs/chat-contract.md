@@ -117,6 +117,7 @@ The chat input area should expose:
 - model
 - thinking level
 - permission level
+- voice input trigger
 
 ### Configuration Rules
 
@@ -125,16 +126,22 @@ The chat input area should expose:
 - the active chat configuration backs both normal conversation and direct coding behavior in that chat
 - Ultra should not require the user to configure multiple internal model roles for one chat
 
+### Thinking Level
+
+Thinking level should use vendor-native labels and options where possible.
+
+Ultra should not invent its own cross-provider reasoning enum if that would confuse users who already understand the vendor's terminology.
+
+The UI may normalize presentation, but the visible choices should map closely to what the selected provider actually supports.
+
 ### Permission Level
 
 Permission level is a user-facing safety mode for direct coding behavior.
 
-Initial v1 examples:
+v1 modes:
 
 - `supervised`
 - `full_access`
-
-Exact labels can be refined later, but the product intent is:
 
 - `supervised`: the runtime may ask for confirmation before sensitive actions
 - `full_access`: the runtime may perform edits and commands with minimal interruption
@@ -219,6 +226,77 @@ Chat-local work may remain outside thread tracking.
 If the user later wants durable execution tracking, thread review, or coordinator-driven continuation, the user may promote that work into a thread.
 
 Promotion should be explicit, not automatic.
+
+## Direct Coding Checkpoints
+
+Direct chat coding should create lightweight structured checkpoints.
+
+### Checkpoint Granularity
+
+Checkpoints should be milestone-level, not one record per low-level tool action.
+
+Recommended checkpoint moments:
+
+- meaningful file changes
+- commands run
+- branch creation or checkout changes
+- worktree changes
+- test/build result milestones
+- explicit user-requested save points
+
+### Checkpoint Storage
+
+Checkpoints should exist in two forms:
+
+- a readable representation in the chat transcript
+- a structured machine-usable record in local persistence
+
+### Checkpoint Payload
+
+Recommended fields:
+
+- `checkpoint_id`
+- `chat_id`
+- `session_id`
+- `active_target_path`
+- `branch_name`
+- `worktree_path`
+- `action_type`
+- `affected_paths`
+- `command_metadata`
+- `result_summary`
+- `artifact_refs`
+- `created_at`
+
+Do not store full file snapshots by default. Prefer structured metadata and references to artifacts or git state.
+
+## Promotion Semantics
+
+Promotion from chat-local work into a thread must be explicit.
+
+The model may suggest promotion, but the user must confirm it.
+
+### Promotion Payload
+
+When chat-local work is promoted into a thread, Ultra should carry:
+
+- promotion summary
+- selected relevant chat messages
+- structured chat coding checkpoints
+- current checkout context
+- linked artifact references
+- spec references
+- seed references used for downstream Overstory context
+
+Do not blindly copy the full chat transcript into the thread context.
+
+### Checkout Adoption Rule
+
+If chat-local work is already happening in a dedicated branch or worktree, Ultra may adopt that checkout into the new thread.
+
+If chat-local work is happening on the main checkout, Ultra should fork the work into a proper thread-owned worktree during promotion.
+
+This keeps thread checkout ownership clean.
 
 ## Planning and Thread Creation Flow
 
@@ -313,6 +391,17 @@ This is a convenience action, not a replacement for natural language.
 
 Ultra should infer planning/spec/start-work flow from the conversation rather than requiring a manual mode toggle such as `Plan` vs `Chat`.
 
+## Voice Input
+
+Chat inputs should support local speech-to-text as a draft-entry mechanism.
+
+### Rules
+
+- voice input inserts text into the current draft
+- voice input does not auto-send by default
+- voice input should be reusable across main chat and thread chat
+- transcribed text persists like normal chat text once sent
+
 ## Sidebar Contract
 
 The chat sidebar should support:
@@ -365,7 +454,7 @@ Recommended `chat_sessions` fields:
 
 The major contract is now defined, but these implementation details still need follow-up:
 
-1. Exact enum values for `thinking_level` and `permission_level`
-2. Whether direct chat coding work should create lightweight change checkpoints automatically
-3. Whether promotion from chat-local work into a thread should preserve prior file/command history in thread timeline
+1. Exact vendor-to-UI mapping for `thinking_level`
+2. Whether promotion from chat-local work into a thread should preserve prior file/command history in thread timeline or only a summarized promotion event
+3. Exact schema for chat coding checkpoints and how they appear in transcript UI
 4. How thread references should be rendered inline in the chat transcript

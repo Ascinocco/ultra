@@ -18,6 +18,7 @@ Supporting specs:
 - [ui-layout-and-navigation.md](/Users/tony/Projects/ultra/docs/ui-layout-and-navigation.md)
 - [browser-surface.md](/Users/tony/Projects/ultra/docs/browser-surface.md)
 - [artifact-sharing.md](/Users/tony/Projects/ultra/docs/artifact-sharing.md)
+- [voice-input.md](/Users/tony/Projects/ultra/docs/voice-input.md)
 - [implementation-plan/implementation-plan.md](/Users/tony/Projects/ultra/docs/implementation-plan/implementation-plan.md)
 - [wiring/wiring.md](/Users/tony/Projects/ultra/docs/wiring/wiring.md)
 
@@ -259,6 +260,7 @@ The exact packaging/runtime architecture is still being refined, but the product
 - a chat-first command-center UI
 - a code editing environment with strong diff, terminal, and run/debug support
 - a first-class browser surface for manual QA
+- local speech-to-text input for chat surfaces
 - a backend/runtime layer capable of supervising threads and coordinators reliably
 
 ## What Ultra Must Feel Like

@@ -82,10 +82,12 @@ Backend:
 - resolve active checkout context
 - route request through `ChatRuntimeAdapter`
 - persist structured action/result messages
+- create milestone checkpoints when applicable
 
 DB:
 
 - `chat_messages`
+- `chat_action_checkpoints`
 
 Store updates:
 
@@ -190,12 +192,15 @@ Backend:
 - create thread snapshot
 - append `thread.created`
 - link source chat to thread
+- attach selected checkpoints
+- attach spec refs and seed refs
 
 DB:
 
 - `threads`
 - `chat_thread_refs`
 - `thread_events`
+- `chat_action_checkpoints`
 
 Store updates:
 

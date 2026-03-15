@@ -41,7 +41,7 @@ Tasks:
 - build browser toolbar
 - add URL navigation flow
 - add persistent browser session/profile bootstrap
-- add bookmark persistence shell
+- add global bookmark persistence shell
 
 Exit criteria:
 
