@@ -11,9 +11,13 @@ import {
   parseIpcResponseEnvelope,
   parseProjectLayoutState,
   parseProjectOpenInput,
+  parseProjectRuntimeHealthSummary,
+  parseProjectRuntimeSnapshot,
   parseProjectSnapshot,
   parseProjectsListResult,
   parseQueryRequest,
+  parseRuntimeComponentSnapshot,
+  parseRuntimeHealthCheckSnapshot,
   parseSystemHelloResult,
   projectLayoutStateSchema,
 } from "./index.js"
@@ -250,6 +254,81 @@ describe("shared contracts", () => {
     })
 
     expect(snapshot.provider).toBe("claude")
+  })
+
+  it("parses runtime snapshots", () => {
+    const runtime = parseProjectRuntimeSnapshot({
+      projectRuntimeId: "project_runtime_123",
+      projectId: "proj_123",
+      coordinatorId: "coord_123",
+      coordinatorInstanceId: "coord_inst_123",
+      status: "idle",
+      startedAt: "2026-03-14T12:00:00Z",
+      lastHeartbeatAt: "2026-03-14T12:05:00Z",
+      restartCount: 1,
+      createdAt: "2026-03-14T12:00:00Z",
+      updatedAt: "2026-03-14T12:05:00Z",
+    })
+    const component = parseRuntimeComponentSnapshot({
+      componentId: "component_123",
+      projectId: "proj_123",
+      componentType: "coordinator",
+      scope: "project",
+      processId: 4242,
+      status: "healthy",
+      startedAt: "2026-03-14T12:00:00Z",
+      lastHeartbeatAt: "2026-03-14T12:05:00Z",
+      restartCount: 0,
+      reason: null,
+      details: {
+        coordinatorInstanceId: "coord_inst_123",
+      },
+      createdAt: "2026-03-14T12:00:00Z",
+      updatedAt: "2026-03-14T12:05:00Z",
+    })
+    const healthCheck = parseRuntimeHealthCheckSnapshot({
+      healthCheckId: "health_123",
+      componentId: "component_123",
+      projectId: "proj_123",
+      status: "healthy",
+      checkedAt: "2026-03-14T12:05:00Z",
+      lastHeartbeatAt: "2026-03-14T12:05:00Z",
+      reason: null,
+      details: {
+        source: "heartbeat",
+      },
+    })
+    const summary = parseProjectRuntimeHealthSummary({
+      projectId: "proj_123",
+      status: "healthy",
+      latestReason: null,
+      components: [component],
+    })
+
+    expect(runtime.status).toBe("idle")
+    expect(component.componentType).toBe("coordinator")
+    expect(healthCheck.details?.source).toBe("heartbeat")
+    expect(summary.components).toHaveLength(1)
+  })
+
+  it("rejects malformed runtime values", () => {
+    expect(() =>
+      parseRuntimeComponentSnapshot({
+        componentId: "component_123",
+        projectId: "proj_123",
+        componentType: "worker",
+        scope: "project",
+        processId: null,
+        status: "healthy",
+        startedAt: null,
+        lastHeartbeatAt: null,
+        restartCount: 0,
+        reason: null,
+        details: null,
+        createdAt: "2026-03-14T12:00:00Z",
+        updatedAt: "2026-03-14T12:00:00Z",
+      }),
+    ).toThrow()
   })
 
   it("accepts the milestone one project layout state", () => {

@@ -4,6 +4,8 @@ import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
 import { ChatService } from "./chats/chat-service.js"
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { ProjectService } from "./projects/project-service.js"
+import { RuntimePersistenceService } from "./runtime/runtime-persistence-service.js"
+import { RuntimeRegistry } from "./runtime/runtime-registry.js"
 import {
   type SocketServerRuntime,
   startSocketServer,
@@ -18,6 +20,7 @@ export function createBackendBanner(): string {
 export type BackendRuntime = {
   socketPath: string | null
   databasePath: string
+  runtimeRegistry: RuntimeRegistry
   stop: () => Promise<void>
 }
 
@@ -29,6 +32,12 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
   console.log(createBackendBanner())
 
   databaseRuntime = bootstrapDatabase()
+  const runtimePersistenceService = new RuntimePersistenceService(
+    databaseRuntime.database,
+  )
+  const runtimeRegistry = new RuntimeRegistry(runtimePersistenceService)
+
+  runtimeRegistry.hydrate()
 
   console.log(
     `[backend] database ready at ${databaseRuntime.databasePath} (${databaseRuntime.migrationResult.appliedMigrationIds.length} migrations applied)`,
@@ -49,6 +58,7 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
   return {
     socketPath,
     databasePath: databaseRuntime.databasePath,
+    runtimeRegistry,
     stop: async () => {
       await socketRuntime?.close()
       databaseRuntime?.close()

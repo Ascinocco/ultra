@@ -7,6 +7,7 @@
     "prebuild": "pnpm --filter @ultra/shared build",
     "predev": "pnpm --filter @ultra/shared build",
     "pretest": "pnpm --filter @ultra/shared build",
+    "pretypecheck": "pnpm --filter @ultra/shared build",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
