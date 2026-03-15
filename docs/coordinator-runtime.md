@@ -162,6 +162,114 @@ Threads are not the same as coordinator instances.
 
 The coordinator is infrastructure. The thread is the product object.
 
+## Coordinator Command Contract
+
+Ultra should treat the coordinator as a supervised child process with a backend-owned command protocol.
+
+### Transport
+
+For v1, the backend should launch the coordinator process directly and communicate over newline-delimited JSON on the child process stdin/stdout streams.
+
+Why this transport:
+
+- it keeps lifecycle ownership inside the backend supervisor
+- it avoids a second local socket contract between backend and coordinator
+- it makes per-project process startup, shutdown, and restart easier to reason about
+
+The watchdog remains a separate backend-owned helper process. It does not share the coordinator transport.
+
+### Envelope Types
+
+Coordinator traffic should use three envelope kinds:
+
+- `command`
+- `response`
+- `event`
+
+Recommended command envelope:
+
+- `kind`
+- `request_id`
+- `command`
+- `project_id`
+- `thread_id`
+- `payload`
+
+Recommended response envelope:
+
+- `kind`
+- `request_id`
+- `ok`
+- `payload`
+- `error`
+
+Recommended event envelope:
+
+- `kind`
+- `event_type`
+- `coordinator_id`
+- `coordinator_instance_id`
+- `project_id`
+- `thread_id`
+- `occurred_at`
+- `payload`
+
+### Required v1 Commands
+
+The v1 coordinator command surface should be:
+
+- `hello`
+- `ping`
+- `get_runtime_status`
+- `start_thread`
+- `send_thread_message`
+- `retry_thread`
+- `pause_project_runtime`
+- `resume_project_runtime`
+- `shutdown`
+
+`hello` and `ping` exist for capability and liveness checks.
+
+`start_thread` is the required execution entrypoint after Ultra creates the thread record.
+
+`send_thread_message` carries coordinator conversation messages from the thread detail surface.
+
+`retry_thread`, `pause_project_runtime`, and `resume_project_runtime` support the runtime-control paths already defined in the app wiring.
+
+### Required v1 Events
+
+The coordinator should emit enough structured events for Ultra to project thread and runtime state durably:
+
+- `heartbeat`
+- `runtime_status_changed`
+- `thread_execution_state_changed`
+- `thread_blocked`
+- `thread_message_emitted`
+- `thread_review_ready`
+- `thread_agent_started`
+- `thread_agent_progressed`
+- `thread_agent_finished`
+- `thread_agent_failed`
+- `thread_log_chunk`
+- `error`
+
+Ultra should map these into thread snapshots, thread events, thread messages, and runtime health records.
+
+### Persistence Rule
+
+The coordinator must never write directly into Ultra's SQLite database.
+
+Ultra backend remains the only writer for:
+
+- `threads`
+- `thread_events`
+- `thread_messages`
+- `project_runtimes`
+- `runtime_components`
+- `runtime_health_checks`
+
+That keeps recovery, replay, and product-state ownership in one place.
+
 ## Concurrency Model
 
 One project may have many threads.

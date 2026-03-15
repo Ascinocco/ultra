@@ -321,6 +321,32 @@ The editor host should not decide:
 
 Those belong in the backend and app shell layers.
 
+### Locked Embedding Decision
+
+For v1, the embedded editor workbench should be hosted in a dedicated Electron `WebContentsView` owned by `EditorWorkspaceHost`.
+
+That workbench should load the packaged Code-OSS surface and communicate with the Ultra app shell through a narrow `EditorHostAdapter`.
+
+### Required `EditorHostAdapter` Surface
+
+The adapter should support:
+
+- `open_workspace(path)`
+- `open_file(path)`
+- `open_diff(left_path, right_path)`
+- `open_changed_files(paths[])`
+- `create_terminal(cwd, label)`
+- `run_debug(profile_id?)`
+
+The Ultra shell and backend continue to own:
+
+- active target selection
+- runtime file sync
+- review actions
+- thread state transitions
+
+This keeps Code-OSS as a workbench surface, not as the workflow brain of the product.
+
 ## Placeholder Strategy For Editor Embedding
 
 If full Code-OSS embedding is not ready, Milestone 3 can still progress by:

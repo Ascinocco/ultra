@@ -236,6 +236,54 @@ Recommended boundary:
 
 This can be stubbed or simplified at first, but the backend should not embed provider-specific logic directly inside `ChatService`.
 
+## First Runtime Implementation
+
+Milestone 2 should ship one real runtime integration instead of treating `ChatRuntimeAdapter` as a permanent abstraction-only placeholder.
+
+### Locked v1 Decision
+
+The first concrete `ChatRuntimeAdapter` implementations should wrap coding runtimes exposed through local CLI processes rather than calling model APIs directly from the adapter.
+
+The initial runtime set is:
+
+- `codex` CLI
+- `claude code` CLI
+
+These runtimes should be launched and supervised by the backend and communicated with primarily over stdio.
+
+### Runtime Shape
+
+For v1, `ChatRuntimeAdapter` should be a CLI-runtime boundary that:
+
+- launches the selected runtime process
+- sends prompts, approvals, and follow-up messages over stdin/stdout
+- normalizes runtime responses into Ultra transcript messages and action checkpoints
+- captures raw stdio as diagnostics when useful without making raw stdio the product model
+
+### Default Model Choices
+
+Within the Codex runtime path, the default OpenAI model target should be:
+
+- default GPT model: `gpt-5.4`
+
+Additional runtime-specific presets can be offered later, but the default should bias toward the current flagship GPT model.
+
+### Why
+
+- Ultra is intended to wrap established agentic coding CLIs rather than reimplement their execution model directly against vendor APIs
+- stdio is the natural lowest-friction transport for local supervised child-process runtimes
+- this keeps runtime orchestration consistent across Codex and Claude Code
+
+### Thinking / Permissions Mapping
+
+Ultra should still expose per-chat `thinking_level` and `permission_level`, but those map through the selected CLI runtime's native controls and flags.
+
+Rules:
+
+- use runtime-native terminology where the CLI already exposes a clear reasoning/thinking setting
+- do not invent a fake cross-runtime reasoning enum when the underlying runtimes differ
+- keep `supervised` and `full_access` as Ultra-owned safety modes, enforced by Ultra's runtime launch and approval policy
+
 ## Approval Architecture
 
 Plan and spec approvals in chat should be modeled explicitly, not inferred from raw message text alone.

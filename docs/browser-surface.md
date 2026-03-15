@@ -174,6 +174,19 @@ Use a backend-controlled browser automation layer, likely Playwright-backed.
 
 The product should not depend on exposing the manual browser to agents.
 
+### Locked v1 Isolation Decision
+
+For v1, the automation browser should be implemented as a backend-owned Playwright service.
+
+Isolation rules:
+
+- each thread QA run gets its own isolated browser context and profile directory
+- automation cookies, storage, and credentials never reuse the manual browser partition
+- successful runs may clean up after artifact extraction
+- failed runs may be retained temporarily for debugging until retention policy prunes them
+
+The manual browser remains the only browser surface backed by the persistent `persist:manual-browser` profile.
+
 ## Thread Integration
 
 Threads should be able to expose browser-related actions such as:

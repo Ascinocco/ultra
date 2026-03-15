@@ -337,3 +337,4 @@ If embedding choices are unstable, this milestone can expand unexpectedly.
 6. The manual browser uses an Electron `WebContentsView` backed by one persistent session partition
 7. Large artifact bundles spill to file-backed staged storage before being attached as artifact references
 8. Bookmarks are global-only in v1 and persist against the single manual browser profile
+9. The automation browser is a backend-owned Playwright service that launches a separate thread-scoped browser context with its own isolated profile directory and never reuses the manual browser partition

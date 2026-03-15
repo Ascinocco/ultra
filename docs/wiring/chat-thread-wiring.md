@@ -81,6 +81,7 @@ Backend:
 
 - resolve active checkout context
 - route request through `ChatRuntimeAdapter`
+- if needed, launch or reuse the selected CLI runtime process and communicate over stdio
 - persist structured action/result messages
 - create milestone checkpoints when applicable
 

@@ -132,6 +132,57 @@ Publish failures should be first-class states, not generic task failures.
 - keep thread state coherent
 - allow retry path
 
+## GitHub Credential Onboarding
+
+Milestone 6 should keep GitHub auth simple and local-first.
+
+### Locked v1 Decision
+
+Ultra should use a user-supplied GitHub personal access token for v1 publish operations.
+
+The onboarding flow should be:
+
+1. user triggers `Connect GitHub` from publish settings or the first publish attempt
+2. user pastes a GitHub token into the desktop app
+3. backend validates the token against GitHub before accepting it
+4. backend stores the token in the OS keychain
+5. Ultra stores only non-secret connection metadata in SQLite
+
+### Why This Approach
+
+- it avoids adding OAuth app setup and token-refresh complexity in v1
+- it matches the single-user desktop product model
+- it keeps secrets out of project settings and the local SQLite database
+
+### Storage Rule
+
+The token must never be stored in:
+
+- `project_settings`
+- `threads`
+- any local config file
+- SQLite
+
+Only these values may persist outside the keychain:
+
+- connected GitHub login
+- repository owner/name binding where useful
+- last validation time
+- connection error state
+
+### Connection States
+
+The publish flow should surface at least:
+
+- `not_connected`
+- `connected`
+- `token_invalid`
+- `insufficient_scope`
+
+There is no token refresh flow in v1.
+
+Replacing the stored token is the reconnect path.
+
 ## Event Architecture
 
 Milestone 6 should implement and rely on:
