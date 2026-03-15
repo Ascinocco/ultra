@@ -11,17 +11,22 @@ body {
   background: var(--shell-bg-accent);
   color: var(--text-primary);
   font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
 }
 
 button {
   font: inherit;
 }
 
+/* ── App Shell ─────────────────────────────────────────────── */
+
 .app-shell {
   min-height: 100vh;
-  padding: 24px;
+  padding: 16px 20px 20px;
   display: grid;
-  gap: 20px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
   box-sizing: border-box;
 }
 
@@ -29,59 +34,35 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 18px;
+  gap: 16px;
 }
 
 .app-shell__nav-wrap {
   display: grid;
   justify-items: center;
-  gap: 10px;
-}
-
-.app-shell__brand {
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-muted);
 }
 
 .app-shell__body {
   display: grid;
 }
 
-.project-frame,
-.runtime-indicator,
-.surface,
-.top-nav {
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(18px);
-}
-
-.surface,
-.top-nav {
-  border: 1px solid var(--surface-border);
-}
-
-.project-frame,
-.runtime-indicator {
-  min-height: 88px;
-  padding: 16px 18px;
-  background: transparent;
-  border-radius: var(--radius-lg);
-  box-sizing: border-box;
-}
+/* ── Project Frame ─────────────────────────────────────────── */
 
 .project-frame {
   display: grid;
-  gap: 6px;
+  gap: 2px;
   justify-self: start;
-  min-width: 280px;
+  min-width: 200px;
+  padding: 6px 12px;
+  background: transparent;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
 }
 
 .project-frame__eyebrow,
 .surface__eyebrow {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -89,27 +70,39 @@ button {
 
 .project-frame__identity {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
-.project-frame__identity strong,
+.project-frame__identity strong {
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
 .surface__title {
   font-size: 1.05rem;
-  line-height: 1.1;
+  line-height: 1.3;
 }
 
-.project-frame__identity span,
+.project-frame__identity span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .placeholder-card p {
   color: var(--text-secondary);
 }
+
+/* ── Top Nav ───────────────────────────────────────────────── */
 
 .top-nav {
   display: inline-grid;
   grid-auto-flow: column;
   gap: 4px;
-  padding: 4px;
+  padding: 5px;
   border-radius: 999px;
-  background: rgba(14, 18, 24, 0.98);
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--shadow-md);
 }
 
 .top-nav__pill {
@@ -118,7 +111,7 @@ button {
   border-radius: 999px;
   background: transparent;
   color: var(--text-secondary);
-  padding: 7px 12px;
+  padding: 8px 16px;
   font-size: 0.9rem;
   cursor: pointer;
   transition:
@@ -128,26 +121,32 @@ button {
 }
 
 .top-nav__pill:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
 }
 
 .top-nav__pill--active {
   background: var(--accent-surface);
   color: var(--accent-strong);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(91, 141, 239, 0.22);
 }
+
+/* ── Runtime Indicator ─────────────────────────────────────── */
 
 .runtime-indicator {
   justify-self: end;
   display: grid;
   align-content: center;
-  gap: 8px;
-  min-width: 220px;
+  gap: 4px;
+  min-width: 180px;
+  padding: 6px 12px;
+  background: transparent;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
 }
 
 .runtime-indicator__label {
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -156,11 +155,12 @@ button {
 .runtime-indicator__pill {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   width: fit-content;
   border-radius: 999px;
-  padding: 9px 13px;
+  padding: 7px 12px;
   font-weight: 600;
+  font-size: 0.88rem;
 }
 
 .runtime-indicator__pill--good {
@@ -179,7 +179,7 @@ button {
 }
 
 .runtime-indicator__pill--idle {
-  background: rgba(148, 163, 184, 0.12);
+  background: rgba(107, 122, 148, 0.1);
   color: var(--idle);
 }
 
@@ -193,17 +193,21 @@ button {
 .runtime-indicator__detail {
   color: var(--text-secondary);
   font-size: 0.88rem;
-  line-height: 1.35;
+  line-height: 1.45;
   max-width: 28ch;
 }
 
+/* ── Page Shells ───────────────────────────────────────────── */
+
 .page-shell {
-  min-height: calc(100vh - 156px);
+  min-height: calc(100vh - 90px);
 }
 
 .page-shell--hidden {
   display: none;
 }
+
+/* ── Layout Grids ──────────────────────────────────────────── */
 
 .chat-layout,
 .editor-layout,
@@ -214,24 +218,24 @@ button {
 .chat-layout {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  gap: 18px;
+  gap: 20px;
 }
 
 .chat-layout__main {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.95fr);
-  gap: 18px;
+  gap: 20px;
 }
 
 .chat-layout__side {
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .editor-layout,
 .browser-layout {
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .editor-layout {
@@ -242,15 +246,22 @@ button {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+/* ── Surfaces ──────────────────────────────────────────────── */
+
 .surface {
   background: var(--surface-2);
   border-radius: var(--radius-xl);
-  padding: 18px;
+  border: 1px solid var(--surface-border);
+  padding: 20px;
   box-sizing: border-box;
+  box-shadow: var(--shadow-md);
 }
 
 .surface--rail {
-  background: rgba(10, 13, 18, 0.98);
+  background:
+    radial-gradient(ellipse at top left, rgba(70, 90, 160, 0.12), transparent 60%),
+    radial-gradient(ellipse at bottom, rgba(60, 70, 130, 0.06), transparent 50%),
+    rgba(18, 22, 34, 0.96);
 }
 
 .surface--toolbar {
@@ -281,19 +292,21 @@ button {
   align-items: center;
   padding: 8px 12px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-secondary);
   font-size: 0.88rem;
 }
+
+/* ── Placeholder Cards ─────────────────────────────────────── */
 
 .placeholder-card {
   display: grid;
   align-content: start;
   gap: 10px;
   min-height: 180px;
-  padding: 18px;
-  background: rgba(10, 13, 18, 0.9);
-  border: 1px solid rgba(214, 220, 230, 0.12);
+  padding: 20px;
+  background: rgba(14, 17, 26, 0.7);
+  border: 1px solid rgba(148, 163, 200, 0.07);
   border-radius: var(--radius-lg);
 }
 
@@ -315,6 +328,8 @@ button {
 .browser-layout__viewport .placeholder-card {
   min-height: 520px;
 }
+
+/* ── Responsive ────────────────────────────────────────────── */
 
 @media (max-width: 1200px) {
   .app-shell__header {

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "desktop",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ultra/desktop", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@ultra/backend", "dev"],
+      "port": 0
+    }
+  ]
+}

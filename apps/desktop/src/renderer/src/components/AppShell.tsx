@@ -1,5 +1,3 @@
-import { APP_NAME } from "@ultra/shared"
-
 import { BrowserPageShell } from "../pages/BrowserPageShell.js"
 import { ChatPageShell } from "../pages/ChatPageShell.js"
 import { EditorPageShell } from "../pages/EditorPageShell.js"
@@ -17,7 +15,6 @@ export function AppShell() {
       <header className="app-shell__header">
         <ProjectFrame activeProjectId={app.activeProjectId} />
         <div className="app-shell__nav-wrap">
-          <span className="app-shell__brand">{APP_NAME}</span>
           <TopNav currentPage={app.currentPage} onSelectPage={setCurrentPage} />
         </div>
         <RuntimeIndicator
