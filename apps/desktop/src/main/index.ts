@@ -27,6 +27,8 @@ function createMainWindow(): BrowserWindow {
     height: 820,
     minWidth: 1024,
     minHeight: 720,
+    titleBarStyle: "hidden",
+    trafficLightPosition: { x: 16, y: 12 },
     title: buildPlaceholderProjectLabel(APP_NAME),
     webPreferences: {
       preload: join(__dirname, "../preload/index.cjs"),
