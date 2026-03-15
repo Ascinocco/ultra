@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { runMigrations } from "./migrator.js"
+import { DATABASE_MIGRATIONS } from "./migrations.js"
 
 const temporaryDirectories: string[] = []
 
@@ -44,6 +45,7 @@ describe("migration runner", () => {
       "0002_add_layout_pane_tabs",
       "0003_chat_persistence",
       "0004_runtime_registry",
+      "0005_thread_core",
     ])
     expect(rows).toEqual([
       {
@@ -60,6 +62,10 @@ describe("migration runner", () => {
       },
       {
         id: "0004_runtime_registry",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0005_thread_core",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
@@ -98,6 +104,53 @@ describe("migration runner", () => {
 
     expect(migrationRows).toEqual([])
     expect(createdTables).toEqual([])
+
+    database.close()
+  })
+
+  it("applies 0005_thread_core on a fresh database", () => {
+    const database = createDatabase()
+    const result = runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+    })
+
+    expect(result.appliedMigrationIds).toContain("0005_thread_core")
+    expect(result.totalMigrationCount).toBe(5)
+
+    // Verify threads table exists with correct columns
+    const threadColumns = database
+      .prepare("PRAGMA table_info(threads)")
+      .all() as Array<{ name: string }>
+    const columnNames = threadColumns.map((c) => c.name)
+
+    expect(columnNames).toContain("id")
+    expect(columnNames).toContain("project_id")
+    expect(columnNames).toContain("source_chat_id")
+    expect(columnNames).toContain("execution_state")
+    expect(columnNames).toContain("worktree_id")
+    expect(columnNames).toContain("last_event_sequence")
+
+    // Verify thread_messages table exists
+    const msgColumns = database
+      .prepare("PRAGMA table_info(thread_messages)")
+      .all() as Array<{ name: string }>
+    expect(msgColumns.map((c) => c.name)).toContain("id")
+    expect(msgColumns.map((c) => c.name)).toContain("thread_id")
+    expect(msgColumns.map((c) => c.name)).toContain("content_json")
+
+    // Verify thread_specs table exists
+    const specColumns = database
+      .prepare("PRAGMA table_info(thread_specs)")
+      .all() as Array<{ name: string }>
+    expect(specColumns.map((c) => c.name)).toContain("thread_id")
+    expect(specColumns.map((c) => c.name)).toContain("spec_path")
+
+    // Verify thread_ticket_refs table exists
+    const ticketColumns = database
+      .prepare("PRAGMA table_info(thread_ticket_refs)")
+      .all() as Array<{ name: string }>
+    expect(ticketColumns.map((c) => c.name)).toContain("thread_id")
+    expect(ticketColumns.map((c) => c.name)).toContain("provider")
 
     database.close()
   })

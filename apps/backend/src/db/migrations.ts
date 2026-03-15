@@ -207,4 +207,111 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON runtime_health_checks(component_id, checked_at DESC);
     `,
   },
+  {
+    id: "0005_thread_core",
+    sql: `
+      CREATE TABLE IF NOT EXISTS threads (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        source_chat_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        summary TEXT,
+        execution_state TEXT NOT NULL,
+        review_state TEXT NOT NULL,
+        publish_state TEXT NOT NULL,
+        backend_health TEXT NOT NULL DEFAULT 'healthy',
+        coordinator_health TEXT NOT NULL DEFAULT 'healthy',
+        watch_health TEXT NOT NULL DEFAULT 'healthy',
+        ov_project_id TEXT,
+        ov_coordinator_id TEXT,
+        ov_thread_key TEXT,
+        worktree_id TEXT,
+        branch_name TEXT,
+        base_branch TEXT,
+        latest_commit_sha TEXT,
+        pr_provider TEXT,
+        pr_number TEXT,
+        pr_url TEXT,
+        last_event_sequence INTEGER NOT NULL DEFAULT 0,
+        restart_count INTEGER NOT NULL DEFAULT 0,
+        failure_reason TEXT,
+        created_by_message_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_activity_at TEXT,
+        approved_at TEXT,
+        completed_at TEXT,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (source_chat_id) REFERENCES chats(id) ON DELETE RESTRICT,
+        FOREIGN KEY (created_by_message_id) REFERENCES chat_messages(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_threads_project_activity
+        ON threads(project_id, last_activity_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_threads_chat_activity
+        ON threads(source_chat_id, last_activity_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_threads_project_execution_state
+        ON threads(project_id, execution_state);
+
+      -- Recreate chat_thread_refs with FK to threads.
+      -- Original from 0003 had no thread FK since threads table didn't exist.
+      -- Must purge orphaned rows before recreation since FKs are enforced in production.
+      ALTER TABLE chat_thread_refs RENAME TO chat_thread_refs_old;
+
+      CREATE TABLE IF NOT EXISTS chat_thread_refs (
+        chat_id TEXT NOT NULL,
+        thread_id TEXT NOT NULL,
+        reference_type TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (chat_id, thread_id),
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+        FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
+      );
+
+      INSERT INTO chat_thread_refs
+        SELECT * FROM chat_thread_refs_old
+        WHERE thread_id IN (SELECT id FROM threads);
+
+      DROP TABLE chat_thread_refs_old;
+
+      CREATE TABLE IF NOT EXISTS thread_specs (
+        thread_id TEXT NOT NULL,
+        spec_path TEXT NOT NULL,
+        spec_slug TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (thread_id, spec_path),
+        FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS thread_ticket_refs (
+        thread_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        external_id TEXT NOT NULL,
+        display_label TEXT NOT NULL,
+        url TEXT,
+        metadata_json TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (thread_id, provider, external_id),
+        FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS thread_messages (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        role TEXT NOT NULL,
+        provider TEXT,
+        model TEXT,
+        message_type TEXT NOT NULL,
+        content_json TEXT NOT NULL,
+        artifact_refs_json TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_thread_messages_thread_created
+        ON thread_messages(thread_id, created_at);
+    `,
+  },
 ]
