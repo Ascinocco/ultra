@@ -105,7 +105,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0004_runtime_registry",
+      "0005_thread_core",
     )
 
     secondRuntime.close()
