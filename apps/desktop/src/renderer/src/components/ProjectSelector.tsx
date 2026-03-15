@@ -1,6 +1,6 @@
+import type { ProjectSnapshot } from "@ultra/shared"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import type { ProjectSnapshot } from "@ultra/shared"
 
 export function ProjectSelector({
   activeProject,
@@ -130,9 +130,7 @@ export function ProjectSelector({
       {/* Active project info */}
       {activeProject ? (
         <div className="project-selector__popover-section">
-          <p className="project-selector__popover-name">
-            {activeProject.name}
-          </p>
+          <p className="project-selector__popover-name">{activeProject.name}</p>
           <p className="project-selector__popover-path">
             {activeProject.rootPath}
           </p>
