@@ -72,6 +72,21 @@ describe("AppShell", () => {
     expect(markup).toContain('data-page="editor"')
     expect(markup).toContain('data-page="browser"')
   })
+
+  it("does not render gradient class names in chat layout", () => {
+    const markup = renderShell()
+    expect(markup).not.toContain("surface--rail")
+  })
+
+  it("wraps the chat layout in a chat-frame container", () => {
+    const markup = renderShell()
+
+    expect(markup).toContain("chat-frame")
+    expect(markup).toContain("chat-frame__grid")
+    expect(markup).toContain("chat-frame__rail")
+    expect(markup).toContain("chat-frame__main")
+    expect(markup).toContain("chat-frame__side")
+  })
 })
 
 describe("app store", () => {

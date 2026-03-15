@@ -8,7 +8,7 @@ body,
 
 body {
   margin: 0;
-  background: var(--shell-bg-accent);
+  background: var(--shell-bg);
   color: var(--text-primary);
   font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   font-size: 15px;
@@ -22,9 +22,8 @@ button {
 /* ── App Shell ─────────────────────────────────────────────── */
 
 .app-shell {
-  min-height: 100vh;
-  padding: 0 20px 20px;
-  padding-top: 60px; /* title bar height (52px) + 8px gap */
+  height: 100vh;
+  padding-top: 52px; /* title bar height */
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   box-sizing: border-box;
@@ -32,6 +31,7 @@ button {
 
 .app-shell__body {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .readiness-gate {
@@ -56,7 +56,6 @@ button {
   width: min(900px, 100%);
   background: var(--surface-2);
   border: 1px solid var(--surface-border);
-  box-shadow: var(--shadow-lg);
   padding: 24px;
   box-sizing: border-box;
 }
@@ -417,7 +416,6 @@ button {
   border-radius: 999px;
   background: var(--surface-2);
   border: 1px solid var(--surface-border);
-  box-shadow: var(--shadow-md);
   -webkit-app-region: no-drag;
 }
 
@@ -450,7 +448,7 @@ button {
 /* ── Page Shells ───────────────────────────────────────────── */
 
 .page-shell {
-  min-height: calc(100vh - 80px); /* 60px top padding + 20px bottom padding */
+  min-height: 0; /* allow grid child to shrink; parent grid stretches it */
 }
 
 .page-shell--hidden {
@@ -459,27 +457,49 @@ button {
 
 /* ── Layout Grids ──────────────────────────────────────────── */
 
-.chat-layout,
+/* ── Chat Frame (connected-panel layout) ─────────────────── */
+
+.chat-frame {
+  background: var(--surface-2);
+  border-top: 1px solid var(--panel-border);
+  overflow: hidden;
+  height: 100%;
+}
+
+.chat-frame__grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) minmax(320px, 0.95fr);
+  height: 100%;
+}
+
+.chat-frame__rail {
+  padding: 20px;
+  border-right: 1px solid var(--panel-border);
+  background: var(--surface-2);
+}
+
+.chat-frame__main {
+  padding: 20px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.chat-frame__side {
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
+.chat-frame__side-top {
+  padding: 20px;
+}
+
+.chat-frame__side-bottom {
+  padding: 20px;
+  border-top: 1px solid var(--panel-border);
+}
+
 .editor-layout,
 .browser-layout {
   min-height: 100%;
-}
-
-.chat-layout {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 20px;
-}
-
-.chat-layout__main {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.95fr);
-  gap: 20px;
-}
-
-.chat-layout__side {
-  display: grid;
-  gap: 20px;
 }
 
 .editor-layout,
@@ -504,18 +524,6 @@ button {
   border: 1px solid var(--surface-border);
   padding: 20px;
   box-sizing: border-box;
-  box-shadow: var(--shadow-md);
-}
-
-.surface--rail {
-  background:
-    radial-gradient(
-      ellipse at top left,
-      rgba(70, 90, 160, 0.12),
-      transparent 60%
-    ),
-    radial-gradient(ellipse at bottom, rgba(60, 70, 130, 0.06), transparent 50%),
-    rgba(18, 22, 34, 0.96);
 }
 
 .surface--toolbar {
@@ -558,10 +566,10 @@ button {
   align-content: start;
   gap: 10px;
   min-height: 180px;
-  padding: 20px;
-  background: rgba(14, 17, 26, 0.7);
-  border: 1px solid rgba(148, 163, 200, 0.07);
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  background: rgba(14, 17, 26, 0.4);
+  border: 1px solid rgba(148, 163, 200, 0.06);
+  border-radius: var(--radius-md);
 }
 
 .placeholder-card--tall {
@@ -596,8 +604,21 @@ button {
     max-width: 120px;
   }
 
-  .chat-layout,
-  .chat-layout__main {
+  .chat-frame__grid {
     grid-template-columns: 1fr;
+  }
+
+  .chat-frame__rail {
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .chat-frame__main {
+    border-right: none;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .chat-frame__side {
+    grid-template-rows: auto auto;
   }
 }

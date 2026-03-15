@@ -5,23 +5,23 @@ export function ChatPageShell({ active }: { active: boolean }) {
       className={`page-shell ${active ? "page-shell--active" : "page-shell--hidden"}`}
       data-page="chat"
     >
-      <div className="chat-layout">
-        <aside className="surface surface--rail">
-          <div className="surface__header">
-            <p className="surface__eyebrow">Chat Rail</p>
-            <h2 className="surface__title">Project chats</h2>
-          </div>
-          <div className="placeholder-card">
-            <strong>No chats yet</strong>
-            <p>
-              This rail will hold pinned, active, and archived chats once chat
-              persistence lands.
-            </p>
-          </div>
-        </aside>
+      <div className="chat-frame">
+        <div className="chat-frame__grid">
+          <aside className="chat-frame__rail">
+            <div className="surface__header">
+              <p className="surface__eyebrow">Chat Rail</p>
+              <h2 className="surface__title">Project chats</h2>
+            </div>
+            <div className="placeholder-card">
+              <strong>No chats yet</strong>
+              <p>
+                This rail will hold pinned, active, and archived chats once chat
+                persistence lands.
+              </p>
+            </div>
+          </aside>
 
-        <div className="chat-layout__main">
-          <section className="surface">
+          <section className="chat-frame__main">
             <div className="surface__header">
               <p className="surface__eyebrow">Active Chat</p>
               <h2 className="surface__title">Command center</h2>
@@ -35,8 +35,8 @@ export function ChatPageShell({ active }: { active: boolean }) {
             </div>
           </section>
 
-          <div className="chat-layout__side">
-            <section className="surface">
+          <div className="chat-frame__side">
+            <section className="chat-frame__side-top">
               <div className="surface__header">
                 <p className="surface__eyebrow">Threads</p>
                 <h2 className="surface__title">Execution pane</h2>
@@ -50,7 +50,7 @@ export function ChatPageShell({ active }: { active: boolean }) {
               </div>
             </section>
 
-            <section className="surface">
+            <section className="chat-frame__side-bottom">
               <div className="surface__header">
                 <p className="surface__eyebrow">Status</p>
                 <h2 className="surface__title">Runtime summary</h2>
