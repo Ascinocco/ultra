@@ -414,7 +414,7 @@ describe("ProjectSelector", () => {
     )
 
     expect(markup).toContain('aria-expanded="false"')
-    expect(markup).toContain('aria-haspopup="true"')
+    expect(markup).toContain('aria-haspopup="menu"')
   })
 })
 

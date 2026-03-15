@@ -98,6 +98,10 @@ export function ProjectSelector({
         event.preventDefault()
         close()
       }
+      if (event.shiftKey && currentIndex === 0) {
+        event.preventDefault()
+        close()
+      }
     }
   }
 
@@ -124,6 +128,7 @@ export function ProjectSelector({
       ref={popoverRef}
       className="project-selector__popover"
       role="menu"
+      aria-labelledby="project-selector-trigger"
       style={getPopoverStyle()}
       onKeyDown={handleKeyNavigation}
     >
@@ -199,12 +204,13 @@ export function ProjectSelector({
     <div className="project-selector">
       <button
         ref={triggerRef}
+        id="project-selector-trigger"
         className="project-selector__trigger"
         data-muted={!canOpenProjects || undefined}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
-        aria-haspopup="true"
+        aria-haspopup="menu"
       >
         <span className="project-selector__trigger-name">{triggerLabel}</span>
         <span aria-hidden="true" className="project-selector__trigger-chevron">

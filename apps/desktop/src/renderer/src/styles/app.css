@@ -190,10 +190,6 @@ button {
   color: var(--text-muted);
 }
 
-.placeholder-card p {
-  color: var(--text-secondary);
-}
-
 /* ── Title Bar ────────────────────────────────────────────── */
 
 .title-bar {
@@ -553,6 +549,7 @@ button {
   margin: 0;
   max-width: 44ch;
   line-height: 1.6;
+  color: var(--text-secondary);
 }
 
 .editor-layout__workspace .placeholder-card,
