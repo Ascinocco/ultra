@@ -123,7 +123,8 @@ export async function hydrateLastProject(
   }
 
   // projects.list returns sorted by lastOpenedAt DESC
-  const lastProject = projects[0]
+  // biome-ignore lint/style/noNonNullAssertion: length checked above
+  const lastProject = projects[0]!
   actions.setActiveProjectId(lastProject.id)
 
   if (capabilities?.supportsLayoutPersistence) {

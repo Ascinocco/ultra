@@ -241,9 +241,7 @@ describe("project workflows", () => {
     const recentProject = makeProject("proj-1", "Alpha")
     const client = {
       query: vi.fn().mockResolvedValueOnce({
-        projects: [
-          { ...recentProject, lastOpenedAt: "2026-03-15T12:00:00Z" },
-        ],
+        projects: [{ ...recentProject, lastOpenedAt: "2026-03-15T12:00:00Z" }],
       }),
       command: vi.fn(),
     }
