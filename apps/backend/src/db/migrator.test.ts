@@ -4,9 +4,7 @@ import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
 import { afterEach, describe, expect, it } from "vitest"
-
 import { runMigrations } from "./migrator.js"
-import { DATABASE_MIGRATIONS } from "./migrations.js"
 
 const temporaryDirectories: string[] = []
 
@@ -151,6 +149,224 @@ describe("migration runner", () => {
       .all() as Array<{ name: string }>
     expect(ticketColumns.map((c) => c.name)).toContain("thread_id")
     expect(ticketColumns.map((c) => c.name)).toContain("provider")
+
+    database.close()
+  })
+})
+
+describe("thread core FK constraints", () => {
+  function createMigratedDatabase(): DatabaseSync {
+    const database = createDatabase()
+    database.exec("PRAGMA foreign_keys = ON")
+    runMigrations(database, {
+      now: () => "2026-03-15T00:00:00.000Z",
+    })
+    return database
+  }
+
+  function insertProject(database: DatabaseSync, id = "proj_1"): void {
+    database
+      .prepare(
+        "INSERT INTO projects (id, project_key, name, root_path, created_at, updated_at, last_opened_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        id,
+        "test-project",
+        "Test",
+        "/tmp/test",
+        "2026-03-15T00:00:00Z",
+        "2026-03-15T00:00:00Z",
+        "2026-03-15T00:00:00Z",
+      )
+  }
+
+  function insertChat(
+    database: DatabaseSync,
+    id = "chat_1",
+    projectId = "proj_1",
+  ): void {
+    database
+      .prepare(
+        "INSERT INTO chats (id, project_id, title, status, provider, model, thinking_level, permission_level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        id,
+        projectId,
+        "Test Chat",
+        "active",
+        "anthropic",
+        "claude-4",
+        "standard",
+        "supervised",
+        "2026-03-15T00:00:00Z",
+        "2026-03-15T00:00:00Z",
+      )
+  }
+
+  function insertThread(
+    database: DatabaseSync,
+    id = "thread_1",
+    projectId = "proj_1",
+    chatId = "chat_1",
+  ): void {
+    database
+      .prepare(
+        "INSERT INTO threads (id, project_id, source_chat_id, title, execution_state, review_state, publish_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        id,
+        projectId,
+        chatId,
+        "Test Thread",
+        "pending",
+        "none",
+        "none",
+        "2026-03-15T00:00:00Z",
+        "2026-03-15T00:00:00Z",
+      )
+  }
+
+  it("rejects a thread with nonexistent project_id", () => {
+    const database = createMigratedDatabase()
+
+    expect(() =>
+      database
+        .prepare(
+          "INSERT INTO threads (id, project_id, source_chat_id, title, execution_state, review_state, publish_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(
+          "thread_1",
+          "nonexistent",
+          "chat_1",
+          "T",
+          "pending",
+          "none",
+          "none",
+          "2026-03-15T00:00:00Z",
+          "2026-03-15T00:00:00Z",
+        ),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("rejects a thread with nonexistent source_chat_id", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+
+    expect(() =>
+      database
+        .prepare(
+          "INSERT INTO threads (id, project_id, source_chat_id, title, execution_state, review_state, publish_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(
+          "thread_1",
+          "proj_1",
+          "nonexistent",
+          "T",
+          "pending",
+          "none",
+          "none",
+          "2026-03-15T00:00:00Z",
+          "2026-03-15T00:00:00Z",
+        ),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("cascades project deletion to threads", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    database.prepare("DELETE FROM projects WHERE id = ?").run("proj_1")
+
+    const threads = database.prepare("SELECT id FROM threads").all() as Array<{
+      id: string
+    }>
+    expect(threads).toEqual([])
+
+    database.close()
+  })
+
+  it("restricts chat deletion when threads reference it", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    expect(() =>
+      database.prepare("DELETE FROM chats WHERE id = ?").run("chat_1"),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("chat_thread_refs rejects nonexistent thread_id", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+
+    expect(() =>
+      database
+        .prepare(
+          "INSERT INTO chat_thread_refs (chat_id, thread_id, reference_type, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .run("chat_1", "nonexistent", "spawned", "2026-03-15T00:00:00Z"),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("chat_thread_refs accepts valid references", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    database
+      .prepare(
+        "INSERT INTO chat_thread_refs (chat_id, thread_id, reference_type, created_at) VALUES (?, ?, ?, ?)",
+      )
+      .run("chat_1", "thread_1", "spawned", "2026-03-15T00:00:00Z")
+
+    const refs = database
+      .prepare("SELECT * FROM chat_thread_refs")
+      .all() as Array<{ chat_id: string; thread_id: string }>
+    expect(refs).toHaveLength(1)
+    expect(refs[0].chat_id).toBe("chat_1")
+    expect(refs[0].thread_id).toBe("thread_1")
+
+    database.close()
+  })
+
+  it("cascades thread deletion to thread_messages", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    database
+      .prepare(
+        "INSERT INTO thread_messages (id, thread_id, role, message_type, content_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "msg_1",
+        "thread_1",
+        "assistant",
+        "text",
+        '{"text":"hello"}',
+        "2026-03-15T00:00:00Z",
+      )
+
+    database.prepare("DELETE FROM projects WHERE id = ?").run("proj_1")
+
+    const messages = database
+      .prepare("SELECT id FROM thread_messages")
+      .all() as Array<{ id: string }>
+    expect(messages).toEqual([])
 
     database.close()
   })
