@@ -14,5 +14,7 @@ describe("makeTerminalSession", () => {
     expect(session.title).toBe("Custom Shell")
     expect(session.status).toBe("running")
     expect(session.recentOutput).toBe("")
+    expect(session.displayName).toBeNull()
+    expect(session.pinned).toBe(false)
   })
 })
