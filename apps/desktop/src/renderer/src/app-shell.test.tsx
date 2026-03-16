@@ -12,7 +12,7 @@ import {
   type ConnectionStatus,
   createAppStore,
 } from "./state/app-store.js"
-import { makeChat, makeProject } from "./test-utils/factories.js"
+import { makeChat, makeProject, makeSandbox } from "./test-utils/factories.js"
 
 function renderShell(options?: {
   currentPage?: "chat" | "editor" | "browser"
@@ -420,6 +420,46 @@ describe("sidebar slice", () => {
 
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe("c2")
+  })
+})
+
+describe("sandbox slice", () => {
+  it("starts with empty sandbox state", () => {
+    const store = createAppStore()
+    const { sandbox } = store.getState()
+
+    expect(sandbox.activeSandbox).toBeNull()
+    expect(sandbox.sandboxes).toEqual([])
+    expect(sandbox.sandboxFetchStatus).toBe("idle")
+  })
+
+  it("setSandboxes stores the sandbox list", () => {
+    const store = createAppStore()
+    const sb = makeSandbox("sb-1", "proj-1", { displayName: "main checkout" })
+
+    store.getState().actions.setSandboxes([sb])
+
+    expect(store.getState().sandbox.sandboxes).toHaveLength(1)
+    expect(store.getState().sandbox.sandboxes[0]?.displayName).toBe("main checkout")
+  })
+
+  it("setActiveSandbox sets the active sandbox", () => {
+    const store = createAppStore()
+    const sb = makeSandbox("sb-1", "proj-1", { displayName: "main checkout" })
+
+    store.getState().actions.setActiveSandbox(sb)
+
+    expect(store.getState().sandbox.activeSandbox?.displayName).toBe("main checkout")
+  })
+
+  it("setSandboxFetchStatus tracks loading state", () => {
+    const store = createAppStore()
+
+    store.getState().actions.setSandboxFetchStatus("loading")
+    expect(store.getState().sandbox.sandboxFetchStatus).toBe("loading")
+
+    store.getState().actions.setSandboxFetchStatus("error")
+    expect(store.getState().sandbox.sandboxFetchStatus).toBe("error")
   })
 })
 

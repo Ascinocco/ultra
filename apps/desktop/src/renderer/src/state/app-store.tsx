@@ -5,6 +5,7 @@ import type {
   EnvironmentReadinessSnapshot,
   ProjectLayoutState,
   ProjectSnapshot,
+  SandboxContextSnapshot,
 } from "@ultra/shared"
 import {
   createContext,
@@ -58,6 +59,12 @@ type SidebarSlice = {
   chatsFetchStatus: Record<string, "idle" | "loading" | "error">
 }
 
+type SandboxSlice = {
+  activeSandbox: SandboxContextSnapshot | null
+  sandboxes: SandboxContextSnapshot[]
+  sandboxFetchStatus: "idle" | "loading" | "error"
+}
+
 type AppActions = {
   setCurrentPage: (page: AppPage) => void
   toggleProjectExpanded: (projectId: string) => void
@@ -86,6 +93,9 @@ type AppActions = {
   resetReadiness: () => void
   setSystemToolsOpen: (open: boolean) => void
   toggleTerminalDrawer: () => void
+  setSandboxes: (sandboxes: SandboxContextSnapshot[]) => void
+  setActiveSandbox: (sandbox: SandboxContextSnapshot | null) => void
+  setSandboxFetchStatus: (status: "idle" | "loading" | "error") => void
 }
 
 export type AppStoreState = {
@@ -94,6 +104,7 @@ export type AppStoreState = {
   projects: ProjectsSlice
   layout: LayoutSlice
   sidebar: SidebarSlice
+  sandbox: SandboxSlice
   actions: AppActions
 }
 
@@ -130,6 +141,12 @@ const defaultSidebarState: SidebarSlice = {
   expandedProjectIds: [],
   chatsByProjectId: {},
   chatsFetchStatus: {},
+}
+
+const defaultSandboxState: SandboxSlice = {
+  activeSandbox: null,
+  sandboxes: [],
+  sandboxFetchStatus: "idle",
 }
 
 const DEFAULT_LAYOUT: ProjectLayoutState = {
@@ -187,6 +204,7 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
     projects: { ...defaultProjectsState },
     layout: { ...defaultLayoutState },
     sidebar: { ...defaultSidebarState },
+    sandbox: { ...defaultSandboxState },
     actions: {
       setCurrentPage: () => undefined,
       toggleProjectExpanded: () => undefined,
@@ -209,6 +227,9 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       resetReadiness: () => undefined,
       setSystemToolsOpen: () => undefined,
       toggleTerminalDrawer: () => undefined,
+      setSandboxes: () => undefined,
+      setActiveSandbox: () => undefined,
+      setSandboxFetchStatus: () => undefined,
     },
   }
 }
@@ -412,6 +433,21 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
         set((state) => ({
           ...state,
           app: { ...state.app, terminalDrawerOpen: !state.app.terminalDrawerOpen },
+        })),
+      setSandboxes: (sandboxes) =>
+        set((state) => ({
+          ...state,
+          sandbox: { ...state.sandbox, sandboxes },
+        })),
+      setActiveSandbox: (sandbox) =>
+        set((state) => ({
+          ...state,
+          sandbox: { ...state.sandbox, activeSandbox: sandbox },
+        })),
+      setSandboxFetchStatus: (status) =>
+        set((state) => ({
+          ...state,
+          sandbox: { ...state.sandbox, sandboxFetchStatus: status },
         })),
     },
   }))
