@@ -4,14 +4,17 @@ import type {
   TerminalRuntimeProfileResult,
   TerminalSessionSnapshot,
 } from "@ultra/shared"
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 
 import {
   runSavedCommandForProject,
-  switchActiveSandbox,
 } from "../projects/project-workflows.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
+
+const DEFAULT_DRAWER_HEIGHT = 200
+const MIN_DRAWER_HEIGHT = 100
+const MAX_DRAWER_HEIGHT_RATIO = 0.8
 
 function formatRuntimeStatus(
   runtimeProfile: TerminalRuntimeProfileResult | null,
@@ -23,140 +26,25 @@ function formatRuntimeStatus(
   return runtimeProfile.sync.status.replace(/_/g, " ")
 }
 
-function formatSandboxLabel(sandbox: SandboxContextSnapshot | null): string {
-  if (!sandbox) {
-    return "No sandbox"
-  }
-
-  return sandbox.displayName
-}
-
-function SandboxSelector({
-  sandboxes,
-  activeSandboxId,
-  onSelect,
-}: {
-  sandboxes: SandboxContextSnapshot[]
-  activeSandboxId: string | null
-  onSelect: (sandboxId: string) => void
-}) {
-  const [isOpen, setIsOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node
-
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(target) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(target)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setIsOpen(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    document.addEventListener("keydown", handleKeyDown)
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-      document.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [isOpen])
-
-  const activeSandbox =
-    sandboxes.find((sandbox) => sandbox.sandboxId === activeSandboxId) ?? null
-
-  return (
-    <div className="workspace-header__sandbox">
-      <button
-        ref={triggerRef}
-        className="workspace-header__control workspace-header__control--selector"
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-      >
-        <span className="workspace-header__control-label">Sandbox</span>
-        <span className="workspace-header__control-value">
-          {formatSandboxLabel(activeSandbox)}
-        </span>
-      </button>
-
-      {isOpen ? (
-        <div ref={popoverRef} className="workspace-header__menu" role="menu">
-          {sandboxes.map((sandbox) => {
-            const isActive = sandbox.sandboxId === activeSandboxId
-
-            return (
-              <button
-                key={sandbox.sandboxId}
-                className={`workspace-header__menu-item ${isActive ? "workspace-header__menu-item--active" : ""}`}
-                role="menuitemradio"
-                aria-checked={isActive}
-                type="button"
-                onClick={() => {
-                  onSelect(sandbox.sandboxId)
-                  setIsOpen(false)
-                }}
-              >
-                <span>{sandbox.displayName}</span>
-                <small>{sandbox.path}</small>
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function RuntimeSyncIndicator({
-  runtimeProfile,
-}: {
-  runtimeProfile: TerminalRuntimeProfileResult | null
-}) {
-  const status = formatRuntimeStatus(runtimeProfile)
-
-  return (
-    <div
-      className="workspace-header__status"
-      data-status={runtimeProfile?.sync.status ?? "unknown"}
-    >
-      <span className="workspace-header__status-label">Runtime</span>
-      <strong className="workspace-header__status-value">{status}</strong>
-    </div>
-  )
-}
-
 function TerminalDrawer({
-  open,
+  height,
   activeSandbox,
   runtimeProfile,
   sessions,
   focusedSessionId,
   savedCommands,
+  onResize,
   onClose,
   onFocusSession,
   onRunSavedCommand,
 }: {
-  open: boolean
+  height: number
   activeSandbox: SandboxContextSnapshot | null
   runtimeProfile: TerminalRuntimeProfileResult | null
   sessions: TerminalSessionSnapshot[]
   focusedSessionId: string | null
   savedCommands: SavedCommandSnapshot[]
+  onResize: (height: number) => void
   onClose: () => void
   onFocusSession: (sessionId: string) => void
   onRunSavedCommand: (commandId: SavedCommandSnapshot["commandId"]) => void
@@ -166,100 +54,98 @@ function TerminalDrawer({
     sessions[0] ??
     null
 
+  function handlePointerDown(e: React.PointerEvent) {
+    e.preventDefault()
+    const startY = e.clientY
+    const startHeight = height
+
+    function onPointerMove(moveEvent: PointerEvent) {
+      const delta = startY - moveEvent.clientY
+      const newHeight = Math.max(MIN_DRAWER_HEIGHT, startHeight + delta)
+      onResize(newHeight)
+    }
+
+    function onPointerUp() {
+      document.removeEventListener("pointermove", onPointerMove)
+      document.removeEventListener("pointerup", onPointerUp)
+    }
+
+    document.addEventListener("pointermove", onPointerMove)
+    document.addEventListener("pointerup", onPointerUp)
+  }
+
   return (
-    <section
-      className={`terminal-drawer ${open ? "terminal-drawer--open" : "terminal-drawer--closed"}`}
-    >
+    <div className="terminal-drawer" style={{ height: `${height}px` }}>
+      <div
+        className="terminal-drawer__drag-handle"
+        onPointerDown={handlePointerDown}
+      />
       <div className="terminal-drawer__header">
-        <div>
-          <p className="surface__eyebrow">Terminal</p>
-          <h2 className="surface__title">
-            {activeSandbox ? activeSandbox.displayName : "No active sandbox"}
-          </h2>
-        </div>
-        <div className="terminal-drawer__meta">
-          <RuntimeSyncIndicator runtimeProfile={runtimeProfile} />
+        <span className="terminal-drawer__title">
+          Terminal{activeSandbox ? ` · ${activeSandbox.displayName}` : ""}
+        </span>
+        <span
+          className="terminal-drawer__sync-status"
+          data-status={runtimeProfile?.sync.status ?? "unknown"}
+        >
+          {formatRuntimeStatus(runtimeProfile)}
+        </span>
+        <div className="terminal-drawer__header-actions">
+          {savedCommands.map((command) => (
+            <button
+              key={command.commandId}
+              className="terminal-drawer__command"
+              type="button"
+              disabled={!command.isAvailable}
+              onClick={() => onRunSavedCommand(command.commandId)}
+            >
+              {command.label}
+            </button>
+          ))}
           <button
-            className="terminal-drawer__toggle"
+            className="terminal-drawer__close"
             type="button"
             onClick={onClose}
+            aria-label="Close terminal"
           >
-            {open ? "Hide Drawer" : "Show Drawer"}
+            ×
           </button>
         </div>
       </div>
-
-      {open ? (
-        <div className="terminal-drawer__body">
-          <div className="terminal-drawer__commands">
-            {savedCommands.length === 0 ? (
-              <span className="terminal-drawer__empty-copy">
-                No saved commands available
-              </span>
-            ) : (
-              savedCommands.map((command) => (
-                <button
-                  key={command.commandId}
-                  className="terminal-drawer__command"
-                  type="button"
-                  disabled={!command.isAvailable}
-                  onClick={() => onRunSavedCommand(command.commandId)}
-                >
-                  {command.label}
-                </button>
-              ))
-            )}
+      <div className="terminal-drawer__content">
+        {sessions.length > 1 && (
+          <div className="terminal-drawer__tabs" role="tablist">
+            {sessions.map((session) => (
+              <button
+                key={session.sessionId}
+                className={`terminal-drawer__tab ${session.sessionId === focusedSession?.sessionId ? "terminal-drawer__tab--active" : ""}`}
+                type="button"
+                role="tab"
+                aria-selected={
+                  session.sessionId === focusedSession?.sessionId
+                }
+                onClick={() => onFocusSession(session.sessionId)}
+              >
+                {session.title}
+                <small>{session.status}</small>
+              </button>
+            ))}
           </div>
-
-          <div className="terminal-drawer__sessions">
-            <div className="terminal-drawer__tabs" role="tablist">
-              {sessions.length === 0 ? (
-                <span className="terminal-drawer__empty-copy">
-                  No terminal sessions yet
-                </span>
-              ) : (
-                sessions.map((session) => (
-                  <button
-                    key={session.sessionId}
-                    className={`terminal-drawer__tab ${session.sessionId === focusedSession?.sessionId ? "terminal-drawer__tab--active" : ""}`}
-                    type="button"
-                    onClick={() => onFocusSession(session.sessionId)}
-                  >
-                    <span>{session.title}</span>
-                    <small>{session.status}</small>
-                  </button>
-                ))
-              )}
-            </div>
-
-            <div className="terminal-drawer__panel">
-              {focusedSession ? (
-                <>
-                  <div className="terminal-drawer__session-meta">
-                    <strong>
-                      {focusedSession.commandLabel ?? focusedSession.title}
-                    </strong>
-                    <span>{focusedSession.commandLine}</span>
-                  </div>
-                  <pre className="terminal-drawer__output">
-                    {focusedSession.recentOutput ||
-                      "Session output will appear here once activity is available."}
-                  </pre>
-                </>
-              ) : (
-                <div className="terminal-drawer__empty-state">
-                  <strong>Ready to test in the active sandbox</strong>
-                  <p>
-                    Use a saved command or the upcoming Open Terminal flow to
-                    start a session in this project context.
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
+        )}
+        <div className="terminal-drawer__panel">
+          {focusedSession ? (
+            <pre className="terminal-drawer__output">
+              {focusedSession.recentOutput ||
+                "Session output will appear here once activity is available."}
+            </pre>
+          ) : (
+            <p className="terminal-drawer__placeholder">
+              Terminal sessions will appear here
+            </p>
+          )}
         </div>
-      ) : null}
-    </section>
+      </div>
+    </div>
   )
 }
 
@@ -276,6 +162,9 @@ export function ChatPageShell({
   const layout = useAppStore((state) => state.layout)
   const actions = useAppStore((state) => state.actions)
 
+  const chatFrameRef = useRef<HTMLDivElement>(null)
+  const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
+
   const activeProject = activeProjectId
     ? (projects.byId[activeProjectId] ?? null)
     : null
@@ -288,13 +177,6 @@ export function ChatPageShell({
           (chat) => chat.id === activeChatId,
         ) ?? null)
       : null
-  const projectSandboxes = activeProjectId
-    ? (sandboxes.idsByProjectId[activeProjectId] ?? [])
-        .map((sandboxId) => sandboxes.byId[sandboxId])
-        .filter((sandbox): sandbox is SandboxContextSnapshot =>
-          Boolean(sandbox),
-        )
-    : []
   const activeSandboxId = activeProjectId
     ? (sandboxes.activeByProjectId[activeProjectId] ?? null)
     : null
@@ -317,15 +199,16 @@ export function ChatPageShell({
     ? (terminal.drawerOpenByProjectId[activeProjectId] ?? false)
     : false
 
-  function handleSelectSandbox(sandboxId: string) {
-    if (!activeProjectId) {
-      return
-    }
-
-    void switchActiveSandbox(activeProjectId, sandboxId, actions)
+  function handleResize(height: number) {
+    const maxHeight = chatFrameRef.current
+      ? chatFrameRef.current.clientHeight * MAX_DRAWER_HEIGHT_RATIO
+      : 600
+    setDrawerHeight(Math.min(Math.max(height, MIN_DRAWER_HEIGHT), maxHeight))
   }
 
-  function handleRunSavedCommand(commandId: SavedCommandSnapshot["commandId"]) {
+  function handleRunSavedCommand(
+    commandId: SavedCommandSnapshot["commandId"],
+  ) {
     if (!activeProjectId) {
       return
     }
@@ -334,54 +217,15 @@ export function ChatPageShell({
   }
 
   return (
-    <section className="chat-workspace" data-page="chat">
-      <header className="workspace-header">
-        <div className="workspace-header__identity">
-          <p className="surface__eyebrow">Project</p>
-          <h1 className="workspace-header__title">
-            {activeProject ? activeProject.name : "Open a project"}
-          </h1>
-          <p className="workspace-header__path">
-            {activeProject?.rootPath ??
-              "Choose a project to enter the chat-first workspace."}
-          </p>
-        </div>
-
-        <div className="workspace-header__controls">
-          <SandboxSelector
-            sandboxes={projectSandboxes}
-            activeSandboxId={activeSandboxId}
-            onSelect={handleSelectSandbox}
-          />
-          <RuntimeSyncIndicator runtimeProfile={runtimeProfile} />
-          <button
-            className="workspace-header__button"
-            type="button"
-            disabled={!activeProjectId}
-            onClick={() => {
-              if (activeProjectId) {
-                actions.setTerminalDrawerOpen(activeProjectId, true)
-              }
-            }}
-          >
-            Open Terminal
-          </button>
-          <button
-            className="workspace-header__button workspace-header__button--ghost"
-            type="button"
-            onClick={() => actions.setSystemToolsOpen(true)}
-          >
-            System &amp; Tools
-          </button>
-        </div>
-      </header>
-
-      <div className="chat-workspace__body">
-        <aside className="chat-workspace__sidebar">
+    <div className="chat-frame" ref={chatFrameRef} data-page="chat">
+      <div
+        className={`chat-frame__grid ${drawerOpen ? "chat-frame__grid--drawer-open" : ""}`}
+      >
+        <aside className="chat-frame__rail">
           <Sidebar onOpenProject={onOpenProject} />
         </aside>
 
-        <section className="chat-workspace__main">
+        <section className="chat-frame__main">
           <div className="surface__header">
             <p className="surface__eyebrow">Active Chat</p>
             <h2 className="surface__title">
@@ -401,8 +245,8 @@ export function ChatPageShell({
           </div>
         </section>
 
-        <aside className="chat-workspace__thread-pane">
-          <section className="chat-workspace__thread-surface">
+        <div className="chat-frame__side">
+          <section className="chat-frame__side-top">
             <div className="surface__header">
               <p className="surface__eyebrow">Threads</p>
               <h2 className="surface__title">Execution pane</h2>
@@ -415,28 +259,44 @@ export function ChatPageShell({
               </p>
             </div>
           </section>
-        </aside>
-      </div>
+          <section className="chat-frame__side-bottom">
+            <div className="surface__header">
+              <p className="surface__eyebrow">Status</p>
+              <h2 className="surface__title">Runtime summary</h2>
+            </div>
+            <div className="placeholder-card">
+              <strong>Runtime health stays visible</strong>
+              <p>
+                This region will hold coordinator, watchdog, and approval state
+                without turning the page into an ops console.
+              </p>
+            </div>
+          </section>
+        </div>
 
-      <TerminalDrawer
-        open={drawerOpen}
-        activeSandbox={activeSandbox}
-        runtimeProfile={runtimeProfile}
-        sessions={terminalSessions}
-        focusedSessionId={focusedSessionId}
-        savedCommands={savedCommands}
-        onClose={() => {
-          if (activeProjectId) {
-            actions.setTerminalDrawerOpen(activeProjectId, false)
-          }
-        }}
-        onFocusSession={(sessionId) => {
-          if (activeProjectId) {
-            actions.setFocusedTerminalSession(activeProjectId, sessionId)
-          }
-        }}
-        onRunSavedCommand={handleRunSavedCommand}
-      />
-    </section>
+        {drawerOpen && (
+          <TerminalDrawer
+            height={drawerHeight}
+            activeSandbox={activeSandbox}
+            runtimeProfile={runtimeProfile}
+            sessions={terminalSessions}
+            focusedSessionId={focusedSessionId}
+            savedCommands={savedCommands}
+            onResize={handleResize}
+            onClose={() => {
+              if (activeProjectId) {
+                actions.setTerminalDrawerOpen(activeProjectId, false)
+              }
+            }}
+            onFocusSession={(sessionId) => {
+              if (activeProjectId) {
+                actions.setFocusedTerminalSession(activeProjectId, sessionId)
+              }
+            }}
+            onRunSavedCommand={handleRunSavedCommand}
+          />
+        )}
+      </div>
+    </div>
   )
 }

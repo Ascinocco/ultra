@@ -45,24 +45,23 @@ describe("AppShell", () => {
 
     expect(markup).toContain('data-page="chat"')
     expect(markup).toContain("Open Project")
-    expect(markup).toContain("Open Terminal")
-    expect(markup).toContain("System &amp; Tools")
   })
 
-  it("renders the title bar", () => {
+  it("renders the title bar with terminal toggle and sandbox selector", () => {
     const markup = renderShell()
 
     expect(markup).toContain("title-bar")
+    expect(markup).toContain("title-bar__terminal-toggle")
+    expect(markup).toContain("sandbox-selector")
   })
 
-  it("renders the sidebar, main pane, thread pane, and drawer shell", () => {
+  it("renders the connected-panel chat frame with sidebar, main, and side panes", () => {
     const markup = renderShell()
 
-    expect(markup).toContain("chat-workspace")
-    expect(markup).toContain("chat-workspace__sidebar")
-    expect(markup).toContain("chat-workspace__main")
-    expect(markup).toContain("chat-workspace__thread-pane")
-    expect(markup).toContain("terminal-drawer")
+    expect(markup).toContain("chat-frame")
+    expect(markup).toContain("chat-frame__rail")
+    expect(markup).toContain("chat-frame__main")
+    expect(markup).toContain("chat-frame__side")
   })
 })
 
