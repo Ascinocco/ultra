@@ -1,13 +1,14 @@
 import type { ChatSummary } from "@ultra/shared"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { switchActiveProject } from "../projects/project-workflows.js"
 import { useAppStore } from "../state/app-store.js"
 import { ChatContextMenu, type ContextMenuState } from "./ChatContextMenu.js"
-import { ChatRow } from "./ChatRow.js"
+import { ProjectGroup } from "./ProjectGroup.js"
 import {
   archiveChat,
   createChat,
+  loadChatsForProject,
   pinChat,
   renameChat,
   unpinChat,
@@ -22,29 +23,23 @@ export function Sidebar({ onOpenProject }: { onOpenProject: () => void }) {
   const actions = useAppStore((s) => s.actions)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
+  const prevActiveProjectRef = useRef<string | null>(null)
+
+  // Auto-expand the active project when it first becomes active
+  useEffect(() => {
+    if (
+      activeProjectId &&
+      activeProjectId !== prevActiveProjectRef.current &&
+      !sidebar.expandedProjectIds.includes(activeProjectId)
+    ) {
+      actions.toggleProjectExpanded(activeProjectId)
+    }
+    prevActiveProjectRef.current = activeProjectId
+  }, [activeProjectId, actions, sidebar.expandedProjectIds])
 
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
     : null
-
-  const activeProject = activeProjectId
-    ? (projects.byId[activeProjectId] ?? null)
-    : null
-  const activeChats = activeProjectId
-    ? [...(sidebar.chatsByProjectId[activeProjectId] ?? [])].sort((a, b) => {
-        if (a.isPinned && !b.isPinned) return -1
-        if (!a.isPinned && b.isPinned) return 1
-        return b.updatedAt.localeCompare(a.updatedAt)
-      })
-    : []
-
-  function handleSelectProject(projectId: string) {
-    if (projectId === activeProjectId) {
-      return
-    }
-
-    void switchActiveProject(projectId, actions, capabilities)
-  }
 
   function handleSelectChat(chatId: string, projectId: string) {
     if (projectId !== activeProjectId) {
@@ -82,73 +77,55 @@ export function Sidebar({ onOpenProject }: { onOpenProject: () => void }) {
     void archiveChat(chat.id, chat.projectId, actions)
   }
 
+  function handleToggleExpand(projectId: string) {
+    actions.toggleProjectExpanded(projectId)
+
+    // Auto-switch active project when expanding
+    if (projectId !== activeProjectId) {
+      void switchActiveProject(projectId, actions, capabilities)
+    }
+  }
+
   return (
     <div className="sidebar">
       <div className="sidebar__body">
-        <p className="sidebar__section-label">Projects</p>
-        {projects.allIds.map((projectId) => {
-          const project = projects.byId[projectId]
-          if (!project) return null
-          const isActive = projectId === activeProjectId
+        <p className="sidebar__section-label">Chats</p>
 
-          return (
-            <button
-              key={projectId}
-              className={`sidebar__project-button ${isActive ? "sidebar__project-button--active" : ""}`}
-              type="button"
-              onClick={() => handleSelectProject(projectId)}
-            >
-              <span className="sidebar__project-name">{project.name}</span>
-              <span className="sidebar__project-path">{project.rootPath}</span>
-            </button>
-          )
-        })}
+        {projects.allIds.length === 0 ? (
+          <p className="sidebar__status-copy">
+            Open a project to get started.
+          </p>
+        ) : (
+          projects.allIds.map((projectId) => {
+            const project = projects.byId[projectId]
+            if (!project) return null
 
-        <div className="sidebar__chats-panel">
-          <div className="sidebar__chats-header">
-            <div>
-              <p className="sidebar__section-label">Chats</p>
-              <p className="sidebar__chats-title">
-                {activeProject ? activeProject.name : "No active project"}
-              </p>
-            </div>
-            {activeProject ? (
-              <button
-                className="sidebar__new-chat"
-                type="button"
-                onClick={() => handleNewChat(activeProject.id)}
-              >
-                New Chat
-              </button>
-            ) : null}
-          </div>
+            const isExpanded =
+              sidebar.expandedProjectIds.includes(projectId)
 
-          {!activeProjectId ? (
-            <p className="sidebar__status-copy">
-              Open a project to load its chats.
-            </p>
-          ) : sidebar.chatsFetchStatus[activeProjectId] === "loading" ? (
-            <p className="sidebar__status-copy">Loading chats…</p>
-          ) : sidebar.chatsFetchStatus[activeProjectId] === "error" ? (
-            <p className="sidebar__status-copy">
-              Failed to load chats for this project.
-            </p>
-          ) : activeChats.length === 0 ? (
-            <p className="sidebar__status-copy">No chats yet</p>
-          ) : (
-            <div className="sidebar__chat-list">
-              {activeChats.map((chat) => (
-                <ChatRow
-                  key={chat.id}
-                  chat={chat}
-                  isActive={chat.id === activeChatId}
-                  onSelect={() => handleSelectChat(chat.id, chat.projectId)}
-                  onContextMenu={(event) => handleChatContextMenu(event, chat)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+            return (
+              <ProjectGroup
+                key={projectId}
+                project={project}
+                isExpanded={isExpanded}
+                chats={sidebar.chatsByProjectId[projectId] ?? []}
+                fetchStatus={sidebar.chatsFetchStatus[projectId]}
+                activeChatId={
+                  projectId === activeProjectId ? activeChatId : null
+                }
+                onToggleExpand={() => handleToggleExpand(projectId)}
+                onSelectChat={(chatId) =>
+                  handleSelectChat(chatId, projectId)
+                }
+                onChatContextMenu={handleChatContextMenu}
+                onRetryFetch={() =>
+                  void loadChatsForProject(projectId, actions)
+                }
+                onNewChat={() => handleNewChat(projectId)}
+              />
+            )
+          })
+        )}
       </div>
 
       <div className="sidebar__footer">
