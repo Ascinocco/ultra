@@ -244,10 +244,12 @@ Target layout — one outer frame, panels share borders:
 ┌──────────┬────────────────┬──────────┐
 │ Rail     │ Active Chat    │ Threads  │
 │ (aside)  │                │          │
-│          │                ├──────────┤
-│          │                │ Status   │
+│          │           ↔    │          │
+│          │        (drag)  │          │
 └──────────┴────────────────┴──────────┘
 ```
+
+**Note (2026-03-16):** The status pane (`chat-frame__side-bottom`) has been removed. The right column is now a single full-height thread pane. A vertical drag handle between chat and thread panes allows resizing. The sidebar is collapsible via a title bar toggle. See layout refinement spec for details.
 
 - [ ] **Step 1: Write failing tests for the new chat frame structure**
 
@@ -303,18 +305,14 @@ Add after the existing `/* ── Layout Grids */` section. Replace the existing
 }
 
 .chat-frame__side {
-  display: grid;
-  grid-template-rows: 1fr auto;
-}
-
-.chat-frame__side-top {
+  display: flex;
+  flex-direction: column;
   padding: 20px;
 }
 
-.chat-frame__side-bottom {
-  padding: 20px;
-  border-top: 1px solid var(--panel-border);
-}
+/* Note (2026-03-16): .chat-frame__side-top and .chat-frame__side-bottom
+   have been removed. The right column is now a single full-height thread pane.
+   See layout refinement spec for the updated structure. */
 ```
 
 Delete the old chat-specific layout rules. **Important:** There is a shared selector on lines 462–466 that combines `.chat-layout` with `.editor-layout` and `.browser-layout`. Only remove `.chat-layout,` from that selector — do NOT delete the entire block or the Editor/Browser min-height breaks.

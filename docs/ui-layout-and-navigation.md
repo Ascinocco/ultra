@@ -25,7 +25,7 @@ The layout should make these truths obvious:
 - projects and chats are the primary planning surface
 - threads are the primary execution surface
 - testing and debugging happens through a sandbox-aware terminal drawer
-- runtime status should be visible through the thread and terminal surfaces without becoming an ops console
+- runtime status should be available via the Settings page without cluttering the core workspace
 
 ## Top-Level Navigation
 
@@ -35,6 +35,7 @@ Ultra v1 should center the product on a single primary workspace:
 
 Supporting destinations can remain lightweight:
 
+- `Settings` (accessible from sidebar footer button; includes runtime status)
 - `System & Tools`
 - external handoff actions such as `Open in Editor`, `Open in GitHub`, or `Open in Browser`
 
@@ -49,8 +50,8 @@ At the top level, Ultra should maintain a consistent app frame with:
 - current project identity
 - active sandbox selector
 - quick terminal action
-- project runtime health indicator
-- settings or system tools entry
+- sidebar toggle (collapse/expand)
+- settings entry (sidebar footer)
 
 ## App Theme Policy
 
@@ -75,11 +76,10 @@ The top bar should feel closer to a command header than a page switcher.
 
 For v1, it should include:
 
+- sidebar toggle button (left, after traffic lights)
 - current project identity
 - active sandbox selector
 - `Open Terminal` action
-- project runtime health
-- entry point to `System & Tools`
 
 ### Rules
 
@@ -87,6 +87,7 @@ For v1, it should include:
 - `Open Terminal` is available from anywhere in the main workspace
 - top bar actions must not hide the current project or sandbox context
 - the top bar should stay compact and mode-like rather than becoming a dense IDE toolbar
+- the sidebar toggle button highlights when the sidebar is collapsed as a visual reminder
 
 ## Chat Workspace
 
@@ -94,9 +95,13 @@ The Chat workspace is the command center.
 
 It should use a 3-region composition:
 
-- left sidebar
+- left sidebar (collapsible)
 - center chat pane
 - right thread pane
+
+The chat and thread panes are resizable via a vertical drag handle between them. Both have a minimum width of 200px.
+
+The sidebar can be collapsed via a toggle button in the title bar or with Cmd+B. When collapsed, the chat and thread panes reclaim the sidebar's space. Sidebar collapse state is persisted per-project.
 
 The terminal lives as a bottom drawer inside the chat workspace rather than as a separate page or bottom-right pane.
 
@@ -157,6 +162,10 @@ Purpose:
 - thread list
 - thread detail
 - execution visibility for the active chat and project
+
+The thread pane occupies the full height of the right column. There is no separate status pane below it — runtime health information is accessible from the Settings page instead.
+
+The boundary between the chat pane and thread pane is a drag handle that allows resizing the split. Both panes have a minimum width of 200px.
 
 Default behavior:
 
@@ -276,5 +285,7 @@ The layout model should preserve:
 - active sandbox
 - terminal drawer open or closed state
 - thread pane collapsed state if collapsible
+- sidebar collapsed state
+- chat/thread pane split ratio
 
-It should not preserve obsolete editor or browser page routing in the v1 direction.
+It should not preserve obsolete editor or browser page routing in the v1 direction. The Settings page is not persisted as a page — the user always restores to their last workspace page on restart.
