@@ -36,6 +36,7 @@ Ultra's v1 product surface is centered on one primary workspace:
 
 Supporting surfaces remain lightweight:
 
+- `Settings` (runtime status and future configuration)
 - `System & Tools`
 - external handoff to the user's preferred editor, GitHub review surface, or browser when needed
 
@@ -148,6 +149,7 @@ The default home of the product is a chat-first command center.
 - chats for the active project
 - pinned or recent chats
 - archived chat access
+- collapsible via title bar toggle button or Cmd+B (state persisted per-project)
 
 #### Main Chat Pane
 
@@ -163,9 +165,10 @@ The default home of the product is a chat-first command center.
 - collapsible thread cards with status, health, and attention state
 - one expanded thread detail at a time
 - expandable thread detail with one primary coordinator conversation
+- full-height thread pane (no status section below)
+- resizable via drag handle between chat and thread panes (200px minimum both sides)
 
-There is no dedicated bottom-right runtime pane in the v1 direction.
-Runtime and execution detail should live inside the thread panel and terminal drawer instead.
+Runtime health information is accessible from the Settings page rather than occupying space in the main workspace.
 
 ### Terminal Workflow
 

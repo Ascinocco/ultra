@@ -41,9 +41,11 @@ Make the top-level Ultra shell usable in narrower desktop windows by moving all 
 grid-template-columns: 1fr auto 1fr
 ```
 
-- **Left column (1fr):** macOS traffic light inset (70px padding-left) + ProjectSelector pill (`justify-self: start`)
+- **Left column (1fr):** macOS traffic light inset (70px padding-left) + sidebar toggle button + ProjectSelector pill (`justify-self: start`)
 - **Center column (auto):** TopNav pills (naturally centered between equal-width flanking columns)
 - **Right column (1fr):** Empty (reserved for future use). Equal `1fr` with left column guarantees true centering.
+
+**Note (2026-03-16):** The sidebar toggle button is added to the left column, positioned between the traffic lights and the ProjectSelector pill. It uses a sidebar panel icon (rectangle with vertical line), highlights with accent border when the sidebar is collapsed, and is hidden at ≤900px (where the sidebar is always hidden). See layout refinement spec for full details.
 
 ### Drag Regions
 
@@ -59,7 +61,7 @@ grid-template-columns: 1fr auto 1fr
 Replaces the `<header className="app-shell__header">` in AppShell.
 
 - Renders in the title bar area with macOS traffic light inset (~70px padding-left)
-- Contains: ProjectSelector (left), TopNav (center), spacer (right)
+- Contains: sidebar toggle + ProjectSelector (left), TopNav (center), spacer (right)
 - All content vertically centered, single row, ~38-40px height
 - Entire area is a drag region except interactive elements
 

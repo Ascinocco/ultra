@@ -96,22 +96,24 @@ Two nullable TEXT columns added to match the full `ProjectLayoutState` contract.
   {
     currentPage: "chat",
     rightTopCollapsed: false,
-    rightBottomCollapsed: false,
     selectedRightPaneTab: null,
-    selectedBottomPaneTab: null,
     activeChatId: null,
     selectedThreadId: null,
-    lastEditorTargetId: null
+    lastEditorTargetId: null,
+    sidebarCollapsed: false,
+    chatThreadSplitRatio: 0.55
   }
   ```
+- **Note (2026-03-16):** `rightBottomCollapsed` and `selectedBottomPaneTab` have been removed from the layout state. The DB columns remain but are no longer read or written. Two new fields added: `sidebarCollapsed` (boolean) and `chatThreadSplitRatio` (number, default 0.55). See layout refinement spec for details.
 - Map snake_case DB columns to camelCase DTO
 - Convert SQLite integer columns (`right_top_collapsed`, `right_bottom_collapsed`) to booleans — SQLite returns `0`/`1`, not `true`/`false`
 
 ### `ProjectService.setLayout(projectId: string, layout: ProjectLayoutState): void`
 
-- `INSERT OR REPLACE INTO project_layout_state` with all 9 columns: `project_id`, `current_page`, `right_top_collapsed`, `right_bottom_collapsed`, `selected_right_pane_tab`, `selected_bottom_pane_tab`, `active_chat_id`, `selected_thread_id`, `last_editor_target_id`, plus `updated_at`
+- `INSERT OR REPLACE INTO project_layout_state` with columns: `project_id`, `current_page`, `right_top_collapsed`, `selected_right_pane_tab`, `active_chat_id`, `selected_thread_id`, `last_editor_target_id`, `sidebar_collapsed`, `chat_thread_split_ratio`, plus `updated_at`
 - Convert boolean fields to integers for SQLite (`true` → `1`, `false` → `0`)
 - Set `updated_at` to current ISO timestamp
+- **Note (2026-03-16):** `right_bottom_collapsed` and `selected_bottom_pane_tab` columns are no longer written. Two new columns added via migration: `sidebar_collapsed INTEGER DEFAULT 0` and `chat_thread_split_ratio REAL DEFAULT 0.55`.
 
 ### Router additions (`router.ts`)
 
