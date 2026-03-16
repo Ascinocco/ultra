@@ -950,6 +950,86 @@ button {
   font-size: 0.82rem;
 }
 
+/* ── Sandbox Selector ────────────────────────────────────── */
+
+.sandbox-selector {
+  position: relative;
+}
+
+.sandbox-selector__pill {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.sandbox-selector__pill:hover {
+  background: rgba(148, 163, 200, 0.08);
+  color: var(--text-primary);
+}
+
+.sandbox-selector__icon,
+.sandbox-selector__chevron {
+  flex-shrink: 0;
+}
+
+.sandbox-selector__label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sandbox-selector__dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 180px;
+  max-width: 280px;
+  padding: 4px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+.sandbox-selector__option {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sandbox-selector__option:hover {
+  background: rgba(148, 163, 200, 0.08);
+  color: var(--text-primary);
+}
+
+.sandbox-selector__option--active {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 /* ── Responsive ────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
