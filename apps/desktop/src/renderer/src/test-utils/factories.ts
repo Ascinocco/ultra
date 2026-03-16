@@ -2,6 +2,7 @@ import type {
   ChatSummary,
   ProjectSnapshot,
   SandboxContextSnapshot,
+  TerminalSessionSnapshot,
 } from "@ultra/shared"
 
 export function makeProject(id: string, name: string): ProjectSnapshot {
@@ -60,6 +61,34 @@ export function makeSandbox(
     createdAt: "2026-03-14T00:00:00Z",
     updatedAt: "2026-03-14T00:00:00Z",
     lastUsedAt: null,
+    ...opts,
+  }
+}
+
+export function makeTerminalSession(
+  sessionId: string,
+  projectId: string,
+  sandboxId: string,
+  opts?: Partial<TerminalSessionSnapshot>,
+): TerminalSessionSnapshot {
+  return {
+    sessionId,
+    projectId,
+    sandboxId,
+    threadId: null,
+    cwd: `/projects/${projectId}`,
+    title: `Shell · ${sessionId}`,
+    sessionKind: "shell",
+    status: "running",
+    commandId: null,
+    commandLabel: null,
+    commandLine: "zsh",
+    exitCode: null,
+    startedAt: "2026-03-14T00:00:00Z",
+    updatedAt: "2026-03-14T00:00:00Z",
+    lastOutputAt: null,
+    lastOutputSequence: 0,
+    recentOutput: "",
     ...opts,
   }
 }
