@@ -54,6 +54,12 @@ Overstory owns:
 - worker fan-out
 - internal task execution semantics
 
+User-facing rule:
+
+- Ultra exposes one coordinator conversation per thread
+- Overstory workers remain an implementation detail unless the user explicitly opens deeper diagnostics
+- the coordinator is the stable execution identity even if worker makeup changes underneath it
+
 ## Project Coordinator Model
 
 Each active project gets one long-lived coordinator process.

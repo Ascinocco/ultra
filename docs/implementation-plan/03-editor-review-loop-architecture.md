@@ -261,7 +261,7 @@ It needs to ensure the terminal surface launches with the correct context and is
 Milestone 3 should implement the core review transitions:
 
 - `awaiting_review` -> `in_review`
-- `in_review` -> `active` on request changes
+- `in_review` -> `running` on request changes
 - `in_review` -> `approved` on approval
 
 The thread remains the durable execution object. Review state should not move into the terminal service.
