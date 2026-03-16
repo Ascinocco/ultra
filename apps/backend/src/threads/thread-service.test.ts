@@ -548,6 +548,121 @@ describe("ThreadService", () => {
     runtime.close()
   })
 
+  it("sendMessage persists a user message and getMessages retrieves it", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:00:00Z",
+    )
+    const threadService = new ThreadService(
+      runtime.database,
+      () => "2026-03-16T00:00:01Z",
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+    const approvals = seedApprovalMessages(chatService, chat.id)
+    const thread = threadService.startThread({
+      chat_id: chat.id,
+      title: "Test thread",
+      summary: null,
+      plan_approval_message_id: approvals.planApproval.id,
+      spec_approval_message_id: approvals.specApproval.id,
+      start_request_message_id: approvals.startRequest.id,
+      spec_refs: [],
+      ticket_refs: [],
+    })
+
+    const sent = threadService.sendMessage({
+      thread_id: thread.thread.id,
+      content: "How is progress?",
+    })
+
+    expect(sent.message.role).toBe("user")
+    expect(sent.message.messageType).toBe("text")
+    expect(sent.message.content.text).toBe("How is progress?")
+    expect(sent.message.threadId).toBe(thread.thread.id)
+
+    const result = threadService.getMessages(thread.thread.id)
+    expect(result.messages).toHaveLength(1)
+    expect(result.messages[0]!.id).toBe(sent.message.id)
+
+    runtime.close()
+  })
+
+  it("getMessages returns messages in chronological order", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:00:00Z",
+    )
+    const threadService = new ThreadService(
+      runtime.database,
+      () => "2026-03-16T00:00:01Z",
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+    const approvals = seedApprovalMessages(chatService, chat.id)
+    const thread = threadService.startThread({
+      chat_id: chat.id,
+      title: "Test thread",
+      summary: null,
+      plan_approval_message_id: approvals.planApproval.id,
+      spec_approval_message_id: approvals.specApproval.id,
+      start_request_message_id: approvals.startRequest.id,
+      spec_refs: [],
+      ticket_refs: [],
+    })
+
+    threadService.sendMessage({
+      thread_id: thread.thread.id,
+      content: "First message",
+    })
+    threadService.sendMessage({
+      thread_id: thread.thread.id,
+      content: "Second message",
+    })
+
+    const result = threadService.getMessages(thread.thread.id)
+    expect(result.messages).toHaveLength(2)
+    expect(result.messages[0]!.content.text).toBe("First message")
+    expect(result.messages[1]!.content.text).toBe("Second message")
+
+    runtime.close()
+  })
+
+  it("getMessages throws for non-existent thread", () => {
+    const { databasePath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const threadService = new ThreadService(
+      runtime.database,
+      () => "2026-03-16T00:00:01Z",
+    )
+    expect(() => threadService.getMessages("nonexistent")).toThrow()
+
+    runtime.close()
+  })
+
+  it("sendMessage throws for non-existent thread", () => {
+    const { databasePath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const threadService = new ThreadService(
+      runtime.database,
+      () => "2026-03-16T00:00:01Z",
+    )
+    expect(() =>
+      threadService.sendMessage({
+        thread_id: "nonexistent",
+        content: "hello",
+      }),
+    ).toThrow()
+
+    runtime.close()
+  })
+
   it("rolls back thread creation if spec inserts fail", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })

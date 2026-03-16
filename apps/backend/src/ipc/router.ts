@@ -44,8 +44,10 @@ import {
   terminalWriteInputInputSchema,
   threadsGetEventsInputSchema,
   threadsGetInputSchema,
+  threadsGetMessagesInputSchema,
   threadsListByChatInputSchema,
   threadsListByProjectInputSchema,
+  threadsSendMessageInputSchema,
 } from "@ultra/shared"
 import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
 import type { ChatService } from "../chats/chat-service.js"
@@ -524,6 +526,26 @@ export async function routeIpcRequest(
         return createSuccessResponse(
           getThreadEventsQuery.request_id,
           services.threadService.getEvents(thread_id, from_sequence),
+        )
+      }
+      case "threads.get_messages": {
+        const getMessagesQuery = assertQueryRequest(request)
+        const { thread_id } = threadsGetMessagesInputSchema.parse(
+          getMessagesQuery.payload,
+        )
+        return createSuccessResponse(
+          getMessagesQuery.request_id,
+          services.threadService.getMessages(thread_id),
+        )
+      }
+      case "threads.send_message": {
+        const sendMessageCommand = assertCommandRequest(request)
+        const sendMessageInput = threadsSendMessageInputSchema.parse(
+          sendMessageCommand.payload,
+        )
+        return createSuccessResponse(
+          sendMessageCommand.request_id,
+          services.threadService.sendMessage(sendMessageInput),
         )
       }
       default:

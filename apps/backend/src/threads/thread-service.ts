@@ -8,13 +8,20 @@ import type {
   ThreadDetailResult,
   ThreadExecutionState,
   ThreadId,
+  ThreadMessageContent,
+  ThreadMessageRole,
+  ThreadMessageSnapshot,
+  ThreadMessageType,
   ThreadPublishState,
   ThreadReviewState,
   ThreadSnapshot,
   ThreadSpecRefInput,
   ThreadSpecRefSnapshot,
   ThreadsGetEventsResult,
+  ThreadsGetMessagesResult,
   ThreadsListResult,
+  ThreadsSendMessageInput,
+  ThreadsSendMessageResult,
   ThreadTicketRefInput,
   ThreadTicketRefSnapshot,
 } from "@ultra/shared"
@@ -164,6 +171,34 @@ function mapThreadTicketRefRow(
     displayLabel: row.display_label,
     url: row.url,
     metadata: parseMetadata(row.metadata_json),
+    createdAt: row.created_at,
+  }
+}
+
+type ThreadMessageRow = {
+  id: string
+  thread_id: string
+  role: string
+  provider: string | null
+  model: string | null
+  message_type: string
+  content_json: string
+  artifact_refs_json: string | null
+  created_at: string
+}
+
+function mapMessageRow(row: ThreadMessageRow): ThreadMessageSnapshot {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    role: row.role as ThreadMessageRole,
+    provider: row.provider,
+    model: row.model,
+    messageType: row.message_type as ThreadMessageType,
+    content: JSON.parse(row.content_json) as ThreadMessageContent,
+    artifactRefs: row.artifact_refs_json
+      ? (JSON.parse(row.artifact_refs_json) as string[])
+      : [],
     createdAt: row.created_at,
   }
 }
@@ -425,6 +460,64 @@ export class ThreadService {
   getEvents(threadId: ThreadId, fromSequence?: number): ThreadsGetEventsResult {
     return {
       events: this.eventService.listEvents(threadId, fromSequence),
+    }
+  }
+
+  getMessages(threadId: ThreadId): ThreadsGetMessagesResult {
+    // Validates thread exists (throws IpcProtocolError if not found)
+    this.getThreadSnapshot(threadId)
+
+    const rows = this.database
+      .prepare(
+        "SELECT id, thread_id, role, provider, model, message_type, content_json, artifact_refs_json, created_at FROM thread_messages WHERE thread_id = ? ORDER BY created_at ASC",
+      )
+      .all(threadId) as ThreadMessageRow[]
+
+    return { messages: rows.map((row) => mapMessageRow(row)) }
+  }
+
+  sendMessage(input: ThreadsSendMessageInput): ThreadsSendMessageResult {
+    // Validates thread exists (throws IpcProtocolError if not found)
+    this.getThreadSnapshot(input.thread_id)
+
+    const id = randomUUID()
+    const now = this.now()
+
+    this.database
+      .prepare(
+        "INSERT INTO thread_messages (id, thread_id, role, provider, model, message_type, content_json, artifact_refs_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        id,
+        input.thread_id,
+        "user",
+        null,
+        null,
+        "text",
+        JSON.stringify({ text: input.content }),
+        null,
+        now,
+      )
+
+    // Update thread last_activity_at
+    this.database
+      .prepare(
+        "UPDATE threads SET last_activity_at = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(now, now, input.thread_id)
+
+    return {
+      message: {
+        id,
+        threadId: input.thread_id,
+        role: "user",
+        provider: null,
+        model: null,
+        messageType: "text",
+        content: { text: input.content },
+        artifactRefs: [],
+        createdAt: now,
+      },
     }
   }
 
