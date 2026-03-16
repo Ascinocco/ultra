@@ -3,6 +3,7 @@ import type {
   ProjectRuntimeHealthSummary,
   ProjectRuntimeSnapshot,
   RuntimeComponentSnapshot,
+  RuntimeComponentType,
   RuntimeHealthCheckSnapshot,
 } from "@ultra/shared"
 
@@ -96,6 +97,17 @@ export class RuntimeRegistry {
     return persisted
   }
 
+  listAllProjectRuntimeSnapshots(): ProjectRuntimeSnapshot[] {
+    const persisted =
+      this.runtimePersistenceService.listAllProjectRuntimeSnapshots()
+
+    for (const runtime of persisted) {
+      this.projectRuntimesByProjectId.set(runtime.projectId, runtime)
+    }
+
+    return persisted
+  }
+
   listProjectRuntimeComponents(
     projectId: ProjectId,
   ): RuntimeComponentSnapshot[] {
@@ -136,6 +148,27 @@ export class RuntimeRegistry {
     }
 
     return persisted
+  }
+
+  getProjectRuntimeComponent(
+    projectId: ProjectId,
+    componentType: RuntimeComponentType,
+  ): RuntimeComponentSnapshot | null {
+    return (
+      this.listProjectRuntimeComponents(projectId).find(
+        (component) => component.componentType === componentType,
+      ) ?? null
+    )
+  }
+
+  getGlobalRuntimeComponent(
+    componentType: RuntimeComponentType,
+  ): RuntimeComponentSnapshot | null {
+    return (
+      this.listGlobalRuntimeComponents().find(
+        (component) => component.componentType === componentType,
+      ) ?? null
+    )
   }
 
   getProjectRuntimeHealthSummary(
