@@ -4,6 +4,9 @@ import {
   APP_NAME,
   buildPlaceholderProjectLabel,
   IPC_PROTOCOL_VERSION,
+  parseArtifactBundle,
+  parseArtifactLoadResult,
+  parseArtifactSnapshot,
   parseChatSnapshot,
   parseChatsListResult,
   parseCommandRequest,
@@ -315,6 +318,124 @@ describe("shared contracts", () => {
     expect(commandsResult.commands[0]?.commandId).toBe("test")
     expect(sessionsEvent.payload.project_id).toBe("proj_123")
     expect(outputEvent.payload.chunk).toBe("hello")
+  })
+
+  it("parses artifact bundles, snapshots, and load results", () => {
+    const bundle = parseArtifactBundle({
+      artifactType: "runtime_output_bundle",
+      title: "Runtime failure",
+      summary: "Runtime output summary",
+      capturedAt: "2026-03-16T10:00:00Z",
+      source: {
+        surface: "runtime",
+        metadata: {
+          sessionId: "term_123",
+        },
+      },
+      payload: {
+        processType: "test",
+        command: "pnpm test",
+        cwd: "/tmp/project",
+        exitCode: 1,
+        terminalOutput: "short output",
+        debugOutput: "debug output",
+      },
+    })
+
+    const snapshot = parseArtifactSnapshot({
+      artifactId: "artifact_123",
+      projectId: "proj_123",
+      threadId: "thread_123",
+      artifactType: "runtime_output_bundle",
+      title: "Runtime failure",
+      path: "proj_123/thread_123/artifact_123",
+      metadata: {
+        artifactType: "runtime_output_bundle",
+        title: "Runtime failure",
+        summary: "Runtime output summary",
+        capturedAt: "2026-03-16T10:00:00Z",
+        source: {
+          surface: "runtime",
+          metadata: {
+            sessionId: "term_123",
+          },
+        },
+        payload: {
+          processType: "test",
+          command: "pnpm test",
+          cwd: "/tmp/project",
+          exitCode: 1,
+          terminalOutput: null,
+          debugOutput: "debug output",
+        },
+        largeContentRefs: [
+          {
+            logicalKey: "terminalOutput",
+            relativePath: "terminalOutput.txt",
+            byteSize: 2048,
+            contentType: "text/plain; charset=utf-8",
+          },
+        ],
+      },
+      createdAt: "2026-03-16T10:01:00Z",
+    })
+    const loadResult = parseArtifactLoadResult({
+      artifact: snapshot,
+      bundle,
+    })
+
+    expect(bundle.artifactType).toBe("runtime_output_bundle")
+    expect(snapshot.metadata.largeContentRefs).toHaveLength(1)
+    expect(loadResult.bundle.payload.terminalOutput).toBe("short output")
+  })
+
+  it("rejects malformed artifact bundle shapes and spill refs", () => {
+    expect(() =>
+      parseArtifactBundle({
+        artifactType: "runtime_output_bundle",
+        title: "Broken",
+        summary: "Missing payload fields",
+        capturedAt: "2026-03-16T10:00:00Z",
+        source: {
+          surface: "runtime",
+          metadata: {},
+        },
+        payload: {
+          command: "pnpm test",
+        },
+      }),
+    ).toThrow()
+
+    expect(() =>
+      parseArtifactSnapshot({
+        artifactId: "artifact_123",
+        projectId: "proj_123",
+        threadId: "thread_123",
+        artifactType: "runtime_output_bundle",
+        title: "Broken snapshot",
+        path: "proj_123/thread_123/artifact_123",
+        metadata: {
+          artifactType: "runtime_output_bundle",
+          title: "Broken snapshot",
+          summary: "Summary",
+          capturedAt: "2026-03-16T10:01:00Z",
+          source: {
+            surface: "runtime",
+            metadata: {},
+          },
+          payload: {},
+          largeContentRefs: [
+            {
+              logicalKey: "",
+              relativePath: "",
+              byteSize: -1,
+              contentType: "",
+            },
+          ],
+        },
+        createdAt: "2026-03-16T10:02:00Z",
+      }),
+    ).toThrow()
   })
 
   it("parses environment readiness snapshots", () => {
