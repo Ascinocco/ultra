@@ -275,7 +275,9 @@ export function ChatPageShell({
   const threads = useAppStore((state) => state.threads)
 
   const chatFrameRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
+  const [isDragging, setIsDragging] = useState(false)
 
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
@@ -311,6 +313,64 @@ export function ChatPageShell({
   const threadFetchStatus = activeProjectId
     ? (threads.threadFetchStatus[activeProjectId] ?? "idle")
     : "idle"
+
+  const projectLayout = activeProjectId
+    ? layout.byProjectId[activeProjectId]
+    : null
+  const sidebarCollapsed = projectLayout?.sidebarCollapsed ?? false
+  const splitRatio = projectLayout?.chatThreadSplitRatio ?? 0.55
+
+  const [containerWidth, setContainerWidth] = useState(0)
+
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const SIDEBAR_WIDTH = 280
+  const MIN_PANE_WIDTH = 200
+  const DRAG_HANDLE_WIDTH = 5
+
+  const sidebarW = sidebarCollapsed ? 0 : SIDEBAR_WIDTH
+  const availableWidth = containerWidth - sidebarW - DRAG_HANDLE_WIDTH
+  const chatWidth = Math.max(MIN_PANE_WIDTH, Math.round(availableWidth * splitRatio))
+  const threadWidth = Math.max(MIN_PANE_WIDTH, availableWidth - chatWidth)
+
+  const gridStyle: React.CSSProperties = containerWidth > 0
+    ? { gridTemplateColumns: `${sidebarW}px ${chatWidth}px ${DRAG_HANDLE_WIDTH}px ${threadWidth}px` }
+    : {}
+
+  function handleDragStart(e: React.PointerEvent) {
+    e.preventDefault()
+    const el = gridRef.current
+    if (!el) return
+    setIsDragging(true)
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  function handleDragMove(e: React.PointerEvent) {
+    if (!isDragging || !gridRef.current || !activeProjectId) return
+    const rect = gridRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left - sidebarW
+    const available = rect.width - sidebarW - DRAG_HANDLE_WIDTH
+    if (available <= 0) return
+    const ratio = Math.max(
+      MIN_PANE_WIDTH / available,
+      Math.min((available - MIN_PANE_WIDTH) / available, x / available),
+    )
+    actions.setLayoutField(activeProjectId, { chatThreadSplitRatio: ratio })
+  }
+
+  function handleDragEnd() {
+    setIsDragging(false)
+  }
 
   function handleResize(height: number) {
     const maxHeight = chatFrameRef.current
@@ -394,6 +454,8 @@ export function ChatPageShell({
     <div className="chat-frame" ref={chatFrameRef} data-page="chat">
       <div
         className={`chat-frame__grid ${drawerOpen ? "chat-frame__grid--drawer-open" : ""}`}
+        ref={gridRef}
+        style={gridStyle}
       >
         <aside className="chat-frame__rail">
           <Sidebar onOpenProject={onOpenProject} />
@@ -418,6 +480,14 @@ export function ChatPageShell({
             </p>
           </div>
         </section>
+
+        <div
+          className={`chat-frame__drag-handle ${isDragging ? "chat-frame__drag-handle--active" : ""}`}
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+        />
 
         <div className="chat-frame__side">
           <div className="surface__header">

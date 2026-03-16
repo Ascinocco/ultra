@@ -498,7 +498,7 @@ button {
 
 .chat-frame__grid {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) minmax(320px, 0.95fr);
+  grid-template-columns: 280px minmax(0, 1fr) 5px minmax(320px, 0.95fr);
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
 }
@@ -525,6 +525,34 @@ button {
   padding: 20px;
   grid-row: 1;
   overflow: auto;
+}
+
+/* ── Drag Handle (chat ↔ thread resize) ──────────────────── */
+
+.chat-frame__drag-handle {
+  width: 5px;
+  cursor: col-resize;
+  grid-row: 1;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  margin: 0 -2px;
+}
+
+.chat-frame__drag-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 1px;
+  background: var(--panel-border);
+  transition: background 0.15s;
+}
+
+.chat-frame__drag-handle:hover::after,
+.chat-frame__drag-handle--active::after {
+  background: var(--accent);
 }
 
 /* ── Terminal Drawer (inside chat-frame grid) ─────────────── */
@@ -1752,6 +1780,10 @@ button {
 
   .chat-frame__side {
     overflow: auto;
+  }
+
+  .chat-frame__drag-handle {
+    display: none;
   }
 
   .terminal-drawer__tabs {
