@@ -74,6 +74,26 @@ describe("AppShell", () => {
     expect(markup).toContain("chat-frame__main")
     expect(markup).toContain("chat-frame__side")
   })
+
+  it("renders the terminal drawer when terminalDrawerOpen is true", () => {
+    const store = createAppStore()
+    store.getState().actions.toggleTerminalDrawer()
+    const currentState = store.getState()
+    store.getInitialState = () => currentState
+    const markup = renderToStaticMarkup(
+      <AppStoreProvider store={store}>
+        <AppShell />
+      </AppStoreProvider>,
+    )
+
+    expect(markup).toContain("terminal-drawer")
+  })
+
+  it("does not render the terminal drawer when closed", () => {
+    const markup = renderShell()
+
+    expect(markup).not.toContain("terminal-drawer")
+  })
 })
 
 describe("app store", () => {
