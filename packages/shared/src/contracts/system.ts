@@ -36,6 +36,7 @@ export const dependencyToolValues = [
 ] as const
 export const dependencyScopeValues = [
   "runtime-required",
+  "runtime-optional",
   "developer-required",
 ] as const
 export const dependencyStatusValues = [

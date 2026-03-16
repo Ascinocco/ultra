@@ -69,7 +69,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     tool: "ov",
     displayName: "Overstory CLI",
-    scope: "runtime-required",
+    scope: "runtime-optional",
     command: "ov",
     args: ["--version"],
     helpText: "Install Overstory and ensure `ov` is on PATH.",
@@ -93,7 +93,7 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     tool: "codex",
     displayName: "Codex CLI",
-    scope: "runtime-required",
+    scope: "runtime-optional",
     command: "codex",
     args: ["--version"],
     helpText: "Install Codex CLI and ensure `codex` is on PATH.",
@@ -215,6 +215,7 @@ function isRequiredInSession(
   scope: DependencyScope,
   sessionMode: EnvironmentSessionMode,
 ): boolean {
+  if (scope === "runtime-optional") return false
   return scope === "runtime-required" || sessionMode === "development"
 }
 

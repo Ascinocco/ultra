@@ -216,10 +216,10 @@ function normalizeLayout(layout: ProjectLayoutState): ProjectLayoutState {
   }
 }
 
-function deriveDrawerOpen(_layout: ProjectLayoutState): boolean {
-  // Terminal drawer always starts closed — user must explicitly toggle it open.
-  // Persisted layout no longer auto-opens the drawer on project load.
-  return false
+function deriveDrawerOpen(layout: ProjectLayoutState): boolean {
+  return (
+    layout.selectedBottomPaneTab === "terminal" && !layout.rightBottomCollapsed
+  )
 }
 
 function debouncedPersistLayout(
@@ -453,13 +453,8 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
                 [projectId]: normalized,
               },
             },
-            terminal: {
-              ...state.terminal,
-              drawerOpenByProjectId: {
-                ...state.terminal.drawerOpenByProjectId,
-                [projectId]: deriveDrawerOpen(normalized),
-              },
-            },
+            // Don't derive drawer state on hydration — terminal drawer
+            // always starts closed and must be explicitly toggled open.
           }
         }),
       setLayoutField: (projectId, partial) =>

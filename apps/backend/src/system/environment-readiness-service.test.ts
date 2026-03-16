@@ -56,19 +56,21 @@ describe("EnvironmentReadinessService", () => {
     const snapshot = await buildSnapshot("development")
 
     expect(snapshot.status).toBe("ready")
-    expect(snapshot.checks.every((check) => check.status === "ready")).toBe(
-      true,
-    )
+    expect(
+      snapshot.checks.every(
+        (check) => check.status === "ready" || check.status === "skipped",
+      ),
+    ).toBe(true)
   })
 
-  it("blocks when ov is missing", async () => {
+  it("does not block when optional tool ov is missing", async () => {
     const snapshot = await buildSnapshot("desktop", {
       ov: missingCommandError("ov"),
     })
 
-    expect(snapshot.status).toBe("blocked")
+    expect(snapshot.status).toBe("ready")
     expect(snapshot.checks.find((check) => check.tool === "ov")?.status).toBe(
-      "missing",
+      "skipped",
     )
   })
 
@@ -83,19 +85,25 @@ describe("EnvironmentReadinessService", () => {
     )
   })
 
-  it("blocks when codex or claude are missing", async () => {
-    const snapshot = await buildSnapshot("desktop", {
+  it("blocks when claude is missing but not when codex is missing", async () => {
+    const snapshotBoth = await buildSnapshot("desktop", {
       codex: missingCommandError("codex"),
       claude: missingCommandError("claude"),
     })
 
-    expect(snapshot.status).toBe("blocked")
+    expect(snapshotBoth.status).toBe("blocked")
     expect(
-      snapshot.checks.find((check) => check.tool === "codex")?.status,
-    ).toBe("missing")
+      snapshotBoth.checks.find((check) => check.tool === "codex")?.status,
+    ).toBe("skipped")
     expect(
-      snapshot.checks.find((check) => check.tool === "claude")?.status,
+      snapshotBoth.checks.find((check) => check.tool === "claude")?.status,
     ).toBe("missing")
+
+    const snapshotCodexOnly = await buildSnapshot("desktop", {
+      codex: missingCommandError("codex"),
+    })
+
+    expect(snapshotCodexOnly.status).toBe("ready")
   })
 
   it("blocks development sessions on unsupported node or pnpm versions", async () => {
