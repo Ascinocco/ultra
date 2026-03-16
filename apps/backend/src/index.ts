@@ -1,6 +1,9 @@
 import { fileURLToPath } from "node:url"
 import { APP_NAME, buildPlaceholderProjectLabel } from "@ultra/shared"
 
+import { ArtifactCaptureService } from "./artifacts/artifact-capture-service.js"
+import { ArtifactPersistenceService } from "./artifacts/artifact-persistence-service.js"
+import { ArtifactStorageService } from "./artifacts/artifact-storage-service.js"
 import { ChatService } from "./chats/chat-service.js"
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { ProjectService } from "./projects/project-service.js"
@@ -70,10 +73,19 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
       terminalService,
       runtimeProfileService,
     )
+    const artifactCaptureService = new ArtifactCaptureService(
+      new ArtifactStorageService(
+        new ArtifactPersistenceService(databaseRuntime.database),
+        databaseRuntime.databasePath,
+      ),
+      sandboxService,
+      terminalSessionService,
+    )
     sandboxService.setActivationSyncHandler((projectId, sandboxId) => {
       terminalService.syncRuntimeFilesForActivation(projectId, sandboxId)
     })
     socketRuntime = await startSocketServer(socketPath, {
+      artifactCaptureService,
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
       sandboxService,

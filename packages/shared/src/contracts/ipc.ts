@@ -29,6 +29,7 @@ export const queryMethodSchema = z.enum([
 ])
 
 export const commandMethodSchema = z.enum([
+  "artifacts.capture_runtime",
   "system.recheck_environment",
   "chats.create",
   "chats.rename",

@@ -4,6 +4,7 @@ import type {
   SuccessResponseEnvelope,
 } from "@ultra/shared"
 import {
+  artifactsCaptureRuntimeInputSchema,
   chatsArchiveInputSchema,
   chatsCreateInputSchema,
   chatsGetInputSchema,
@@ -44,6 +45,7 @@ import {
   threadsListByChatInputSchema,
   threadsListByProjectInputSchema,
 } from "@ultra/shared"
+import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
 import type { ChatService } from "../chats/chat-service.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
@@ -152,6 +154,7 @@ function assertCommandRequest(
 export async function routeIpcRequest(
   raw: unknown,
   services: {
+    artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
@@ -165,6 +168,15 @@ export async function routeIpcRequest(
     const request = parseEnvelopeOrThrow(raw)
 
     switch (request.name) {
+      case "artifacts.capture_runtime": {
+        const captureCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          captureCommand.request_id,
+          services.artifactCaptureService.captureRuntime(
+            artifactsCaptureRuntimeInputSchema.parse(captureCommand.payload),
+          ),
+        )
+      }
       case "system.hello": {
         const helloQuery = assertSystemQuery(request)
         parseSystemHelloQuery(helloQuery)

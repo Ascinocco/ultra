@@ -4,13 +4,16 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   IPC_PROTOCOL_VERSION,
+  parseArtifactSnapshot,
   parseIpcResponseEnvelope,
   parseSubscriptionEventEnvelope,
   parseTerminalOutputEvent,
   parseTerminalSessionsEvent,
 } from "@ultra/shared"
 import { describe, expect, it } from "vitest"
-
+import { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
+import { ArtifactPersistenceService } from "../artifacts/artifact-persistence-service.js"
+import { ArtifactStorageService } from "../artifacts/artifact-storage-service.js"
 import { ChatService } from "../chats/chat-service.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
@@ -47,12 +50,21 @@ async function createServerRuntime(directory: string, socketPath: string) {
     runtimeProfileService,
     ptyAdapter,
   )
+  const artifactCaptureService = new ArtifactCaptureService(
+    new ArtifactStorageService(
+      new ArtifactPersistenceService(databaseRuntime.database),
+      databaseRuntime.databasePath,
+    ),
+    sandboxService,
+    terminalSessionService,
+  )
   sandboxService.setActivationSyncHandler((projectId, sandboxId) => {
     terminalService.syncRuntimeFilesForActivation(projectId, sandboxId)
   })
   const runtime = await startSocketServer(
     socketPath,
     {
+      artifactCaptureService,
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
       sandboxService,
@@ -68,6 +80,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
 
   return {
     runtime,
+    artifactCaptureService,
     databaseRuntime,
     sandboxPersistenceService,
     ptyAdapter,
@@ -969,6 +982,106 @@ describe("socket server", () => {
     expect(closedSessionsEvent.payload.sessions[0]?.status).toBe("exited")
 
     await connection.close()
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips artifacts.capture_runtime over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const { runtime, databaseRuntime, sandboxPersistenceService, ptyAdapter } =
+      await createServerRuntime(directory, socketPath)
+    const projectService = new ProjectService(databaseRuntime.database)
+    const projectPath = join(directory, "project-one")
+
+    await mkdir(projectPath, { recursive: true })
+
+    const project = projectService.open({ path: projectPath })
+
+    await mkdir(join(project.rootPath, ".sandbox-thread-1"), {
+      recursive: true,
+    })
+    await writeFile(join(project.rootPath, ".env"), "API_KEY=socket\n")
+    databaseRuntime.database
+      .prepare(
+        "INSERT INTO chats (id, project_id, title, status, provider, model, thinking_level, permission_level, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "chat_1",
+        project.id,
+        "Chat 1",
+        "active",
+        "codex",
+        "gpt-5-codex",
+        "standard",
+        "supervised",
+        "2026-03-16T19:00:00Z",
+        "2026-03-16T19:00:00Z",
+      )
+    databaseRuntime.database
+      .prepare(
+        "INSERT INTO threads (id, project_id, source_chat_id, title, execution_state, review_state, publish_state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "thread_1",
+        project.id,
+        "chat_1",
+        "Thread 1",
+        "queued",
+        "not_ready",
+        "not_requested",
+        "2026-03-16T19:00:00Z",
+        "2026-03-16T19:00:00Z",
+      )
+
+    const threadSandbox = sandboxPersistenceService.upsertThreadSandbox({
+      projectId: project.id,
+      threadId: "thread_1",
+      path: join(project.rootPath, ".sandbox-thread-1"),
+      displayName: "Thread Sandbox",
+      branchName: "thread/one",
+      baseBranch: "main",
+    })
+    const opened = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_open",
+      type: "command",
+      name: "terminal.open",
+      payload: {
+        project_id: project.id,
+        sandbox_id: threadSandbox.sandboxId,
+      },
+    })
+    const openResponse = parseIpcResponseEnvelope(opened)
+
+    expect(openResponse.ok).toBe(true)
+    if (!openResponse.ok) {
+      throw new Error("Expected terminal.open to succeed.")
+    }
+
+    const sessionId = (openResponse.result as { sessionId: string }).sessionId
+    ptyAdapter.sessions[0]?.emitData("socket capture output")
+
+    const rawResponse = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_capture",
+      type: "command",
+      name: "artifacts.capture_runtime",
+      payload: {
+        project_id: project.id,
+        session_id: sessionId,
+      },
+    })
+    const response = parseIpcResponseEnvelope(rawResponse)
+
+    expect(response.ok).toBe(true)
+    if (response.ok) {
+      const artifact = parseArtifactSnapshot(response.result)
+      expect(artifact.artifactType).toBe("terminal_output_bundle")
+      expect(artifact.metadata.payload.output).toBe("socket capture output")
+    }
+
     await runtime.close()
     databaseRuntime.close()
     await rm(directory, { recursive: true, force: true })

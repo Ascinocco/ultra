@@ -1,7 +1,12 @@
 import { z } from "zod"
 
 import { isoUtcTimestampSchema, opaqueIdSchema } from "./constants.js"
+import {
+  commandRequestEnvelopeSchema,
+  successResponseEnvelopeSchema,
+} from "./ipc.js"
 import { projectIdSchema } from "./projects.js"
+import { terminalSessionIdSchema } from "./terminal.js"
 import { threadIdSchema } from "./threads.js"
 
 export const artifactIdSchema = opaqueIdSchema
@@ -127,10 +132,28 @@ export const artifactStoreInputSchema = z.object({
   bundle: artifactBundleSchema,
 })
 
+export const artifactsCaptureRuntimeInputSchema = z.object({
+  project_id: projectIdSchema,
+  session_id: terminalSessionIdSchema,
+})
+
+export const artifactsCaptureRuntimeResultSchema = artifactSnapshotSchema
+
 export const artifactLoadResultSchema = z.object({
   artifact: artifactSnapshotSchema,
   bundle: artifactBundleSchema,
 })
+
+export const artifactsCaptureRuntimeCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("artifacts.capture_runtime"),
+    payload: artifactsCaptureRuntimeInputSchema,
+  })
+
+export const artifactsCaptureRuntimeSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: artifactsCaptureRuntimeResultSchema,
+  })
 
 export function parseArtifactBundle(value: unknown): ArtifactBundle {
   return artifactBundleSchema.parse(value)
@@ -148,6 +171,12 @@ export function parseArtifactSnapshot(value: unknown): ArtifactSnapshot {
 
 export function parseArtifactStoreInput(value: unknown): ArtifactStoreInput {
   return artifactStoreInputSchema.parse(value)
+}
+
+export function parseArtifactsCaptureRuntimeResult(
+  value: unknown,
+): ArtifactsCaptureRuntimeResult {
+  return artifactsCaptureRuntimeResultSchema.parse(value)
 }
 
 export function parseArtifactLoadResult(value: unknown): ArtifactLoadResult {
@@ -171,4 +200,10 @@ export type ArtifactBundle = z.infer<typeof artifactBundleSchema>
 export type ArtifactStoredBundle = z.infer<typeof artifactStoredBundleSchema>
 export type ArtifactSnapshot = z.infer<typeof artifactSnapshotSchema>
 export type ArtifactStoreInput = z.infer<typeof artifactStoreInputSchema>
+export type ArtifactsCaptureRuntimeInput = z.infer<
+  typeof artifactsCaptureRuntimeInputSchema
+>
+export type ArtifactsCaptureRuntimeResult = z.infer<
+  typeof artifactsCaptureRuntimeResultSchema
+>
 export type ArtifactLoadResult = z.infer<typeof artifactLoadResultSchema>
