@@ -1,7 +1,5 @@
-import type {
-  TerminalSessionSnapshot,
-} from "@ultra/shared"
-import { useRef, useState } from "react"
+import type { TerminalSessionSnapshot } from "@ultra/shared"
+import { useEffect, useRef, useState } from "react"
 
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
@@ -9,8 +7,8 @@ import { TerminalPane } from "../terminal/TerminalPane.js"
 import {
   closeTerminalSession,
   openTerminal,
-  writeTerminalInput,
   resizeTerminalSession,
+  writeTerminalInput,
 } from "../terminal/terminal-workflows.js"
 
 const DEFAULT_DRAWER_HEIGHT = 200
@@ -44,6 +42,43 @@ function TerminalDrawer({
     sessions.find((session) => session.sessionId === focusedSessionId) ??
     sessions[0] ??
     null
+
+  // Local tab name overrides (not persisted)
+  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({})
+  const [editingTabId, setEditingTabId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState("")
+  const editInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editingTabId && editInputRef.current) {
+      editInputRef.current.focus()
+      editInputRef.current.select()
+    }
+  }, [editingTabId])
+
+  function getTabName(session: TerminalSessionSnapshot) {
+    return nameOverrides[session.sessionId] ?? session.title
+  }
+
+  function startRename(sessionId: string) {
+    const session = sessions.find((s) => s.sessionId === sessionId)
+    if (!session) return
+    setEditingTabId(sessionId)
+    setEditValue(getTabName(session))
+  }
+
+  function commitRename() {
+    if (!editingTabId) return
+    const trimmed = editValue.trim()
+    if (trimmed) {
+      setNameOverrides((prev) => ({ ...prev, [editingTabId]: trimmed }))
+    }
+    setEditingTabId(null)
+  }
+
+  function cancelRename() {
+    setEditingTabId(null)
+  }
 
   function handlePointerDown(e: React.PointerEvent) {
     e.preventDefault()
@@ -91,21 +126,37 @@ function TerminalDrawer({
               key={session.sessionId}
               className={`terminal-drawer__tab ${session.sessionId === focusedSession?.sessionId ? "terminal-drawer__tab--active" : ""}`}
             >
-              <button
-                className="terminal-drawer__tab-label"
-                type="button"
-                role="tab"
-                aria-selected={
-                  session.sessionId === focusedSession?.sessionId
-                }
-                onClick={() => onFocusSession(session.sessionId)}
-              >
-                {session.title}
-              </button>
+              {editingTabId === session.sessionId ? (
+                <input
+                  ref={editInputRef}
+                  className="terminal-drawer__tab-edit"
+                  type="text"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename()
+                    if (e.key === "Escape") cancelRename()
+                  }}
+                />
+              ) : (
+                <button
+                  className="terminal-drawer__tab-label"
+                  type="button"
+                  role="tab"
+                  aria-selected={
+                    session.sessionId === focusedSession?.sessionId
+                  }
+                  onClick={() => onFocusSession(session.sessionId)}
+                  onDoubleClick={() => startRename(session.sessionId)}
+                >
+                  {getTabName(session)}
+                </button>
+              )}
               <button
                 className="terminal-drawer__tab-close"
                 type="button"
-                aria-label={`Close ${session.title}`}
+                aria-label={`Close ${getTabName(session)}`}
                 onClick={() => onCloseSession(session.sessionId)}
               >
                 ×
@@ -122,15 +173,25 @@ function TerminalDrawer({
           </button>
         </div>
         <div className="terminal-drawer__panel">
-          {focusedSession ? (
-            <TerminalPane
-              key={focusedSession.sessionId}
-              sessionId={focusedSession.sessionId}
-              projectId={focusedSession.projectId}
-              recentOutput={focusedSession.recentOutput}
-              onInput={onTerminalInput}
-              onResize={onTerminalResize}
-            />
+          {sessions.length > 0 ? (
+            sessions.map((session) => (
+              <div
+                key={session.sessionId}
+                className={`terminal-drawer__pane-wrapper ${
+                  session.sessionId === focusedSession?.sessionId
+                    ? "terminal-drawer__pane-wrapper--visible"
+                    : "terminal-drawer__pane-wrapper--hidden"
+                }`}
+              >
+                <TerminalPane
+                  sessionId={session.sessionId}
+                  projectId={session.projectId}
+                  recentOutput={session.recentOutput}
+                  onInput={onTerminalInput}
+                  onResize={onTerminalResize}
+                />
+              </div>
+            ))
           ) : (
             <p className="terminal-drawer__placeholder">
               Terminal sessions will appear here
@@ -166,9 +227,10 @@ export function ChatPageShell({
         ) ?? null)
       : null
   const terminalSessions = activeProjectId
-    ? (terminal.sessionsByProjectId[activeProjectId] ?? []).filter(
-        (s) => s.status === "running",
-      )
+    ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
+        .filter((s) => s.status === "running")
+        .slice()
+        .reverse()
     : []
   const focusedSessionId = activeProjectId
     ? (terminal.focusedSessionIdByProjectId[activeProjectId] ?? null)

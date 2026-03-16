@@ -693,6 +693,19 @@ button {
   white-space: nowrap;
 }
 
+.terminal-drawer__tab-edit {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 4px 4px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.78rem;
+  outline: none;
+}
+
 .terminal-drawer__tab-close {
   appearance: none;
   flex-shrink: 0;
@@ -734,8 +747,23 @@ button {
 
 .terminal-drawer__panel {
   flex: 1;
-  overflow: auto;
-  padding: 8px 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.terminal-drawer__pane-wrapper {
+  position: absolute;
+  inset: 0;
+}
+
+.terminal-drawer__pane-wrapper--visible {
+  visibility: visible;
+  z-index: 1;
+}
+
+.terminal-drawer__pane-wrapper--hidden {
+  visibility: hidden;
+  z-index: 0;
 }
 
 .terminal-drawer__output {
