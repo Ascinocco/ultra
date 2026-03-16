@@ -45,6 +45,8 @@ export const commandMethodSchema = z.enum([
   "terminal.write_input",
   "terminal.resize_session",
   "terminal.close_session",
+  "terminal.rename_session",
+  "terminal.pin_session",
   "sandboxes.set_active",
   "projects.open",
   "projects.set_layout",

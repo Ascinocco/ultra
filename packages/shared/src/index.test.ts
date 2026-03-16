@@ -272,6 +272,8 @@ describe("shared contracts", () => {
       lastOutputAt: null,
       lastOutputSequence: 0,
       recentOutput: "",
+      displayName: null,
+      pinned: false,
     })
     const sessionsResult = parseTerminalListSessionsResult({
       sessions: [session],
@@ -319,6 +321,33 @@ describe("shared contracts", () => {
     expect(commandsResult.commands[0]?.commandId).toBe("test")
     expect(sessionsEvent.payload.project_id).toBe("proj_123")
     expect(outputEvent.payload.chunk).toBe("hello")
+  })
+
+  it("parses terminal session snapshot with displayName and pinned", () => {
+    const raw = {
+      sessionId: "term_abc",
+      projectId: "proj_1",
+      sandboxId: "sb_1",
+      threadId: null,
+      cwd: "/tmp/project",
+      title: "Shell",
+      sessionKind: "shell",
+      status: "running",
+      commandId: null,
+      commandLabel: null,
+      commandLine: "zsh",
+      exitCode: null,
+      startedAt: "2026-03-16T00:00:00Z",
+      updatedAt: "2026-03-16T00:00:00Z",
+      lastOutputAt: null,
+      lastOutputSequence: 0,
+      recentOutput: "",
+      displayName: "My Terminal",
+      pinned: true,
+    }
+    const result = parseTerminalSessionSnapshot(raw)
+    expect(result.displayName).toBe("My Terminal")
+    expect(result.pinned).toBe(true)
   })
 
   it("parses artifact bundles, snapshots, and load results", () => {
