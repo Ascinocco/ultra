@@ -1,4 +1,9 @@
-import type { CommandMethodName, QueryMethodName } from "@ultra/shared"
+import type {
+  CommandMethodName,
+  QueryMethodName,
+  SubscriptionEventEnvelope,
+  SubscriptionMethodName,
+} from "@ultra/shared"
 import type { OpenDialogOptions } from "electron"
 import { BrowserWindow, dialog, ipcMain } from "electron"
 
@@ -11,9 +16,14 @@ const GET_BACKEND_INFO_CHANNEL = "ultra-shell:get-backend-info"
 const RETRY_BACKEND_STARTUP_CHANNEL = "ultra-shell:retry-backend-startup"
 const IPC_QUERY_CHANNEL = "ultra-shell:ipc-query"
 const IPC_COMMAND_CHANNEL = "ultra-shell:ipc-command"
+const IPC_SUBSCRIBE_CHANNEL = "ultra-shell:ipc-subscribe"
+const IPC_UNSUBSCRIBE_CHANNEL = "ultra-shell:ipc-unsubscribe"
+const IPC_SUBSCRIPTION_EVENT_CHANNEL = "ultra-shell:ipc-subscription-event"
 const PICK_PROJECT_DIRECTORY_CHANNEL = "ultra-shell:pick-project-directory"
 
 export function registerShellIpc(connection: BackendConnection): () => void {
+  const activeSubscriptions = new Map<string, { cleanup: () => void }>()
+
   ipcMain.handle(GET_BACKEND_STATUS_CHANNEL, () => connection.getStatus())
   ipcMain.handle(SYSTEM_PING_CHANNEL, () => connection.ping())
   ipcMain.handle(GET_BACKEND_INFO_CHANNEL, () => connection.getBackendInfo())
@@ -42,6 +52,34 @@ export function registerShellIpc(connection: BackendConnection): () => void {
     (_event, name: string, payload: unknown) =>
       connection.command(name as CommandMethodName, payload),
   )
+  ipcMain.handle(
+    IPC_SUBSCRIBE_CHANNEL,
+    async (event, name: string, payload: unknown) => {
+      const sender = event.sender
+      const { subscriptionId, unsubscribe } = await connection.subscribeToIpc(
+        name as SubscriptionMethodName,
+        payload,
+        (subscriptionEvent: SubscriptionEventEnvelope) => {
+          if (!sender.isDestroyed()) {
+            sender.send(IPC_SUBSCRIPTION_EVENT_CHANNEL, subscriptionEvent)
+          }
+        },
+      )
+
+      activeSubscriptions.set(subscriptionId, {
+        cleanup: unsubscribe,
+      })
+
+      sender.once("destroyed", () => {
+        cleanupSubscription(activeSubscriptions, subscriptionId)
+      })
+
+      return { subscriptionId }
+    },
+  )
+  ipcMain.handle(IPC_UNSUBSCRIBE_CHANNEL, (_event, subscriptionId: string) => {
+    cleanupSubscription(activeSubscriptions, subscriptionId)
+  })
 
   const unsubscribe = connection.subscribe((status) => {
     for (const window of BrowserWindow.getAllWindows()) {
@@ -58,5 +96,25 @@ export function registerShellIpc(connection: BackendConnection): () => void {
     ipcMain.removeHandler(PICK_PROJECT_DIRECTORY_CHANNEL)
     ipcMain.removeHandler(IPC_QUERY_CHANNEL)
     ipcMain.removeHandler(IPC_COMMAND_CHANNEL)
+    ipcMain.removeHandler(IPC_SUBSCRIBE_CHANNEL)
+    ipcMain.removeHandler(IPC_UNSUBSCRIBE_CHANNEL)
+
+    for (const subscriptionId of activeSubscriptions.keys()) {
+      cleanupSubscription(activeSubscriptions, subscriptionId)
+    }
   }
+}
+
+function cleanupSubscription(
+  activeSubscriptions: Map<string, { cleanup: () => void }>,
+  subscriptionId: string,
+): void {
+  const runtime = activeSubscriptions.get(subscriptionId)
+
+  if (!runtime) {
+    return
+  }
+
+  activeSubscriptions.delete(subscriptionId)
+  runtime.cleanup()
 }

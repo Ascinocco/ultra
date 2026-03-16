@@ -1,4 +1,8 @@
-import type { BackendInfoSnapshot, SystemPingResult } from "@ultra/shared"
+import type {
+  BackendInfoSnapshot,
+  SubscriptionEventEnvelope,
+  SystemPingResult,
+} from "@ultra/shared"
 import type {
   BackendStatusListener,
   BackendStatusSnapshot,
@@ -18,6 +22,14 @@ declare global {
       pickProjectDirectory: () => Promise<string | null>
       ipcQuery: (name: string, payload?: unknown) => Promise<unknown>
       ipcCommand: (name: string, payload?: unknown) => Promise<unknown>
+      ipcSubscribe: (
+        name: string,
+        payload?: unknown,
+      ) => Promise<{ subscriptionId: string }>
+      ipcUnsubscribe: (subscriptionId: string) => Promise<void>
+      onIpcSubscriptionEvent: (
+        listener: (event: SubscriptionEventEnvelope) => void,
+      ) => () => void
       onBackendStatusChange: (listener: BackendStatusListener) => () => void
       onOpenSystemTools: (listener: () => void) => () => void
     }

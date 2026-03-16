@@ -1,11 +1,8 @@
 import { useEffect, useRef } from "react"
 
-import { BrowserPageShell } from "../pages/BrowserPageShell.js"
 import { ChatPageShell } from "../pages/ChatPageShell.js"
-import { EditorPageShell } from "../pages/EditorPageShell.js"
 import {
   hydrateLastProject,
-  openProjectFromPath,
   openProjectFromPicker,
 } from "../projects/project-workflows.js"
 import { SandboxSelector } from "../sandbox/SandboxSelector.js"
@@ -92,11 +89,10 @@ export function AppShell() {
 
       <section className="app-shell__body">
         <ChatPageShell
-          active={app.currentPage === "chat"}
-          onOpenProject={() => { void handleOpenProject() }}
+          onOpenProject={() => {
+            void handleOpenProject()
+          }}
         />
-        <EditorPageShell active={app.currentPage === "editor"} />
-        <BrowserPageShell active={app.currentPage === "browser"} />
       </section>
     </main>
   )

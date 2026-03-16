@@ -6,6 +6,9 @@ import type {
   ProjectLayoutState,
   ProjectSnapshot,
   SandboxContextSnapshot,
+  SavedCommandSnapshot,
+  TerminalRuntimeProfileResult,
+  TerminalSessionSnapshot,
 } from "@ultra/shared"
 import {
   createContext,
@@ -32,7 +35,6 @@ type AppSlice = {
   capabilities: BackendCapabilities | null
   projectOpenStatus: ProjectOpenStatus
   projectOpenError: string | null
-  terminalDrawerOpen: boolean
 }
 
 type ReadinessStatus = "idle" | "checking" | "ready" | "blocked" | "error"
@@ -60,16 +62,27 @@ type SidebarSlice = {
 }
 
 type SandboxSlice = {
-  activeSandbox: SandboxContextSnapshot | null
-  sandboxes: SandboxContextSnapshot[]
-  sandboxFetchStatus: "idle" | "loading" | "error"
+  byId: Record<string, SandboxContextSnapshot>
+  idsByProjectId: Record<string, string[]>
+  activeByProjectId: Record<string, string | null>
+  runtimeByProjectId: Record<string, TerminalRuntimeProfileResult | null>
+}
+
+type TerminalSlice = {
+  drawerOpenByProjectId: Record<string, boolean>
+  sessionsByProjectId: Record<string, TerminalSessionSnapshot[]>
+  focusedSessionIdByProjectId: Record<string, string | null>
+  savedCommandsByProjectId: Record<string, SavedCommandSnapshot[]>
 }
 
 type AppActions = {
   setCurrentPage: (page: AppPage) => void
   toggleProjectExpanded: (projectId: string) => void
   setChatsForProject: (projectId: string, chats: ChatSummary[]) => void
-  setChatsFetchStatus: (projectId: string, status: "idle" | "loading" | "error") => void
+  setChatsFetchStatus: (
+    projectId: string,
+    status: "idle" | "loading" | "error",
+  ) => void
   upsertChat: (chat: ChatSummary) => void
   removeChat: (chatId: string, projectId: string) => void
   setConnectionStatus: (status: ConnectionStatus) => void
@@ -87,15 +100,40 @@ type AppActions = {
     projectId: string,
     partial: Partial<ProjectLayoutState>,
   ) => void
+  setSandboxesForProject: (
+    projectId: string,
+    sandboxes: SandboxContextSnapshot[],
+  ) => void
+  setActiveSandboxIdForProject: (
+    projectId: string,
+    sandboxId: string | null,
+  ) => void
+  setRuntimeProfileForProject: (
+    projectId: string,
+    runtimeProfile: TerminalRuntimeProfileResult | null,
+  ) => void
+  setTerminalSessionsForProject: (
+    projectId: string,
+    sessions: TerminalSessionSnapshot[],
+  ) => void
+  upsertTerminalSession: (
+    projectId: string,
+    session: TerminalSessionSnapshot,
+  ) => void
+  setFocusedTerminalSession: (
+    projectId: string,
+    sessionId: string | null,
+  ) => void
+  setSavedCommandsForProject: (
+    projectId: string,
+    commands: SavedCommandSnapshot[],
+  ) => void
+  setTerminalDrawerOpen: (projectId: string, open: boolean) => void
   setReadinessChecking: () => void
   setReadinessSnapshot: (snapshot: EnvironmentReadinessSnapshot) => void
   setReadinessError: (error: string) => void
   resetReadiness: () => void
   setSystemToolsOpen: (open: boolean) => void
-  toggleTerminalDrawer: () => void
-  setSandboxes: (sandboxes: SandboxContextSnapshot[]) => void
-  setActiveSandbox: (sandbox: SandboxContextSnapshot | null) => void
-  setSandboxFetchStatus: (status: "idle" | "loading" | "error") => void
 }
 
 export type AppStoreState = {
@@ -104,7 +142,8 @@ export type AppStoreState = {
   projects: ProjectsSlice
   layout: LayoutSlice
   sidebar: SidebarSlice
-  sandbox: SandboxSlice
+  sandboxes: SandboxSlice
+  terminal: TerminalSlice
   actions: AppActions
 }
 
@@ -118,7 +157,6 @@ const defaultAppState: AppSlice = {
   capabilities: null,
   projectOpenStatus: "idle",
   projectOpenError: null,
-  terminalDrawerOpen: false,
 }
 
 const defaultProjectsState: ProjectsSlice = {
@@ -144,9 +182,17 @@ const defaultSidebarState: SidebarSlice = {
 }
 
 const defaultSandboxState: SandboxSlice = {
-  activeSandbox: null,
-  sandboxes: [],
-  sandboxFetchStatus: "idle",
+  byId: {},
+  idsByProjectId: {},
+  activeByProjectId: {},
+  runtimeByProjectId: {},
+}
+
+const defaultTerminalState: TerminalSlice = {
+  drawerOpenByProjectId: {},
+  sessionsByProjectId: {},
+  focusedSessionIdByProjectId: {},
+  savedCommandsByProjectId: {},
 }
 
 const DEFAULT_LAYOUT: ProjectLayoutState = {
@@ -161,6 +207,20 @@ const DEFAULT_LAYOUT: ProjectLayoutState = {
 }
 
 const layoutPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+function normalizeLayout(layout: ProjectLayoutState): ProjectLayoutState {
+  return {
+    ...DEFAULT_LAYOUT,
+    ...layout,
+    currentPage: "chat",
+  }
+}
+
+function deriveDrawerOpen(layout: ProjectLayoutState): boolean {
+  return (
+    layout.selectedBottomPaneTab === "terminal" && !layout.rightBottomCollapsed
+  )
+}
 
 function debouncedPersistLayout(
   projectId: string,
@@ -204,7 +264,8 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
     projects: { ...defaultProjectsState },
     layout: { ...defaultLayoutState },
     sidebar: { ...defaultSidebarState },
-    sandbox: { ...defaultSandboxState },
+    sandboxes: { ...defaultSandboxState },
+    terminal: { ...defaultTerminalState },
     actions: {
       setCurrentPage: () => undefined,
       toggleProjectExpanded: () => undefined,
@@ -221,15 +282,19 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       upsertProject: () => undefined,
       setLayoutForProject: () => undefined,
       setLayoutField: () => undefined,
+      setSandboxesForProject: () => undefined,
+      setActiveSandboxIdForProject: () => undefined,
+      setRuntimeProfileForProject: () => undefined,
+      setTerminalSessionsForProject: () => undefined,
+      upsertTerminalSession: () => undefined,
+      setFocusedTerminalSession: () => undefined,
+      setSavedCommandsForProject: () => undefined,
+      setTerminalDrawerOpen: () => undefined,
       setReadinessChecking: () => undefined,
       setReadinessSnapshot: () => undefined,
       setReadinessError: () => undefined,
       resetReadiness: () => undefined,
       setSystemToolsOpen: () => undefined,
-      toggleTerminalDrawer: () => undefined,
-      setSandboxes: () => undefined,
-      setActiveSandbox: () => undefined,
-      setSandboxFetchStatus: () => undefined,
     },
   }
 }
@@ -261,15 +326,24 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           const next = ids.includes(projectId)
             ? ids.filter((id) => id !== projectId)
             : [...ids, projectId]
-          return { ...state, sidebar: { ...state.sidebar, expandedProjectIds: next } }
+          return {
+            ...state,
+            sidebar: { ...state.sidebar, expandedProjectIds: next },
+          }
         }),
       setChatsForProject: (projectId, chats) =>
         set((state) => ({
           ...state,
           sidebar: {
             ...state.sidebar,
-            chatsByProjectId: { ...state.sidebar.chatsByProjectId, [projectId]: chats },
-            chatsFetchStatus: { ...state.sidebar.chatsFetchStatus, [projectId]: "idle" },
+            chatsByProjectId: {
+              ...state.sidebar.chatsByProjectId,
+              [projectId]: chats,
+            },
+            chatsFetchStatus: {
+              ...state.sidebar.chatsFetchStatus,
+              [projectId]: "idle",
+            },
           },
         })),
       setChatsFetchStatus: (projectId, status) =>
@@ -277,7 +351,10 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           ...state,
           sidebar: {
             ...state.sidebar,
-            chatsFetchStatus: { ...state.sidebar.chatsFetchStatus, [projectId]: status },
+            chatsFetchStatus: {
+              ...state.sidebar.chatsFetchStatus,
+              [projectId]: status,
+            },
           },
         })),
       upsertChat: (chat) =>
@@ -292,7 +369,10 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             ...state,
             sidebar: {
               ...state.sidebar,
-              chatsByProjectId: { ...state.sidebar.chatsByProjectId, [chat.projectId]: updated },
+              chatsByProjectId: {
+                ...state.sidebar.chatsByProjectId,
+                [chat.projectId]: updated,
+              },
             },
           }
         }),
@@ -362,19 +442,30 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           return { ...state, projects: { byId, allIds } }
         }),
       setLayoutForProject: (projectId, layout) =>
-        set((state) => ({
-          ...state,
-          layout: {
-            byProjectId: {
-              ...state.layout.byProjectId,
-              [projectId]: layout,
+        set((state) => {
+          const normalized = normalizeLayout(layout)
+
+          return {
+            ...state,
+            layout: {
+              byProjectId: {
+                ...state.layout.byProjectId,
+                [projectId]: normalized,
+              },
             },
-          },
-        })),
+            terminal: {
+              ...state.terminal,
+              drawerOpenByProjectId: {
+                ...state.terminal.drawerOpenByProjectId,
+                [projectId]: deriveDrawerOpen(normalized),
+              },
+            },
+          }
+        }),
       setLayoutField: (projectId, partial) =>
         set((state) => {
           const current = state.layout.byProjectId[projectId] ?? DEFAULT_LAYOUT
-          const merged = { ...current, ...partial }
+          const merged = normalizeLayout({ ...current, ...partial })
 
           debouncedPersistLayout(projectId, get)
 
@@ -384,6 +475,158 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
               byProjectId: {
                 ...state.layout.byProjectId,
                 [projectId]: merged,
+              },
+            },
+            terminal: {
+              ...state.terminal,
+              drawerOpenByProjectId: {
+                ...state.terminal.drawerOpenByProjectId,
+                [projectId]: deriveDrawerOpen(merged),
+              },
+            },
+          }
+        }),
+      setSandboxesForProject: (projectId, sandboxes) =>
+        set((state) => {
+          const byId = { ...state.sandboxes.byId }
+
+          for (const sandbox of sandboxes) {
+            byId[sandbox.sandboxId] = sandbox
+          }
+
+          return {
+            ...state,
+            sandboxes: {
+              ...state.sandboxes,
+              byId,
+              idsByProjectId: {
+                ...state.sandboxes.idsByProjectId,
+                [projectId]: sandboxes.map((sandbox) => sandbox.sandboxId),
+              },
+            },
+          }
+        }),
+      setActiveSandboxIdForProject: (projectId, sandboxId) =>
+        set((state) => ({
+          ...state,
+          sandboxes: {
+            ...state.sandboxes,
+            activeByProjectId: {
+              ...state.sandboxes.activeByProjectId,
+              [projectId]: sandboxId,
+            },
+          },
+        })),
+      setRuntimeProfileForProject: (projectId, runtimeProfile) =>
+        set((state) => ({
+          ...state,
+          sandboxes: {
+            ...state.sandboxes,
+            runtimeByProjectId: {
+              ...state.sandboxes.runtimeByProjectId,
+              [projectId]: runtimeProfile,
+            },
+          },
+        })),
+      setTerminalSessionsForProject: (projectId, sessions) =>
+        set((state) => {
+          const currentFocused =
+            state.terminal.focusedSessionIdByProjectId[projectId] ?? null
+          const nextFocused =
+            currentFocused &&
+            sessions.some((session) => session.sessionId === currentFocused)
+              ? currentFocused
+              : (sessions[0]?.sessionId ?? null)
+
+          return {
+            ...state,
+            terminal: {
+              ...state.terminal,
+              sessionsByProjectId: {
+                ...state.terminal.sessionsByProjectId,
+                [projectId]: sessions,
+              },
+              focusedSessionIdByProjectId: {
+                ...state.terminal.focusedSessionIdByProjectId,
+                [projectId]: nextFocused,
+              },
+            },
+          }
+        }),
+      upsertTerminalSession: (projectId, session) =>
+        set((state) => {
+          const existing = state.terminal.sessionsByProjectId[projectId] ?? []
+          const index = existing.findIndex(
+            (entry) => entry.sessionId === session.sessionId,
+          )
+          const updated =
+            index >= 0
+              ? existing.map((entry) =>
+                  entry.sessionId === session.sessionId ? session : entry,
+                )
+              : [session, ...existing]
+
+          return {
+            ...state,
+            terminal: {
+              ...state.terminal,
+              sessionsByProjectId: {
+                ...state.terminal.sessionsByProjectId,
+                [projectId]: updated,
+              },
+              focusedSessionIdByProjectId: {
+                ...state.terminal.focusedSessionIdByProjectId,
+                [projectId]: session.sessionId,
+              },
+            },
+          }
+        }),
+      setFocusedTerminalSession: (projectId, sessionId) =>
+        set((state) => ({
+          ...state,
+          terminal: {
+            ...state.terminal,
+            focusedSessionIdByProjectId: {
+              ...state.terminal.focusedSessionIdByProjectId,
+              [projectId]: sessionId,
+            },
+          },
+        })),
+      setSavedCommandsForProject: (projectId, commands) =>
+        set((state) => ({
+          ...state,
+          terminal: {
+            ...state.terminal,
+            savedCommandsByProjectId: {
+              ...state.terminal.savedCommandsByProjectId,
+              [projectId]: commands,
+            },
+          },
+        })),
+      setTerminalDrawerOpen: (projectId, open) =>
+        set((state) => {
+          const current = state.layout.byProjectId[projectId] ?? DEFAULT_LAYOUT
+          const merged = normalizeLayout({
+            ...current,
+            selectedBottomPaneTab: "terminal",
+            rightBottomCollapsed: !open,
+          })
+
+          debouncedPersistLayout(projectId, get)
+
+          return {
+            ...state,
+            layout: {
+              byProjectId: {
+                ...state.layout.byProjectId,
+                [projectId]: merged,
+              },
+            },
+            terminal: {
+              ...state.terminal,
+              drawerOpenByProjectId: {
+                ...state.terminal.drawerOpenByProjectId,
+                [projectId]: open,
               },
             },
           }
@@ -428,26 +671,6 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             ...state.readiness,
             systemToolsOpen: open,
           },
-        })),
-      toggleTerminalDrawer: () =>
-        set((state) => ({
-          ...state,
-          app: { ...state.app, terminalDrawerOpen: !state.app.terminalDrawerOpen },
-        })),
-      setSandboxes: (sandboxes) =>
-        set((state) => ({
-          ...state,
-          sandbox: { ...state.sandbox, sandboxes },
-        })),
-      setActiveSandbox: (sandbox) =>
-        set((state) => ({
-          ...state,
-          sandbox: { ...state.sandbox, activeSandbox: sandbox },
-        })),
-      setSandboxFetchStatus: (status) =>
-        set((state) => ({
-          ...state,
-          sandbox: { ...state.sandbox, sandboxFetchStatus: status },
         })),
     },
   }))

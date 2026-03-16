@@ -1,3 +1,4 @@
+import { parseTerminalSessionsEvent } from "@ultra/shared"
 import { useEffect } from "react"
 
 import { AppShell } from "./components/AppShell.js"
@@ -88,6 +89,74 @@ function EnvironmentReadinessBridge() {
     setReadinessChecking,
     setReadinessError,
     setReadinessSnapshot,
+  ])
+
+  return null
+}
+
+function TerminalSessionsBridge() {
+  const connectionStatus = useAppStore((state) => state.app.connectionStatus)
+  const capabilities = useAppStore((state) => state.app.capabilities)
+  const activeProjectId = useAppStore((state) => state.app.activeProjectId)
+  const setTerminalSessionsForProject = useAppStore(
+    (state) => state.actions.setTerminalSessionsForProject,
+  )
+
+  useEffect(() => {
+    if (
+      connectionStatus !== "connected" ||
+      !capabilities?.supportsSubscriptions ||
+      !activeProjectId
+    ) {
+      return
+    }
+
+    let cancelled = false
+    let cleanupPromise: Promise<(() => Promise<void>) | undefined> | null = null
+
+    cleanupPromise = window.ultraShell
+      .ipcSubscribe("terminal.sessions", {
+        project_id: activeProjectId,
+      })
+      .then(({ subscriptionId }) => {
+        const unsubscribeEvent = window.ultraShell.onIpcSubscriptionEvent(
+          (event) => {
+            if (event.event_name !== "terminal.sessions") {
+              return
+            }
+
+            const parsed = parseTerminalSessionsEvent(event)
+
+            if (
+              !cancelled &&
+              parsed.subscription_id === subscriptionId &&
+              parsed.payload.project_id === activeProjectId
+            ) {
+              setTerminalSessionsForProject(
+                activeProjectId,
+                parsed.payload.sessions,
+              )
+            }
+          },
+        )
+
+        return async () => {
+          unsubscribeEvent()
+          await window.ultraShell.ipcUnsubscribe(subscriptionId)
+        }
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+
+      void cleanupPromise?.then((cleanup) => cleanup?.())
+    }
+  }, [
+    activeProjectId,
+    capabilities?.supportsSubscriptions,
+    connectionStatus,
+    setTerminalSessionsForProject,
   ])
 
   return null
@@ -185,6 +254,7 @@ export function App() {
     <AppStoreProvider>
       <BackendStatusBridge />
       <EnvironmentReadinessBridge />
+      <TerminalSessionsBridge />
       <AppScreen />
     </AppStoreProvider>
   )

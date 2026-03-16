@@ -1,17 +1,26 @@
 import type {
   BackendCapabilities,
+  ChatSummary,
   ProjectLayoutState,
   ProjectSnapshot,
+  SandboxContextSnapshot,
+  SavedCommandSnapshot,
+  TerminalRuntimeProfileResult,
+  TerminalSessionSnapshot,
 } from "@ultra/shared"
 import { describe, expect, it, vi } from "vitest"
 
 import type { AppPage } from "../state/app-store.js"
 import {
   hydrateLastProject,
+  hydrateProjectShell,
   loadRecentProjects,
   openProjectFromPath,
   openProjectFromPicker,
   type ProjectWorkflowActions,
+  runSavedCommandForProject,
+  switchActiveProject,
+  switchActiveSandbox,
 } from "./project-workflows.js"
 
 function makeProject(id: string, name: string): ProjectSnapshot {
@@ -35,13 +44,33 @@ function makeActions(): ProjectWorkflowActions {
     setProjectOpenState: vi.fn(),
     setLayoutForProject: vi.fn(),
     setCurrentPage: vi.fn<(page: AppPage) => void>(),
+    setChatsFetchStatus: vi.fn(),
+    setChatsForProject:
+      vi.fn<(projectId: string, chats: ChatSummary[]) => void>(),
+    setSandboxesForProject:
+      vi.fn<(projectId: string, sandboxes: SandboxContextSnapshot[]) => void>(),
+    setActiveSandboxIdForProject: vi.fn(),
+    setRuntimeProfileForProject:
+      vi.fn<
+        (
+          projectId: string,
+          runtimeProfile: TerminalRuntimeProfileResult | null,
+        ) => void
+      >(),
+    setTerminalSessionsForProject:
+      vi.fn<(projectId: string, sessions: TerminalSessionSnapshot[]) => void>(),
+    upsertTerminalSession:
+      vi.fn<(projectId: string, session: TerminalSessionSnapshot) => void>(),
+    setSavedCommandsForProject:
+      vi.fn<(projectId: string, commands: SavedCommandSnapshot[]) => void>(),
+    setTerminalDrawerOpen: vi.fn(),
   }
 }
 
 const projectCapabilities: BackendCapabilities = {
   supportsProjects: true,
   supportsLayoutPersistence: false,
-  supportsSubscriptions: false,
+  supportsSubscriptions: true,
   supportsBackendInfo: true,
 }
 
@@ -166,7 +195,7 @@ describe("project workflows", () => {
       project_id: "proj-1",
     })
     expect(actions.setLayoutForProject).toHaveBeenCalledWith("proj-1", layout)
-    expect(actions.setCurrentPage).toHaveBeenCalledWith("editor")
+    expect(actions.setCurrentPage).toHaveBeenCalledWith("chat")
   })
 
   it("hydrateLastProject restores the most recently opened project and its layout", async () => {
@@ -200,7 +229,7 @@ describe("project workflows", () => {
     const capabilities: BackendCapabilities = {
       supportsProjects: true,
       supportsLayoutPersistence: true,
-      supportsSubscriptions: false,
+      supportsSubscriptions: true,
       supportsBackendInfo: true,
     }
 
@@ -212,7 +241,7 @@ describe("project workflows", () => {
       project_id: "proj-1",
     })
     expect(actions.setLayoutForProject).toHaveBeenCalledWith("proj-1", layout)
-    expect(actions.setCurrentPage).toHaveBeenCalledWith("browser")
+    expect(actions.setCurrentPage).toHaveBeenCalledWith("chat")
   })
 
   it("hydrateLastProject is a no-op when no projects exist", async () => {
@@ -225,7 +254,7 @@ describe("project workflows", () => {
     const capabilities: BackendCapabilities = {
       supportsProjects: true,
       supportsLayoutPersistence: true,
-      supportsSubscriptions: false,
+      supportsSubscriptions: true,
       supportsBackendInfo: true,
     }
 
@@ -249,7 +278,7 @@ describe("project workflows", () => {
     const capabilities: BackendCapabilities = {
       supportsProjects: true,
       supportsLayoutPersistence: false,
-      supportsSubscriptions: false,
+      supportsSubscriptions: true,
       supportsBackendInfo: true,
     }
 
@@ -258,5 +287,324 @@ describe("project workflows", () => {
     expect(actions.setProjects).toHaveBeenCalled()
     expect(actions.setActiveProjectId).toHaveBeenCalledWith("proj-1")
     expect(actions.setLayoutForProject).not.toHaveBeenCalled()
+  })
+
+  it("hydrates project-scoped chats, sandboxes, runtime, sessions, and commands", async () => {
+    const actions = makeActions()
+    const client = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({
+          currentPage: "editor",
+          rightTopCollapsed: false,
+          rightBottomCollapsed: true,
+          selectedRightPaneTab: null,
+          selectedBottomPaneTab: "terminal",
+          activeChatId: "chat-1",
+          selectedThreadId: null,
+          lastEditorTargetId: null,
+        })
+        .mockResolvedValueOnce({
+          chats: [
+            {
+              id: "chat-1",
+              projectId: "proj-1",
+              title: "Alpha chat",
+              status: "active",
+              provider: "claude",
+              model: "claude-sonnet-4-6",
+              thinkingLevel: "normal",
+              permissionLevel: "supervised",
+              isPinned: false,
+              pinnedAt: null,
+              archivedAt: null,
+              lastCompactedAt: null,
+              currentSessionId: null,
+              createdAt: "2026-03-14T00:00:00Z",
+              updatedAt: "2026-03-14T00:00:00Z",
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          sandboxes: [
+            {
+              sandboxId: "sandbox-1",
+              projectId: "proj-1",
+              threadId: null,
+              path: "/projects/alpha",
+              displayName: "Main",
+              sandboxType: "main_checkout",
+              branchName: "main",
+              baseBranch: "main",
+              isMainCheckout: true,
+              createdAt: "2026-03-14T00:00:00Z",
+              updatedAt: "2026-03-14T00:00:00Z",
+              lastUsedAt: "2026-03-14T00:00:00Z",
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          sandboxId: "sandbox-1",
+          projectId: "proj-1",
+          threadId: null,
+          path: "/projects/alpha",
+          displayName: "Main",
+          sandboxType: "main_checkout",
+          branchName: "main",
+          baseBranch: "main",
+          isMainCheckout: true,
+          createdAt: "2026-03-14T00:00:00Z",
+          updatedAt: "2026-03-14T00:00:00Z",
+          lastUsedAt: "2026-03-14T00:00:00Z",
+        })
+        .mockResolvedValueOnce({
+          sandbox: {
+            sandboxId: "sandbox-1",
+            projectId: "proj-1",
+            threadId: null,
+            path: "/projects/alpha",
+            displayName: "Main",
+            sandboxType: "main_checkout",
+            branchName: "main",
+            baseBranch: "main",
+            isMainCheckout: true,
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+            lastUsedAt: "2026-03-14T00:00:00Z",
+          },
+          profile: {
+            projectId: "proj-1",
+            runtimeFilePaths: [".env"],
+            envVars: {},
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+          },
+          sync: {
+            syncId: "sync-1",
+            sandboxId: "sandbox-1",
+            projectId: "proj-1",
+            syncMode: "managed_copy",
+            status: "synced",
+            syncedFiles: [".env"],
+            lastSyncedAt: "2026-03-14T00:00:00Z",
+            details: null,
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+          },
+        })
+        .mockResolvedValueOnce({
+          sessions: [],
+        })
+        .mockResolvedValueOnce({
+          commands: [
+            {
+              commandId: "test",
+              label: "Test",
+              commandLine: "pnpm test",
+              isAvailable: true,
+              reasonUnavailable: null,
+            },
+          ],
+        }),
+      command: vi.fn(),
+    }
+
+    await hydrateProjectShell(
+      "proj-1",
+      actions,
+      { ...projectCapabilities, supportsLayoutPersistence: true },
+      client,
+    )
+
+    expect(actions.setChatsFetchStatus).toHaveBeenCalledWith(
+      "proj-1",
+      "loading",
+    )
+    expect(actions.setChatsForProject).toHaveBeenCalled()
+    expect(actions.setSandboxesForProject).toHaveBeenCalled()
+    expect(actions.setActiveSandboxIdForProject).toHaveBeenCalledWith(
+      "proj-1",
+      "sandbox-1",
+    )
+    expect(actions.setRuntimeProfileForProject).toHaveBeenCalled()
+    expect(actions.setTerminalSessionsForProject).toHaveBeenCalledWith(
+      "proj-1",
+      [],
+    )
+    expect(actions.setSavedCommandsForProject).toHaveBeenCalled()
+  })
+
+  it("switches projects and rehydrates shell state", async () => {
+    const actions = makeActions()
+    const client = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ chats: [] })
+        .mockResolvedValueOnce({ sandboxes: [] })
+        .mockResolvedValueOnce({
+          sandboxId: "sandbox-1",
+          projectId: "proj-1",
+          threadId: null,
+          path: "/projects/alpha",
+          displayName: "Main",
+          sandboxType: "main_checkout",
+          branchName: "main",
+          baseBranch: "main",
+          isMainCheckout: true,
+          createdAt: "2026-03-14T00:00:00Z",
+          updatedAt: "2026-03-14T00:00:00Z",
+          lastUsedAt: "2026-03-14T00:00:00Z",
+        })
+        .mockResolvedValueOnce({
+          sandbox: {
+            sandboxId: "sandbox-1",
+            projectId: "proj-1",
+            threadId: null,
+            path: "/projects/alpha",
+            displayName: "Main",
+            sandboxType: "main_checkout",
+            branchName: "main",
+            baseBranch: "main",
+            isMainCheckout: true,
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+            lastUsedAt: "2026-03-14T00:00:00Z",
+          },
+          profile: {
+            projectId: "proj-1",
+            runtimeFilePaths: [".env"],
+            envVars: {},
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+          },
+          sync: {
+            syncId: "sync-1",
+            sandboxId: "sandbox-1",
+            projectId: "proj-1",
+            syncMode: "managed_copy",
+            status: "unknown",
+            syncedFiles: [],
+            lastSyncedAt: null,
+            details: null,
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+          },
+        })
+        .mockResolvedValueOnce({ sessions: [] })
+        .mockResolvedValueOnce({ commands: [] }),
+      command: vi.fn(),
+    }
+
+    await switchActiveProject("proj-1", actions, projectCapabilities, client)
+
+    expect(actions.setActiveProjectId).toHaveBeenCalledWith("proj-1")
+    expect(actions.setSandboxesForProject).toHaveBeenCalled()
+  })
+
+  it("switches active sandbox and refreshes runtime and terminal snapshots", async () => {
+    const actions = makeActions()
+    const client = {
+      command: vi.fn(async () => ({
+        sandboxId: "sandbox-2",
+        projectId: "proj-1",
+        threadId: null,
+        path: "/projects/alpha/.worktrees/thread",
+        displayName: "Thread",
+        sandboxType: "thread_sandbox",
+        branchName: "thread",
+        baseBranch: "main",
+        isMainCheckout: false,
+        createdAt: "2026-03-14T00:00:00Z",
+        updatedAt: "2026-03-14T00:00:00Z",
+        lastUsedAt: "2026-03-14T00:00:00Z",
+      })),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ sandboxes: [] })
+        .mockResolvedValueOnce({
+          sandbox: {
+            sandboxId: "sandbox-2",
+            projectId: "proj-1",
+            threadId: null,
+            path: "/projects/alpha/.worktrees/thread",
+            displayName: "Thread",
+            sandboxType: "thread_sandbox",
+            branchName: "thread",
+            baseBranch: "main",
+            isMainCheckout: false,
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+            lastUsedAt: "2026-03-14T00:00:00Z",
+          },
+          profile: {
+            projectId: "proj-1",
+            runtimeFilePaths: [".env"],
+            envVars: {},
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+          },
+          sync: {
+            syncId: "sync-1",
+            sandboxId: "sandbox-2",
+            projectId: "proj-1",
+            syncMode: "managed_copy",
+            status: "synced",
+            syncedFiles: [".env"],
+            lastSyncedAt: "2026-03-14T00:00:00Z",
+            details: null,
+            createdAt: "2026-03-14T00:00:00Z",
+            updatedAt: "2026-03-14T00:00:00Z",
+          },
+        })
+        .mockResolvedValueOnce({ sessions: [] })
+        .mockResolvedValueOnce({ commands: [] }),
+    }
+
+    await switchActiveSandbox("proj-1", "sandbox-2", actions, client)
+
+    expect(client.command).toHaveBeenCalledWith("sandboxes.set_active", {
+      project_id: "proj-1",
+      sandbox_id: "sandbox-2",
+    })
+    expect(actions.setActiveSandboxIdForProject).toHaveBeenCalledWith(
+      "proj-1",
+      "sandbox-2",
+    )
+    expect(actions.setRuntimeProfileForProject).toHaveBeenCalled()
+  })
+
+  it("runs a saved command, stores the session, and opens the drawer", async () => {
+    const actions = makeActions()
+    const client = {
+      command: vi.fn(async () => ({
+        sessionId: "term-1",
+        projectId: "proj-1",
+        sandboxId: "sandbox-1",
+        threadId: null,
+        cwd: "/projects/alpha",
+        title: "Test · Main",
+        sessionKind: "saved_command",
+        status: "running",
+        commandId: "test",
+        commandLabel: "Test",
+        commandLine: "pnpm test",
+        exitCode: null,
+        startedAt: "2026-03-14T00:00:00Z",
+        updatedAt: "2026-03-14T00:00:00Z",
+        lastOutputAt: null,
+        lastOutputSequence: 0,
+        recentOutput: "",
+      })),
+      query: vi.fn(),
+    }
+
+    await runSavedCommandForProject("proj-1", "test", actions, client)
+
+    expect(client.command).toHaveBeenCalledWith("terminal.run_saved_command", {
+      project_id: "proj-1",
+      command_id: "test",
+    })
+    expect(actions.upsertTerminalSession).toHaveBeenCalled()
+    expect(actions.setTerminalDrawerOpen).toHaveBeenCalledWith("proj-1", true)
   })
 })

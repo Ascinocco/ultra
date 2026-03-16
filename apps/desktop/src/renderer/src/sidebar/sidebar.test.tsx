@@ -5,7 +5,9 @@ import { AppStoreProvider, createAppStore } from "../state/app-store.js"
 import { makeChat, makeProject } from "../test-utils/factories.js"
 import { Sidebar } from "./Sidebar.js"
 
-function renderSidebar(setup?: (store: ReturnType<typeof createAppStore>) => void) {
+function renderSidebar(
+  setup?: (store: ReturnType<typeof createAppStore>) => void,
+) {
   const store = createAppStore()
   setup?.(store)
   // Zustand's useSyncExternalStore uses getInitialState() during SSR,
@@ -26,12 +28,14 @@ describe("Sidebar", () => {
     expect(markup).toContain("sidebar")
   })
 
-  it("renders project groups for all projects", () => {
+  it("renders all projects in the navigation list", () => {
     const markup = renderSidebar((store) => {
-      store.getState().actions.setProjects([
-        makeProject("proj-1", "ultra"),
-        makeProject("proj-2", "mulch"),
-      ])
+      store
+        .getState()
+        .actions.setProjects([
+          makeProject("proj-1", "ultra"),
+          makeProject("proj-2", "mulch"),
+        ])
     })
 
     expect(markup).toContain("ultra")
@@ -50,57 +54,72 @@ describe("Sidebar", () => {
     expect(markup).toContain("Settings")
     expect(markup).toContain("Open Project")
   })
-})
 
-describe("ProjectGroup", () => {
-  it("shows chats when project is expanded and chats are loaded", () => {
+  it("shows chats only for the active project", () => {
     const markup = renderSidebar((store) => {
-      store.getState().actions.setProjects([makeProject("proj-1", "ultra")])
+      store
+        .getState()
+        .actions.setProjects([
+          makeProject("proj-1", "ultra"),
+          makeProject("proj-2", "mulch"),
+        ])
       store.getState().actions.setActiveProjectId("proj-1")
-      store.getState().actions.toggleProjectExpanded("proj-1")
       store.getState().actions.setChatsForProject("proj-1", [
-        makeChat("c1", "proj-1", { title: "Design session" }),
-        makeChat("c2", "proj-1", { title: "Backend review" }),
+        makeChat("c1", "proj-1", {
+          title: "Design session",
+          updatedAt: "2026-03-15T00:00:00Z",
+        }),
+        makeChat("c2", "proj-1", {
+          title: "Backend review",
+          updatedAt: "2026-03-14T00:00:00Z",
+        }),
       ])
+      store
+        .getState()
+        .actions.setChatsForProject("proj-2", [
+          makeChat("c3", "proj-2", { title: "Hidden chat" }),
+        ])
     })
 
     expect(markup).toContain("Design session")
     expect(markup).toContain("Backend review")
+    expect(markup).not.toContain("Hidden chat")
   })
 
-  it("renders new chat button in project header", () => {
+  it("renders new chat button for the active project", () => {
     const markup = renderSidebar((store) => {
       store.getState().actions.setProjects([makeProject("proj-1", "ultra")])
+      store.getState().actions.setActiveProjectId("proj-1")
     })
 
-    expect(markup).toContain("project-group__new-chat")
-    expect(markup).toContain("New chat in ultra")
+    expect(markup).toContain("sidebar__new-chat")
+    expect(markup).toContain("New Chat")
   })
 
   it("shows loading state when chats are being fetched", () => {
     const markup = renderSidebar((store) => {
       store.getState().actions.setProjects([makeProject("proj-1", "ultra")])
-      store.getState().actions.toggleProjectExpanded("proj-1")
+      store.getState().actions.setActiveProjectId("proj-1")
       store.getState().actions.setChatsFetchStatus("proj-1", "loading")
     })
 
     expect(markup).toContain("Loading")
   })
 
-  it("shows error state with retry when fetch fails", () => {
+  it("shows error state when fetch fails", () => {
     const markup = renderSidebar((store) => {
       store.getState().actions.setProjects([makeProject("proj-1", "ultra")])
-      store.getState().actions.toggleProjectExpanded("proj-1")
+      store.getState().actions.setActiveProjectId("proj-1")
       store.getState().actions.setChatsFetchStatus("proj-1", "error")
     })
 
-    expect(markup).toContain("Retry")
+    expect(markup).toContain("Failed to load chats")
   })
 
   it("shows empty state when project has no chats", () => {
     const markup = renderSidebar((store) => {
       store.getState().actions.setProjects([makeProject("proj-1", "ultra")])
-      store.getState().actions.toggleProjectExpanded("proj-1")
+      store.getState().actions.setActiveProjectId("proj-1")
       store.getState().actions.setChatsForProject("proj-1", [])
     })
 
@@ -110,9 +129,13 @@ describe("ProjectGroup", () => {
   it("renders pinned chats with pin indicator", () => {
     const markup = renderSidebar((store) => {
       store.getState().actions.setProjects([makeProject("proj-1", "ultra")])
-      store.getState().actions.toggleProjectExpanded("proj-1")
+      store.getState().actions.setActiveProjectId("proj-1")
       store.getState().actions.setChatsForProject("proj-1", [
-        makeChat("c1", "proj-1", { isPinned: true, pinnedAt: "2026-03-15T00:00:00Z", title: "Pinned chat" }),
+        makeChat("c1", "proj-1", {
+          isPinned: true,
+          pinnedAt: "2026-03-15T00:00:00Z",
+          title: "Pinned chat",
+        }),
       ])
     })
 
@@ -120,15 +143,26 @@ describe("ProjectGroup", () => {
     expect(markup).toContain("chat-row--pinned")
   })
 
-  it("does not show chats when project is collapsed", () => {
+  it("orders pinned chats before unpinned chats", () => {
     const markup = renderSidebar((store) => {
       store.getState().actions.setProjects([makeProject("proj-1", "ultra")])
       store.getState().actions.setChatsForProject("proj-1", [
-        makeChat("c1", "proj-1", { title: "Hidden chat" }),
+        makeChat("c1", "proj-1", {
+          title: "Later chat",
+          updatedAt: "2026-03-15T00:00:00Z",
+        }),
+        makeChat("c2", "proj-1", {
+          title: "Pinned chat",
+          isPinned: true,
+          pinnedAt: "2026-03-15T00:00:00Z",
+          updatedAt: "2026-03-14T00:00:00Z",
+        }),
       ])
-      // project not expanded
+      store.getState().actions.setActiveProjectId("proj-1")
     })
 
-    expect(markup).not.toContain("Hidden chat")
+    expect(markup.indexOf("Pinned chat")).toBeLessThan(
+      markup.indexOf("Later chat"),
+    )
   })
 })
