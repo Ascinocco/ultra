@@ -100,6 +100,29 @@ describe("AppShell", () => {
 
     expect(markup).toContain("title-bar__terminal-toggle")
   })
+
+  it("renders the sandbox selector in the title bar", () => {
+    const store = createAppStore()
+    const sb = makeSandbox("sb-1", "proj-1", { displayName: "main checkout" })
+    const state = {
+      ...store.getState(),
+      sandbox: {
+        ...store.getState().sandbox,
+        activeSandbox: sb,
+        sandboxes: [sb],
+      },
+    }
+    store.getInitialState = () => state
+
+    const markup = renderToStaticMarkup(
+      <AppStoreProvider store={store}>
+        <AppShell />
+      </AppStoreProvider>,
+    )
+
+    expect(markup).toContain("sandbox-selector")
+    expect(markup).toContain("main checkout")
+  })
 })
 
 describe("app store", () => {
