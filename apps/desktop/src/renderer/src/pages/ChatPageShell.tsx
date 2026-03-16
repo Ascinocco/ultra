@@ -1,5 +1,6 @@
 import type { TerminalSessionSnapshot } from "@ultra/shared"
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
@@ -235,19 +236,22 @@ function TerminalDrawer({
           )}
         </div>
       </div>
-      {contextMenu && contextMenuSession && (
-        <TerminalTabContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          pinned={contextMenuSession.pinned}
-          onRename={() => startRename(contextMenu.sessionId)}
-          onTogglePin={() =>
-            onPinSession(contextMenu.sessionId, !contextMenuSession.pinned)
-          }
-          onClose={() => onCloseSession(contextMenu.sessionId)}
-          onDismiss={() => setContextMenu(null)}
-        />
-      )}
+      {contextMenu &&
+        contextMenuSession &&
+        createPortal(
+          <TerminalTabContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            pinned={contextMenuSession.pinned}
+            onRename={() => startRename(contextMenu.sessionId)}
+            onTogglePin={() =>
+              onPinSession(contextMenu.sessionId, !contextMenuSession.pinned)
+            }
+            onClose={() => onCloseSession(contextMenu.sessionId)}
+            onDismiss={() => setContextMenu(null)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }
