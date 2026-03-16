@@ -166,7 +166,9 @@ export function ChatPageShell({
         ) ?? null)
       : null
   const terminalSessions = activeProjectId
-    ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
+    ? (terminal.sessionsByProjectId[activeProjectId] ?? []).filter(
+        (s) => s.status === "running",
+      )
     : []
   const focusedSessionId = activeProjectId
     ? (terminal.focusedSessionIdByProjectId[activeProjectId] ?? null)
