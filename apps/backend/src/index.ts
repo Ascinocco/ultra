@@ -7,8 +7,10 @@ import { ArtifactStorageService } from "./artifacts/artifact-storage-service.js"
 import { ChatService } from "./chats/chat-service.js"
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { ProjectService } from "./projects/project-service.js"
+import { NodeSupervisedProcessAdapter } from "./runtime/node-supervised-process-adapter.js"
 import { RuntimePersistenceService } from "./runtime/runtime-persistence-service.js"
 import { RuntimeRegistry } from "./runtime/runtime-registry.js"
+import { RuntimeSupervisor } from "./runtime/runtime-supervisor.js"
 import { SandboxPersistenceService } from "./sandboxes/sandbox-persistence-service.js"
 import { SandboxService } from "./sandboxes/sandbox-service.js"
 import {
@@ -31,6 +33,7 @@ export type BackendRuntime = {
   socketPath: string | null
   databasePath: string
   runtimeRegistry: RuntimeRegistry
+  runtimeSupervisor: RuntimeSupervisor
   stop: () => Promise<void>
 }
 
@@ -47,8 +50,12 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
     databaseRuntime.database,
   )
   const runtimeRegistry = new RuntimeRegistry(runtimePersistenceService)
+  const runtimeSupervisor = new RuntimeSupervisor(
+    runtimeRegistry,
+    new NodeSupervisedProcessAdapter(),
+  )
 
-  runtimeRegistry.hydrate()
+  runtimeSupervisor.hydrate()
 
   console.log(
     `[backend] database ready at ${databaseRuntime.databasePath} (${databaseRuntime.migrationResult.appliedMigrationIds.length} migrations applied)`,
@@ -104,7 +111,9 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
     socketPath,
     databasePath: databaseRuntime.databasePath,
     runtimeRegistry,
+    runtimeSupervisor,
     stop: async () => {
+      runtimeSupervisor.dispose()
       terminalSessionService?.dispose()
       await socketRuntime?.close()
       databaseRuntime?.close()
