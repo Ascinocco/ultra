@@ -333,6 +333,19 @@ export class TerminalSessionService {
     return null
   }
 
+  getCaptureContext(
+    projectId: ProjectId,
+    sessionId: string,
+  ): {
+    captureOutput: string
+    session: TerminalSessionSnapshot
+  } {
+    return {
+      session: this.getRequiredSession(projectId, sessionId),
+      captureOutput: this.registry.getCaptureOutput(projectId, sessionId),
+    }
+  }
+
   private createSession(input: {
     args: string[]
     cols?: number

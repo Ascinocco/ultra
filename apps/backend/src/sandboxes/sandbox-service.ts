@@ -23,6 +23,10 @@ export class SandboxService {
     return this.persistenceService.getActiveSandbox(projectId)
   }
 
+  getSandbox(projectId: ProjectId, sandboxId: string): SandboxContextSnapshot {
+    return this.persistenceService.getSandbox(projectId, sandboxId)
+  }
+
   setActive(projectId: ProjectId, sandboxId: string): SandboxContextSnapshot {
     const sandbox = this.persistenceService.setActiveSandbox(
       projectId,

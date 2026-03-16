@@ -7,6 +7,7 @@ import {
   parseArtifactBundle,
   parseArtifactLoadResult,
   parseArtifactSnapshot,
+  parseArtifactsCaptureRuntimeResult,
   parseChatSnapshot,
   parseChatsListResult,
   parseCommandRequest,
@@ -436,6 +437,51 @@ describe("shared contracts", () => {
         createdAt: "2026-03-16T10:02:00Z",
       }),
     ).toThrow()
+  })
+
+  it("parses artifacts.capture_runtime command envelopes and results", () => {
+    const command = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_capture_runtime",
+      type: "command",
+      name: "artifacts.capture_runtime",
+      payload: {
+        project_id: "proj_123",
+        session_id: "term_123",
+      },
+    })
+
+    const result = parseArtifactsCaptureRuntimeResult({
+      artifactId: "artifact_123",
+      projectId: "proj_123",
+      threadId: "thread_123",
+      artifactType: "terminal_output_bundle",
+      title: "Captured terminal output",
+      path: null,
+      metadata: {
+        artifactType: "terminal_output_bundle",
+        title: "Captured terminal output",
+        summary: "Captured shell output from Main",
+        capturedAt: "2026-03-16T16:00:00Z",
+        source: {
+          surface: "terminal",
+          metadata: {
+            sessionId: "term_123",
+          },
+        },
+        payload: {
+          command: "/bin/zsh",
+          cwd: "/tmp/project",
+          exitCode: null,
+          output: "hello world",
+        },
+        largeContentRefs: [],
+      },
+      createdAt: "2026-03-16T16:00:00Z",
+    })
+
+    expect(command.name).toBe("artifacts.capture_runtime")
+    expect(result.artifactType).toBe("terminal_output_bundle")
   })
 
   it("parses environment readiness snapshots", () => {

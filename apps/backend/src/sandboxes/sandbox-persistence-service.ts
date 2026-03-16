@@ -357,6 +357,20 @@ export class SandboxPersistenceService {
     return sandbox ? mapSandboxContextRow(sandbox) : null
   }
 
+  getSandbox(projectId: ProjectId, sandboxId: string): SandboxContextSnapshot {
+    this.assertProjectExists(projectId)
+    const sandbox = this.getSandboxForProject(projectId, sandboxId)
+
+    if (!sandbox) {
+      throw new IpcProtocolError(
+        "not_found",
+        `Sandbox not found for project: ${sandboxId}`,
+      )
+    }
+
+    return mapSandboxContextRow(sandbox)
+  }
+
   setActiveSandbox(
     projectId: ProjectId,
     sandboxId: string,

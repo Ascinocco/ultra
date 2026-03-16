@@ -17,6 +17,7 @@ import {
   terminalSessionsSubscribeInputSchema,
 } from "@ultra/shared"
 
+import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
 import type { ChatService } from "../chats/chat-service.js"
 import { createErrorResponse, IpcProtocolError } from "../ipc/errors.js"
 import { routeIpcRequest } from "../ipc/router.js"
@@ -56,6 +57,7 @@ async function removeStaleSocket(socketPath: string): Promise<void> {
 export async function startSocketServer(
   socketPath: string,
   services: {
+    artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
     systemService?: SystemService
     projectService: ProjectService
@@ -98,6 +100,7 @@ export async function startSocketServer(
         void handleLine(
           rawLine,
           {
+            artifactCaptureService: services.artifactCaptureService,
             chatService: services.chatService,
             systemService,
             projectService: services.projectService,
@@ -133,6 +136,7 @@ export async function startSocketServer(
 async function handleLine(
   rawLine: string,
   services: {
+    artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
     systemService: SystemService
     projectService: ProjectService

@@ -7,6 +7,7 @@ import type {
 import type { PtySessionHandle } from "./pty-adapter.js"
 
 const RECENT_OUTPUT_LIMIT = 16_384
+const CAPTURE_OUTPUT_LIMIT = 262_144
 
 function cloneSession(
   session: TerminalSessionSnapshot,
@@ -31,6 +32,7 @@ function orderSessions(
 }
 
 export class TerminalSessionRegistry {
+  private readonly captureOutputBySessionId = new Map<string, string>()
   private readonly handlesBySessionId = new Map<string, PtySessionHandle>()
   private readonly sessionsByProjectId = new Map<
     ProjectId,
@@ -46,6 +48,7 @@ export class TerminalSessionRegistry {
 
     projectSessions.set(session.sessionId, cloneSession(session))
     this.sessionsByProjectId.set(session.projectId, projectSessions)
+    this.captureOutputBySessionId.set(session.sessionId, "")
     this.handlesBySessionId.set(session.sessionId, handle)
 
     return this.getRequiredSession(session.projectId, session.sessionId)
@@ -61,6 +64,12 @@ export class TerminalSessionRegistry {
     const recentOutput = `${current.recentOutput}${chunk}`.slice(
       -RECENT_OUTPUT_LIMIT,
     )
+    const captureOutput =
+      `${this.captureOutputBySessionId.get(sessionId) ?? ""}${chunk}`.slice(
+        -CAPTURE_OUTPUT_LIMIT,
+      )
+
+    this.captureOutputBySessionId.set(sessionId, captureOutput)
 
     return this.updateSession(projectId, sessionId, {
       lastOutputAt: occurredAt,
@@ -75,8 +84,14 @@ export class TerminalSessionRegistry {
       handle.kill()
     }
 
+    this.captureOutputBySessionId.clear()
     this.handlesBySessionId.clear()
     this.sessionsByProjectId.clear()
+  }
+
+  getCaptureOutput(projectId: ProjectId, sessionId: string): string {
+    this.getRequiredSession(projectId, sessionId)
+    return this.captureOutputBySessionId.get(sessionId) ?? ""
   }
 
   getHandle(projectId: ProjectId, sessionId: string): PtySessionHandle {
