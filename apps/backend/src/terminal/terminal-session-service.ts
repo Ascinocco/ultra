@@ -12,11 +12,11 @@ import type {
   TerminalListSessionsResult,
   TerminalOpenInput,
   TerminalOutputEventPayload,
+  TerminalPinSessionInput,
+  TerminalRenameSessionInput,
   TerminalResizeSessionInput,
   TerminalRunSavedCommandInput,
   TerminalSessionSnapshot,
-  TerminalPinSessionInput,
-  TerminalRenameSessionInput,
   TerminalWriteInputInput,
 } from "@ultra/shared"
 

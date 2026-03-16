@@ -594,6 +594,8 @@ describe("project workflows", () => {
         lastOutputAt: null,
         lastOutputSequence: 0,
         recentOutput: "",
+        displayName: null,
+        pinned: false,
       })),
       query: vi.fn(),
     }

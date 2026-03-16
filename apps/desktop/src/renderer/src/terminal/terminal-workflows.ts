@@ -1,5 +1,8 @@
-import { parseTerminalListSessionsResult, parseTerminalSessionSnapshot } from "@ultra/shared"
 import type { TerminalSessionSnapshot } from "@ultra/shared"
+import {
+  parseTerminalListSessionsResult,
+  parseTerminalSessionSnapshot,
+} from "@ultra/shared"
 
 import { ipcClient } from "../ipc/ipc-client.js"
 import type { AppActions } from "../state/app-store.js"
@@ -8,13 +11,12 @@ type WorkflowClient = Pick<typeof ipcClient, "query" | "command">
 
 type OpenTerminalActions = Pick<
   AppActions,
-  "upsertTerminalSession" | "setFocusedTerminalSession" | "setTerminalDrawerOpen"
+  | "upsertTerminalSession"
+  | "setFocusedTerminalSession"
+  | "setTerminalDrawerOpen"
 >
 
-type CloseTerminalActions = Pick<
-  AppActions,
-  "setTerminalSessionsForProject"
->
+type CloseTerminalActions = Pick<AppActions, "setTerminalSessionsForProject">
 
 export async function openTerminal(
   projectId: string,
