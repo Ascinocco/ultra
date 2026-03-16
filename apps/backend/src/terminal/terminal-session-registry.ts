@@ -19,6 +19,11 @@ function orderSessions(
   sessions: TerminalSessionSnapshot[],
 ): TerminalSessionSnapshot[] {
   return [...sessions].sort((left, right) => {
+    // Pinned tabs sort before unpinned
+    if (left.pinned !== right.pinned) {
+      return left.pinned ? -1 : 1
+    }
+
     const leftRunning = left.status === "running" || left.status === "starting"
     const rightRunning =
       right.status === "running" || right.status === "starting"

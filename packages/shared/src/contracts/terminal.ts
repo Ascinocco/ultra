@@ -83,6 +83,18 @@ export const terminalCloseSessionInputSchema = z.object({
   session_id: terminalSessionIdSchema,
 })
 
+export const terminalRenameSessionInputSchema = z.object({
+  project_id: projectIdSchema,
+  session_id: terminalSessionIdSchema,
+  display_name: z.string().nullable(),
+})
+
+export const terminalPinSessionInputSchema = z.object({
+  project_id: projectIdSchema,
+  session_id: terminalSessionIdSchema,
+  pinned: z.boolean(),
+})
+
 export const terminalSessionsSubscribeInputSchema = z.object({
   project_id: projectIdSchema,
 })
@@ -116,6 +128,8 @@ export const terminalSessionSnapshotSchema = z.object({
   lastOutputAt: isoUtcTimestampSchema.nullable(),
   lastOutputSequence: z.number().int().nonnegative(),
   recentOutput: z.string(),
+  displayName: z.string().nullable(),
+  pinned: z.boolean(),
 })
 
 export const savedCommandSnapshotSchema = z.object({
@@ -204,6 +218,28 @@ export const terminalCloseSessionCommandSchema =
     payload: terminalCloseSessionInputSchema,
   })
 
+export const terminalRenameSessionCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("terminal.rename_session"),
+    payload: terminalRenameSessionInputSchema,
+  })
+
+export const terminalPinSessionCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("terminal.pin_session"),
+    payload: terminalPinSessionInputSchema,
+  })
+
+export const terminalRenameSessionSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: terminalSessionSnapshotSchema,
+  })
+
+export const terminalPinSessionSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: terminalSessionSnapshotSchema,
+  })
+
 export const terminalSessionsSubscribeRequestSchema =
   subscribeRequestEnvelopeSchema.extend({
     name: z.literal("terminal.sessions"),
@@ -288,6 +324,12 @@ export type TerminalResizeSessionInput = z.infer<
 >
 export type TerminalCloseSessionInput = z.infer<
   typeof terminalCloseSessionInputSchema
+>
+export type TerminalRenameSessionInput = z.infer<
+  typeof terminalRenameSessionInputSchema
+>
+export type TerminalPinSessionInput = z.infer<
+  typeof terminalPinSessionInputSchema
 >
 export type TerminalSessionsSubscribeInput = z.infer<
   typeof terminalSessionsSubscribeInputSchema

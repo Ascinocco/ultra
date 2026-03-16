@@ -89,6 +89,8 @@ export function makeTerminalSession(
     lastOutputAt: null,
     lastOutputSequence: 0,
     recentOutput: "",
+    displayName: null,
+    pinned: false,
     ...opts,
   }
 }

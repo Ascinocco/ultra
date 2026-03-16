@@ -38,6 +38,12 @@ function createMainWindow(): BrowserWindow {
     },
   })
 
+  // Suppress Electron's native context menu so the DOM contextmenu event
+  // reaches React and our custom context menus can render.
+  mainWindow.webContents.on("context-menu", (event) => {
+    event.preventDefault()
+  })
+
   const rendererUrl = process.env.ELECTRON_RENDERER_URL
 
   if (rendererUrl) {

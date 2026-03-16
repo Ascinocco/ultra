@@ -1,12 +1,16 @@
 import type { TerminalSessionSnapshot } from "@ultra/shared"
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
 import { TerminalPane } from "../terminal/TerminalPane.js"
+import { TerminalTabContextMenu } from "../terminal/TerminalTabContextMenu.js"
 import {
   closeTerminalSession,
   openTerminal,
+  pinTerminalSession,
+  renameTerminalSession,
   resizeTerminalSession,
   writeTerminalInput,
 } from "../terminal/terminal-workflows.js"
@@ -26,6 +30,8 @@ function TerminalDrawer({
   onTerminalResize,
   onNewSession,
   onCloseSession,
+  onRenameSession,
+  onPinSession,
 }: {
   height: number
   sessions: TerminalSessionSnapshot[]
@@ -37,17 +43,22 @@ function TerminalDrawer({
   onTerminalResize: (sessionId: string, cols: number, rows: number) => void
   onNewSession: () => void
   onCloseSession: (sessionId: string) => void
+  onRenameSession: (sessionId: string, displayName: string | null) => void
+  onPinSession: (sessionId: string, pinned: boolean) => void
 }) {
   const focusedSession =
     sessions.find((session) => session.sessionId === focusedSessionId) ??
     sessions[0] ??
     null
 
-  // Local tab name overrides (not persisted)
-  const [nameOverrides, setNameOverrides] = useState<Record<string, string>>({})
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState("")
   const editInputRef = useRef<HTMLInputElement>(null)
+  const [contextMenu, setContextMenu] = useState<{
+    sessionId: string
+    x: number
+    y: number
+  } | null>(null)
 
   useEffect(() => {
     if (editingTabId && editInputRef.current) {
@@ -56,8 +67,12 @@ function TerminalDrawer({
     }
   }, [editingTabId])
 
+  const contextMenuSession = contextMenu
+    ? (sessions.find((s) => s.sessionId === contextMenu.sessionId) ?? null)
+    : null
+
   function getTabName(session: TerminalSessionSnapshot) {
-    return nameOverrides[session.sessionId] ?? session.title
+    return session.displayName ?? session.title
   }
 
   function startRename(sessionId: string) {
@@ -69,9 +84,16 @@ function TerminalDrawer({
 
   function commitRename() {
     if (!editingTabId) return
+    const session = sessions.find((s) => s.sessionId === editingTabId)
+    if (!session) {
+      setEditingTabId(null)
+      return
+    }
     const trimmed = editValue.trim()
-    if (trimmed) {
-      setNameOverrides((prev) => ({ ...prev, [editingTabId]: trimmed }))
+    if (trimmed && trimmed !== session.title) {
+      onRenameSession(editingTabId, trimmed)
+    } else {
+      onRenameSession(editingTabId, null)
     }
     setEditingTabId(null)
   }
@@ -122,9 +144,18 @@ function TerminalDrawer({
       <div className="terminal-drawer__content">
         <div className="terminal-drawer__tabs" role="tablist">
           {sessions.map((session) => (
+            // biome-ignore lint/a11y/noStaticElementInteractions: context menu on tab wrapper
             <div
               key={session.sessionId}
               className={`terminal-drawer__tab ${session.sessionId === focusedSession?.sessionId ? "terminal-drawer__tab--active" : ""}`}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setContextMenu({
+                  sessionId: session.sessionId,
+                  x: e.clientX,
+                  y: e.clientY,
+                })
+              }}
             >
               {editingTabId === session.sessionId ? (
                 <input
@@ -150,6 +181,12 @@ function TerminalDrawer({
                   onClick={() => onFocusSession(session.sessionId)}
                   onDoubleClick={() => startRename(session.sessionId)}
                 >
+                  {session.pinned && (
+                    <span
+                      className="terminal-drawer__tab-pin"
+                      aria-hidden="true"
+                    />
+                  )}
                   {getTabName(session)}
                 </button>
               )}
@@ -199,6 +236,22 @@ function TerminalDrawer({
           )}
         </div>
       </div>
+      {contextMenu &&
+        contextMenuSession &&
+        createPortal(
+          <TerminalTabContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            pinned={contextMenuSession.pinned}
+            onRename={() => startRename(contextMenu.sessionId)}
+            onTogglePin={() =>
+              onPinSession(contextMenu.sessionId, !contextMenuSession.pinned)
+            }
+            onClose={() => onCloseSession(contextMenu.sessionId)}
+            onDismiss={() => setContextMenu(null)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }
@@ -230,7 +283,10 @@ export function ChatPageShell({
     ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
         .filter((s) => s.status === "running")
         .slice()
-        .reverse()
+        .sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+          return 0
+        })
     : []
   const focusedSessionId = activeProjectId
     ? (terminal.focusedSessionIdByProjectId[activeProjectId] ?? null)
@@ -270,6 +326,27 @@ export function ChatPageShell({
   function handleTerminalResize(sessionId: string, cols: number, rows: number) {
     if (!activeProjectId) return
     void resizeTerminalSession(activeProjectId, sessionId, cols, rows)
+  }
+
+  function handleRenameSession(sessionId: string, displayName: string | null) {
+    if (!activeProjectId) return
+    renameTerminalSession(
+      activeProjectId,
+      sessionId,
+      displayName,
+      actions,
+    ).catch((err) => {
+      console.error("[terminal] failed to rename session:", err)
+    })
+  }
+
+  function handlePinSession(sessionId: string, pinned: boolean) {
+    if (!activeProjectId) return
+    pinTerminalSession(activeProjectId, sessionId, pinned, actions).catch(
+      (err) => {
+        console.error("[terminal] failed to pin session:", err)
+      },
+    )
   }
 
   return (
@@ -350,6 +427,8 @@ export function ChatPageShell({
             onTerminalResize={handleTerminalResize}
             onNewSession={handleNewTerminalSession}
             onCloseSession={handleCloseSession}
+            onRenameSession={handleRenameSession}
+            onPinSession={handlePinSession}
           />
         )}
       </div>

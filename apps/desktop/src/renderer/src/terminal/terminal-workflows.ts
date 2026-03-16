@@ -1,5 +1,8 @@
-import { parseTerminalListSessionsResult, parseTerminalSessionSnapshot } from "@ultra/shared"
 import type { TerminalSessionSnapshot } from "@ultra/shared"
+import {
+  parseTerminalListSessionsResult,
+  parseTerminalSessionSnapshot,
+} from "@ultra/shared"
 
 import { ipcClient } from "../ipc/ipc-client.js"
 import type { AppActions } from "../state/app-store.js"
@@ -8,13 +11,12 @@ type WorkflowClient = Pick<typeof ipcClient, "query" | "command">
 
 type OpenTerminalActions = Pick<
   AppActions,
-  "upsertTerminalSession" | "setFocusedTerminalSession" | "setTerminalDrawerOpen"
+  | "upsertTerminalSession"
+  | "setFocusedTerminalSession"
+  | "setTerminalDrawerOpen"
 >
 
-type CloseTerminalActions = Pick<
-  AppActions,
-  "setTerminalSessionsForProject"
->
+type CloseTerminalActions = Pick<AppActions, "setTerminalSessionsForProject">
 
 export async function openTerminal(
   projectId: string,
@@ -81,4 +83,42 @@ export async function resizeTerminalSession(
     cols,
     rows,
   })
+}
+
+type RenameTerminalActions = Pick<AppActions, "upsertTerminalSession">
+
+export async function renameTerminalSession(
+  projectId: string,
+  sessionId: string,
+  displayName: string | null,
+  actions: RenameTerminalActions,
+  client: WorkflowClient = ipcClient,
+): Promise<TerminalSessionSnapshot> {
+  const result = await client.command("terminal.rename_session", {
+    project_id: projectId,
+    session_id: sessionId,
+    display_name: displayName,
+  })
+  const session = parseTerminalSessionSnapshot(result)
+  actions.upsertTerminalSession(projectId, session)
+  return session
+}
+
+type PinTerminalActions = Pick<AppActions, "upsertTerminalSession">
+
+export async function pinTerminalSession(
+  projectId: string,
+  sessionId: string,
+  pinned: boolean,
+  actions: PinTerminalActions,
+  client: WorkflowClient = ipcClient,
+): Promise<TerminalSessionSnapshot> {
+  const result = await client.command("terminal.pin_session", {
+    project_id: projectId,
+    session_id: sessionId,
+    pinned,
+  })
+  const session = parseTerminalSessionSnapshot(result)
+  actions.upsertTerminalSession(projectId, session)
+  return session
 }

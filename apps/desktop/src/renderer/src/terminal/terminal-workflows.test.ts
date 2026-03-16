@@ -4,6 +4,8 @@ import { makeTerminalSession } from "../test-utils/factories.js"
 import {
   closeTerminalSession,
   openTerminal,
+  pinTerminalSession,
+  renameTerminalSession,
   resizeTerminalSession,
   writeTerminalInput,
 } from "./terminal-workflows.js"
@@ -133,5 +135,49 @@ describe("resizeTerminalSession", () => {
       cols: 120,
       rows: 40,
     })
+  })
+})
+
+describe("renameTerminalSession", () => {
+  it("calls terminal.rename_session and upserts the returned session", async () => {
+    const renamed = makeTerminalSession("term-1", "proj-1", "sb-1", {
+      displayName: "My Shell",
+    })
+    const actions = { upsertTerminalSession: vi.fn() }
+    const client = {
+      query: vi.fn(),
+      command: vi.fn().mockResolvedValue(renamed),
+    }
+
+    await renameTerminalSession("proj-1", "term-1", "My Shell", actions, client)
+
+    expect(client.command).toHaveBeenCalledWith("terminal.rename_session", {
+      project_id: "proj-1",
+      session_id: "term-1",
+      display_name: "My Shell",
+    })
+    expect(actions.upsertTerminalSession).toHaveBeenCalledWith("proj-1", renamed)
+  })
+})
+
+describe("pinTerminalSession", () => {
+  it("calls terminal.pin_session and upserts the returned session", async () => {
+    const pinned = makeTerminalSession("term-1", "proj-1", "sb-1", {
+      pinned: true,
+    })
+    const actions = { upsertTerminalSession: vi.fn() }
+    const client = {
+      query: vi.fn(),
+      command: vi.fn().mockResolvedValue(pinned),
+    }
+
+    await pinTerminalSession("proj-1", "term-1", true, actions, client)
+
+    expect(client.command).toHaveBeenCalledWith("terminal.pin_session", {
+      project_id: "proj-1",
+      session_id: "term-1",
+      pinned: true,
+    })
+    expect(actions.upsertTerminalSession).toHaveBeenCalledWith("proj-1", pinned)
   })
 })
