@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 import { useAppStore } from "../state/app-store.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
@@ -12,11 +12,11 @@ export function ChatPageShell({ active, onOpenProject }: { active: boolean; onOp
   const terminalDrawerOpen = useAppStore((s) => s.app.terminalDrawerOpen)
   const actions = useAppStore((s) => s.actions)
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
+  const chatFrameRef = useRef<HTMLDivElement>(null)
 
   function handleResize(height: number) {
-    const chatFrame = document.querySelector(".chat-frame")
-    const maxHeight = chatFrame
-      ? chatFrame.clientHeight * MAX_DRAWER_HEIGHT_RATIO
+    const maxHeight = chatFrameRef.current
+      ? chatFrameRef.current.clientHeight * MAX_DRAWER_HEIGHT_RATIO
       : 600
     setDrawerHeight(Math.min(Math.max(height, MIN_DRAWER_HEIGHT), maxHeight))
   }
@@ -27,8 +27,8 @@ export function ChatPageShell({ active, onOpenProject }: { active: boolean; onOp
       className={`page-shell ${active ? "page-shell--active" : "page-shell--hidden"}`}
       data-page="chat"
     >
-      <div className="chat-frame">
-        <div className="chat-frame__grid">
+      <div className="chat-frame" ref={chatFrameRef}>
+        <div className={`chat-frame__grid ${terminalDrawerOpen ? "chat-frame__grid--drawer-open" : ""}`}>
           <aside className="chat-frame__rail">
             <Sidebar onOpenProject={onOpenProject} />
           </aside>

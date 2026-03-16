@@ -18,6 +18,7 @@ export function AppShell() {
   const actions = useAppStore((state) => state.actions)
   const sandbox = useAppStore((state) => state.sandbox)
   const loadedProjectsSessionRef = useRef<string | null>(null)
+  const hydratedSandboxProjectRef = useRef<string | null>(null)
 
   const canOpenProjects =
     app.connectionStatus === "connected" &&
@@ -40,7 +41,12 @@ export function AppShell() {
   }, [actions, app.backendStatus.sessionId, app.capabilities, canOpenProjects])
 
   useEffect(() => {
-    if (!app.activeProjectId) return
+    if (!app.activeProjectId) {
+      hydratedSandboxProjectRef.current = null
+      return
+    }
+    if (hydratedSandboxProjectRef.current === app.activeProjectId) return
+    hydratedSandboxProjectRef.current = app.activeProjectId
     void hydrateSandboxes(app.activeProjectId, actions)
   }, [app.activeProjectId, actions])
 
@@ -60,7 +66,7 @@ export function AppShell() {
 
   function handleSandboxSelect(sandboxId: string) {
     if (!app.activeProjectId) return
-    void switchSandbox(app.activeProjectId, sandboxId, actions)
+    void switchSandbox(app.activeProjectId, sandboxId, actions).catch(() => undefined)
   }
 
   async function handleOpenProject() {

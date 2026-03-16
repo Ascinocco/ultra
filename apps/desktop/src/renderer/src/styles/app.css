@@ -503,6 +503,10 @@ button {
   height: 100%;
 }
 
+.chat-frame__grid--drawer-open {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
 .chat-frame__rail {
   border-right: 1px solid var(--panel-border);
   background: var(--surface-2);
