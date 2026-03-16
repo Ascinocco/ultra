@@ -1,6 +1,26 @@
+import { useState } from "react"
+
+import { useAppStore } from "../state/app-store.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
+import { TerminalDrawer } from "../terminal/TerminalDrawer.js"
+
+const DEFAULT_DRAWER_HEIGHT = 200
+const MIN_DRAWER_HEIGHT = 100
+const MAX_DRAWER_HEIGHT_RATIO = 0.8
 
 export function ChatPageShell({ active, onOpenProject }: { active: boolean; onOpenProject: () => void }) {
+  const terminalDrawerOpen = useAppStore((s) => s.app.terminalDrawerOpen)
+  const actions = useAppStore((s) => s.actions)
+  const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
+
+  function handleResize(height: number) {
+    const chatFrame = document.querySelector(".chat-frame")
+    const maxHeight = chatFrame
+      ? chatFrame.clientHeight * MAX_DRAWER_HEIGHT_RATIO
+      : 600
+    setDrawerHeight(Math.min(Math.max(height, MIN_DRAWER_HEIGHT), maxHeight))
+  }
+
   return (
     <section
       aria-hidden={!active}
@@ -55,6 +75,14 @@ export function ChatPageShell({ active, onOpenProject }: { active: boolean; onOp
               </div>
             </section>
           </div>
+
+          {terminalDrawerOpen && (
+            <TerminalDrawer
+              height={drawerHeight}
+              onResize={handleResize}
+              onClose={() => actions.toggleTerminalDrawer()}
+            />
+          )}
         </div>
       </div>
     </section>

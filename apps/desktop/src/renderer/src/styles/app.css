@@ -465,6 +465,7 @@ button {
 .chat-frame__grid {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr) minmax(320px, 0.95fr);
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
 }
 
@@ -472,16 +473,20 @@ button {
   border-right: 1px solid var(--panel-border);
   background: var(--surface-2);
   overflow: hidden;
+  grid-row: 1 / -1;
 }
 
 .chat-frame__main {
   padding: 20px;
   border-right: 1px solid var(--panel-border);
+  grid-row: 1;
+  overflow: auto;
 }
 
 .chat-frame__side {
   display: grid;
   grid-template-rows: 1fr auto;
+  grid-row: 1;
 }
 
 .chat-frame__side-top {
@@ -845,6 +850,72 @@ button {
   min-height: 520px;
 }
 
+/* ── Terminal Drawer ─────────────────────────────────────────── */
+
+.terminal-drawer {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  background: var(--shell-bg);
+  border-top: 1px solid var(--panel-border);
+  min-height: 100px;
+  overflow: hidden;
+}
+
+.terminal-drawer__drag-handle {
+  height: 4px;
+  cursor: row-resize;
+  flex-shrink: 0;
+}
+
+.terminal-drawer__drag-handle:hover {
+  background: var(--panel-border);
+}
+
+.terminal-drawer__header {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+
+.terminal-drawer__title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.terminal-drawer__close {
+  appearance: none;
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.terminal-drawer__close:hover {
+  background: rgba(148, 163, 200, 0.08);
+  color: var(--text-primary);
+}
+
+.terminal-drawer__content {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 12px;
+}
+
+.terminal-drawer__placeholder {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
 /* ── Responsive ────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
@@ -872,5 +943,9 @@ button {
 
   .chat-frame__side {
     grid-template-rows: auto auto;
+  }
+
+  .terminal-drawer {
+    grid-column: 1 / -1;
   }
 }
