@@ -130,12 +130,12 @@ describe("app store", () => {
     const layout: ProjectLayoutState = {
       currentPage: "editor",
       rightTopCollapsed: true,
-      rightBottomCollapsed: false,
       selectedRightPaneTab: "files",
-      selectedBottomPaneTab: null,
       activeChatId: null,
       selectedThreadId: null,
       lastEditorTargetId: null,
+      sidebarCollapsed: false,
+      chatThreadSplitRatio: 0.55,
     }
 
     store.getState().actions.setLayoutForProject("proj-1", layout)
@@ -221,12 +221,12 @@ describe("app store", () => {
     const fullLayout: ProjectLayoutState = {
       currentPage: "chat",
       rightTopCollapsed: false,
-      rightBottomCollapsed: false,
       selectedRightPaneTab: null,
-      selectedBottomPaneTab: null,
       activeChatId: null,
       selectedThreadId: null,
       lastEditorTargetId: null,
+      sidebarCollapsed: false,
+      chatThreadSplitRatio: 0.55,
     }
 
     store.getState().actions.setLayoutForProject("proj-1", fullLayout)
@@ -235,6 +235,24 @@ describe("app store", () => {
     const result = store.getState().layout.byProjectId["proj-1"]
     expect(result.currentPage).toBe("chat")
     expect(result.rightTopCollapsed).toBe(false)
+  })
+
+  it("DEFAULT_LAYOUT: sidebarCollapsed defaults to false", () => {
+    const store = createAppStore()
+
+    store.getState().actions.setLayoutField("proj-new", {})
+
+    const result = store.getState().layout.byProjectId["proj-new"]
+    expect(result.sidebarCollapsed).toBe(false)
+  })
+
+  it("DEFAULT_LAYOUT: chatThreadSplitRatio defaults to 0.55", () => {
+    const store = createAppStore()
+
+    store.getState().actions.setLayoutField("proj-new", {})
+
+    const result = store.getState().layout.byProjectId["proj-new"]
+    expect(result.chatThreadSplitRatio).toBe(0.55)
   })
 
   it("setLayoutField creates default layout if project has no entry", () => {
@@ -433,18 +451,18 @@ describe("sandbox and terminal slices", () => {
     )
   })
 
-  it("tracks terminal drawer state through the layout compatibility mapping", () => {
+  it("tracks terminal drawer state through drawerOpenByProjectId", () => {
     const store = createAppStore()
 
     store.getState().actions.setTerminalDrawerOpen("proj-1", true)
 
     expect(store.getState().terminal.drawerOpenByProjectId["proj-1"]).toBe(true)
-    expect(
-      store.getState().layout.byProjectId["proj-1"]?.selectedBottomPaneTab,
-    ).toBe("terminal")
-    expect(
-      store.getState().layout.byProjectId["proj-1"]?.rightBottomCollapsed,
-    ).toBe(false)
+
+    store.getState().actions.setTerminalDrawerOpen("proj-1", false)
+
+    expect(store.getState().terminal.drawerOpenByProjectId["proj-1"]).toBe(
+      false,
+    )
   })
 
   it("keeps the focused terminal session in sync with session updates", () => {

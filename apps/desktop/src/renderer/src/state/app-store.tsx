@@ -223,12 +223,12 @@ const defaultThreadsState: ThreadsSlice = {
 const DEFAULT_LAYOUT: ProjectLayoutState = {
   currentPage: "chat",
   rightTopCollapsed: false,
-  rightBottomCollapsed: false,
   selectedRightPaneTab: null,
-  selectedBottomPaneTab: null,
   activeChatId: null,
   selectedThreadId: null,
   lastEditorTargetId: null,
+  sidebarCollapsed: false,
+  chatThreadSplitRatio: 0.55,
 }
 
 const layoutPersistTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -239,12 +239,6 @@ function normalizeLayout(layout: ProjectLayoutState): ProjectLayoutState {
     ...layout,
     currentPage: "chat",
   }
-}
-
-function deriveDrawerOpen(layout: ProjectLayoutState): boolean {
-  return (
-    layout.selectedBottomPaneTab === "terminal" && !layout.rightBottomCollapsed
-  )
 }
 
 function debouncedPersistLayout(
@@ -502,13 +496,6 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
                 [projectId]: merged,
               },
             },
-            terminal: {
-              ...state.terminal,
-              drawerOpenByProjectId: {
-                ...state.terminal.drawerOpenByProjectId,
-                [projectId]: deriveDrawerOpen(merged),
-              },
-            },
           }
         }),
       setSandboxesForProject: (projectId, sandboxes) =>
@@ -629,33 +616,16 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           },
         })),
       setTerminalDrawerOpen: (projectId, open) =>
-        set((state) => {
-          const current = state.layout.byProjectId[projectId] ?? DEFAULT_LAYOUT
-          const merged = normalizeLayout({
-            ...current,
-            selectedBottomPaneTab: "terminal",
-            rightBottomCollapsed: !open,
-          })
-
-          debouncedPersistLayout(projectId, get)
-
-          return {
-            ...state,
-            layout: {
-              byProjectId: {
-                ...state.layout.byProjectId,
-                [projectId]: merged,
-              },
+        set((state) => ({
+          ...state,
+          terminal: {
+            ...state.terminal,
+            drawerOpenByProjectId: {
+              ...state.terminal.drawerOpenByProjectId,
+              [projectId]: open,
             },
-            terminal: {
-              ...state.terminal,
-              drawerOpenByProjectId: {
-                ...state.terminal.drawerOpenByProjectId,
-                [projectId]: open,
-              },
-            },
-          }
-        }),
+          },
+        })),
       setReadinessChecking: () =>
         set((state) => ({
           ...state,
