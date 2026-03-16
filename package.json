@@ -19,7 +19,8 @@
     "typecheck": "tsc -b",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "postinstall": "chmod +x node_modules/.pnpm/node-pty@*/node_modules/node-pty/prebuilds/darwin-*/spawn-helper 2>/dev/null || true"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.7",
