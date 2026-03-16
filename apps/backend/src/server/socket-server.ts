@@ -1,17 +1,30 @@
+import { randomUUID } from "node:crypto"
 import { unlink } from "node:fs/promises"
 import { createServer, type Server } from "node:net"
 
 import type {
   ErrorResponseEnvelope,
+  IpcRequestEnvelope,
+  IpcResponseEnvelope,
+  SubscribeRequestEnvelope,
+  SubscriptionEventEnvelope,
   SuccessResponseEnvelope,
+} from "@ultra/shared"
+import {
+  IPC_PROTOCOL_VERSION,
+  parseIpcRequestEnvelope,
+  terminalOutputSubscribeInputSchema,
+  terminalSessionsSubscribeInputSchema,
 } from "@ultra/shared"
 
 import type { ChatService } from "../chats/chat-service.js"
+import { createErrorResponse, IpcProtocolError } from "../ipc/errors.js"
 import { routeIpcRequest } from "../ipc/router.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import { SystemService } from "../system/system-service.js"
 import type { TerminalService } from "../terminal/terminal-service.js"
+import type { TerminalSessionService } from "../terminal/terminal-session-service.js"
 import type { ThreadService } from "../threads/thread-service.js"
 
 type Logger = {
@@ -22,6 +35,10 @@ type Logger = {
 export type SocketServerRuntime = {
   close: () => Promise<void>
   socketPath: string
+}
+
+type SocketSubscriptionRuntime = {
+  cleanupBySubscriptionId: Map<string, () => void>
 }
 
 async function removeStaleSocket(socketPath: string): Promise<void> {
@@ -44,6 +61,7 @@ export async function startSocketServer(
     projectService: ProjectService
     threadService: ThreadService
     sandboxService: SandboxService
+    terminalSessionService: TerminalSessionService
     terminalService: TerminalService
   },
   logger: Logger = console,
@@ -53,8 +71,17 @@ export async function startSocketServer(
   const systemService = services.systemService ?? new SystemService()
   const server = createServer((socket) => {
     let buffer = ""
+    const subscriptionRuntime: SocketSubscriptionRuntime = {
+      cleanupBySubscriptionId: new Map(),
+    }
 
     socket.setEncoding("utf8")
+    socket.on("close", () => {
+      cleanupSubscriptions(subscriptionRuntime)
+    })
+    socket.on("error", () => {
+      cleanupSubscriptions(subscriptionRuntime)
+    })
 
     socket.on("data", (chunk) => {
       buffer += chunk
@@ -76,9 +103,11 @@ export async function startSocketServer(
             projectService: services.projectService,
             threadService: services.threadService,
             sandboxService: services.sandboxService,
+            terminalSessionService: services.terminalSessionService,
             terminalService: services.terminalService,
           },
           socket,
+          subscriptionRuntime,
           logger,
         )
       }
@@ -109,9 +138,11 @@ async function handleLine(
     projectService: ProjectService
     threadService: ThreadService
     sandboxService: SandboxService
+    terminalSessionService: TerminalSessionService
     terminalService: TerminalService
   },
   socket: NodeJS.WritableStream,
+  subscriptionRuntime: SocketSubscriptionRuntime,
   logger: Logger,
 ): Promise<void> {
   let raw: unknown
@@ -135,12 +166,245 @@ async function handleLine(
     return
   }
 
-  const response = (await routeIpcRequest(raw, services)) as
-    | SuccessResponseEnvelope
+  let request: IpcRequestEnvelope
+
+  try {
+    request = parseRequestEnvelope(raw)
+  } catch (error) {
+    if (error instanceof IpcProtocolError) {
+      socket.write(
+        `${JSON.stringify(
+          createErrorResponse(
+            error.requestId,
+            error.code,
+            error.message,
+            error.details,
+          ),
+        )}\n`,
+      )
+      return
+    }
+
+    throw error
+  }
+
+  if (request.type === "subscribe") {
+    try {
+      const response = handleSubscribeRequest(
+        request,
+        services,
+        socket,
+        subscriptionRuntime,
+      )
+
+      socket.write(`${JSON.stringify(response.response)}\n`)
+
+      if (response.initialEvent) {
+        socket.write(`${JSON.stringify(response.initialEvent)}\n`)
+      }
+
+      logger.info(`[backend] handled request ${response.response.request_id}`)
+    } catch (error) {
+      if (error instanceof IpcProtocolError) {
+        socket.write(
+          `${JSON.stringify(
+            createErrorResponse(
+              error.requestId,
+              error.code,
+              error.message,
+              error.details,
+            ),
+          )}\n`,
+        )
+        return
+      }
+
+      throw error
+    }
+
+    return
+  }
+
+  const response = (await routeIpcRequest(request, services)) as
+    | IpcResponseEnvelope
     | ErrorResponseEnvelope
 
   socket.write(`${JSON.stringify(response)}\n`)
   logger.info(`[backend] handled request ${response.request_id}`)
+}
+
+function cleanupSubscriptions(runtime: SocketSubscriptionRuntime): void {
+  for (const cleanup of runtime.cleanupBySubscriptionId.values()) {
+    cleanup()
+  }
+
+  runtime.cleanupBySubscriptionId.clear()
+}
+
+function createSubscriptionEvent(
+  subscriptionId: string,
+  eventName: string,
+  payload: unknown,
+): SubscriptionEventEnvelope {
+  return {
+    protocol_version: IPC_PROTOCOL_VERSION,
+    type: "event",
+    subscription_id: subscriptionId,
+    event_name: eventName,
+    payload,
+  }
+}
+
+function createSuccessResponse(
+  requestId: string,
+  result: unknown,
+): SuccessResponseEnvelope {
+  return {
+    protocol_version: IPC_PROTOCOL_VERSION,
+    request_id: requestId,
+    type: "response",
+    ok: true,
+    result,
+  }
+}
+
+function handleSubscribeRequest(
+  request: SubscribeRequestEnvelope,
+  services: {
+    chatService: ChatService
+    systemService: SystemService
+    projectService: ProjectService
+    threadService: ThreadService
+    sandboxService: SandboxService
+    terminalSessionService: TerminalSessionService
+    terminalService: TerminalService
+  },
+  socket: NodeJS.WritableStream,
+  subscriptionRuntime: SocketSubscriptionRuntime,
+): {
+  initialEvent?: SubscriptionEventEnvelope
+  response: SuccessResponseEnvelope
+} {
+  const subscriptionId = `sub_${randomUUID()}`
+
+  switch (request.name) {
+    case "terminal.sessions": {
+      const { project_id } = terminalSessionsSubscribeInputSchema.parse(
+        request.payload,
+      )
+      const cleanup = services.terminalSessionService.subscribeToSessions(
+        project_id,
+        () => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(subscriptionId, "terminal.sessions", {
+                project_id,
+                sessions: services.terminalSessionService.listSessions({
+                  project_id,
+                }).sessions,
+              }),
+            )}\n`,
+          )
+        },
+      )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+        initialEvent: createSubscriptionEvent(
+          subscriptionId,
+          "terminal.sessions",
+          {
+            project_id,
+            sessions: services.terminalSessionService.listSessions({
+              project_id,
+            }).sessions,
+          },
+        ),
+      }
+    }
+    case "terminal.output": {
+      const { project_id, session_id } =
+        terminalOutputSubscribeInputSchema.parse(request.payload)
+      const cleanup = services.terminalSessionService.subscribeToOutput(
+        project_id,
+        session_id,
+        (payload) => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(
+                subscriptionId,
+                "terminal.output",
+                payload,
+              ),
+            )}\n`,
+          )
+        },
+      )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    default:
+      throw new IpcProtocolError(
+        "not_found",
+        `IPC subscription is not implemented: ${request.name}`,
+        { requestId: request.request_id },
+      )
+  }
+}
+
+function parseRequestEnvelope(raw: unknown): IpcRequestEnvelope {
+  if (!raw || typeof raw !== "object") {
+    throw new IpcProtocolError(
+      "invalid_request",
+      "IPC envelope must be an object.",
+    )
+  }
+
+  const candidate = raw as {
+    protocol_version?: unknown
+    request_id?: unknown
+  }
+
+  if (candidate.protocol_version !== IPC_PROTOCOL_VERSION) {
+    throw new IpcProtocolError(
+      "unsupported_protocol_version",
+      `Unsupported protocol version: ${String(candidate.protocol_version ?? "unknown")}`,
+      {
+        requestId:
+          typeof candidate.request_id === "string" &&
+          candidate.request_id.length > 0
+            ? candidate.request_id
+            : "req_invalid",
+      },
+    )
+  }
+
+  try {
+    return parseIpcRequestEnvelope(raw)
+  } catch (error) {
+    throw new IpcProtocolError(
+      "invalid_request",
+      "Invalid IPC request envelope.",
+      {
+        requestId:
+          typeof candidate.request_id === "string" &&
+          candidate.request_id.length > 0
+            ? candidate.request_id
+            : "req_invalid",
+        details: error instanceof Error ? error.message : String(error),
+      },
+    )
+  }
 }
 
 async function closeServer(server: Server, socketPath: string): Promise<void> {

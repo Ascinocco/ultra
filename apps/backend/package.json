@@ -15,7 +15,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ultra/shared": "workspace:*"
+    "@ultra/shared": "workspace:*",
+    "node-pty": "^1.1.0"
   },
   "devDependencies": {
     "@types/node": "25.5.0",

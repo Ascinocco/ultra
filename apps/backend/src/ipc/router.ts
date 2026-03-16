@@ -30,8 +30,15 @@ import {
   systemGetEnvironmentReadinessQuerySchema,
   systemPingQuerySchema,
   systemRecheckEnvironmentCommandSchema,
+  terminalCloseSessionInputSchema,
   terminalGetRuntimeProfileInputSchema,
+  terminalListSavedCommandsInputSchema,
+  terminalListSessionsInputSchema,
+  terminalOpenInputSchema,
+  terminalResizeSessionInputSchema,
+  terminalRunSavedCommandInputSchema,
   terminalSyncRuntimeFilesInputSchema,
+  terminalWriteInputInputSchema,
   threadsGetEventsInputSchema,
   threadsGetInputSchema,
   threadsListByChatInputSchema,
@@ -42,6 +49,7 @@ import type { ProjectService } from "../projects/project-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import type { SystemService } from "../system/system-service.js"
 import type { TerminalService } from "../terminal/terminal-service.js"
+import type { TerminalSessionService } from "../terminal/terminal-session-service.js"
 import type { ThreadService } from "../threads/thread-service.js"
 import { createErrorResponse, IpcProtocolError } from "./errors.js"
 
@@ -149,6 +157,7 @@ export async function routeIpcRequest(
     projectService: ProjectService
     sandboxService: SandboxService
     terminalService: TerminalService
+    terminalSessionService: TerminalSessionService
     threadService: ThreadService
   },
 ): Promise<SuccessResponseEnvelope | ReturnType<typeof createErrorResponse>> {
@@ -308,12 +317,77 @@ export async function routeIpcRequest(
           ),
         )
       }
+      case "terminal.list_sessions": {
+        const listSessionsQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          listSessionsQuery.request_id,
+          services.terminalSessionService.listSessions(
+            terminalListSessionsInputSchema.parse(listSessionsQuery.payload),
+          ),
+        )
+      }
+      case "terminal.list_saved_commands": {
+        const listSavedCommandsQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          listSavedCommandsQuery.request_id,
+          services.terminalSessionService.listSavedCommands(
+            terminalListSavedCommandsInputSchema.parse(
+              listSavedCommandsQuery.payload,
+            ),
+          ),
+        )
+      }
+      case "terminal.open": {
+        const openTerminalCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          openTerminalCommand.request_id,
+          services.terminalSessionService.open(
+            terminalOpenInputSchema.parse(openTerminalCommand.payload),
+          ),
+        )
+      }
+      case "terminal.run_saved_command": {
+        const runSavedCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          runSavedCommand.request_id,
+          services.terminalSessionService.runSavedCommand(
+            terminalRunSavedCommandInputSchema.parse(runSavedCommand.payload),
+          ),
+        )
+      }
       case "terminal.sync_runtime_files": {
         const syncCommand = assertCommandRequest(request)
         return createSuccessResponse(
           syncCommand.request_id,
           services.terminalService.syncRuntimeFiles(
             terminalSyncRuntimeFilesInputSchema.parse(syncCommand.payload),
+          ),
+        )
+      }
+      case "terminal.write_input": {
+        const writeInputCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          writeInputCommand.request_id,
+          services.terminalSessionService.writeInput(
+            terminalWriteInputInputSchema.parse(writeInputCommand.payload),
+          ),
+        )
+      }
+      case "terminal.resize_session": {
+        const resizeCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          resizeCommand.request_id,
+          services.terminalSessionService.resizeSession(
+            terminalResizeSessionInputSchema.parse(resizeCommand.payload),
+          ),
+        )
+      }
+      case "terminal.close_session": {
+        const closeSessionCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          closeSessionCommand.request_id,
+          services.terminalSessionService.closeSession(
+            terminalCloseSessionInputSchema.parse(closeSessionCommand.payload),
           ),
         )
       }

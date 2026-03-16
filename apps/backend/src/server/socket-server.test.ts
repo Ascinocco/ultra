@@ -2,7 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createConnection } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { IPC_PROTOCOL_VERSION, parseIpcResponseEnvelope } from "@ultra/shared"
+import {
+  IPC_PROTOCOL_VERSION,
+  parseIpcResponseEnvelope,
+  parseSubscriptionEventEnvelope,
+  parseTerminalOutputEvent,
+  parseTerminalSessionsEvent,
+} from "@ultra/shared"
 import { describe, expect, it } from "vitest"
 
 import { ChatService } from "../chats/chat-service.js"
@@ -10,9 +16,11 @@ import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
 import { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
 import { SandboxService } from "../sandboxes/sandbox-service.js"
+import { FakePtyAdapter } from "../terminal/fake-pty-adapter.js"
 import { RuntimeProfileService } from "../terminal/runtime-profile-service.js"
 import { RuntimeSyncService } from "../terminal/runtime-sync-service.js"
 import { TerminalService } from "../terminal/terminal-service.js"
+import { TerminalSessionService } from "../terminal/terminal-session-service.js"
 import { ThreadService } from "../threads/thread-service.js"
 import { startSocketServer } from "./socket-server.js"
 
@@ -24,13 +32,20 @@ async function createServerRuntime(directory: string, socketPath: string) {
     databaseRuntime.database,
   )
   const sandboxService = new SandboxService(sandboxPersistenceService)
+  const runtimeProfileService = new RuntimeProfileService(
+    databaseRuntime.database,
+    sandboxPersistenceService,
+  )
   const terminalService = new TerminalService(
     sandboxService,
-    new RuntimeProfileService(
-      databaseRuntime.database,
-      sandboxPersistenceService,
-    ),
+    runtimeProfileService,
     new RuntimeSyncService(sandboxPersistenceService),
+  )
+  const ptyAdapter = new FakePtyAdapter()
+  const terminalSessionService = new TerminalSessionService(
+    terminalService,
+    runtimeProfileService,
+    ptyAdapter,
   )
   sandboxService.setActivationSyncHandler((projectId, sandboxId) => {
     terminalService.syncRuntimeFilesForActivation(projectId, sandboxId)
@@ -41,6 +56,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
       sandboxService,
+      terminalSessionService,
       terminalService,
       threadService: new ThreadService(databaseRuntime.database),
     },
@@ -54,6 +70,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
     runtime,
     databaseRuntime,
     sandboxPersistenceService,
+    ptyAdapter,
   }
 }
 
@@ -82,6 +99,70 @@ async function request(
       socket.write(`${JSON.stringify(payload)}\n`)
     })
   })
+}
+
+async function openPersistentConnection(socketPath: string): Promise<{
+  close: () => Promise<void>
+  nextMessage: () => Promise<unknown>
+  send: (payload: Record<string, unknown>) => void
+}> {
+  const socket = createConnection(socketPath)
+  let buffer = ""
+  const queuedMessages: unknown[] = []
+  const waiters: Array<(value: unknown) => void> = []
+
+  socket.setEncoding("utf8")
+  socket.on("data", (chunk) => {
+    buffer += chunk
+
+    while (buffer.includes("\n")) {
+      const newlineIndex = buffer.indexOf("\n")
+      const rawLine = buffer.slice(0, newlineIndex).trim()
+      buffer = buffer.slice(newlineIndex + 1)
+
+      if (!rawLine) {
+        continue
+      }
+
+      const parsed = JSON.parse(rawLine)
+      const waiter = waiters.shift()
+
+      if (waiter) {
+        waiter(parsed)
+      } else {
+        queuedMessages.push(parsed)
+      }
+    }
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    socket.once("connect", () => resolve())
+    socket.once("error", reject)
+  })
+
+  return {
+    send(payload) {
+      socket.write(`${JSON.stringify(payload)}\n`)
+    },
+    nextMessage() {
+      const queued = queuedMessages.shift()
+
+      if (queued) {
+        return Promise.resolve(queued)
+      }
+
+      return new Promise((resolve) => {
+        waiters.push(resolve)
+      })
+    },
+    close() {
+      socket.end()
+
+      return new Promise((resolve) => {
+        socket.once("close", () => resolve())
+      })
+    },
+  }
 }
 
 describe("socket server", () => {
@@ -764,6 +845,130 @@ describe("socket server", () => {
       expect(syncResponse.result.sync.syncedFiles).toEqual([".env"])
     }
 
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("publishes terminal session and output subscriptions over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const { runtime, databaseRuntime, ptyAdapter } = await createServerRuntime(
+      directory,
+      socketPath,
+    )
+    await mkdir(projectDirectory, { recursive: true })
+    await writeFile(join(projectDirectory, ".env"), "API_KEY=socket\n")
+
+    const openProjectRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_subscriptions_project",
+      type: "command",
+      name: "projects.open",
+      payload: {
+        path: projectDirectory,
+      },
+    })
+    const openProjectResponse = parseIpcResponseEnvelope(openProjectRaw)
+
+    expect(openProjectResponse.ok).toBe(true)
+    if (!openProjectResponse.ok) {
+      throw new Error("Expected project open to succeed")
+    }
+
+    const connection = await openPersistentConnection(socketPath)
+
+    connection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_sessions_subscribe",
+      type: "subscribe",
+      name: "terminal.sessions",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+
+    const subscribeResponse = parseIpcResponseEnvelope(
+      await connection.nextMessage(),
+    )
+    expect(subscribeResponse.ok).toBe(true)
+    if (!subscribeResponse.ok) {
+      throw new Error("Expected terminal.sessions subscription to succeed")
+    }
+
+    const initialSessionsEvent = parseTerminalSessionsEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    expect(initialSessionsEvent.payload.sessions).toHaveLength(0)
+
+    const openTerminalRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_open",
+      type: "command",
+      name: "terminal.open",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const openTerminalResponse = parseIpcResponseEnvelope(openTerminalRaw)
+
+    expect(openTerminalResponse.ok).toBe(true)
+    if (!openTerminalResponse.ok) {
+      throw new Error("Expected terminal.open to succeed")
+    }
+
+    const sessionsEvent = parseTerminalSessionsEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    const openedSession = sessionsEvent.payload.sessions[0]
+
+    expect(openedSession?.sessionKind).toBe("shell")
+
+    connection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_output_subscribe",
+      type: "subscribe",
+      name: "terminal.output",
+      payload: {
+        project_id: openProjectResponse.result.id,
+        session_id: openTerminalResponse.result.sessionId,
+      },
+    })
+
+    const outputSubscribeResponse = parseIpcResponseEnvelope(
+      await connection.nextMessage(),
+    )
+    expect(outputSubscribeResponse.ok).toBe(true)
+
+    ptyAdapter.sessions[0]?.emitData("hello from shell")
+
+    const outputEvent = parseTerminalOutputEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    expect(outputEvent.payload.session_id).toBe(
+      openTerminalResponse.result.sessionId,
+    )
+    expect(outputEvent.payload.chunk).toBe("hello from shell")
+    expect(outputEvent.payload.sequence_number).toBe(1)
+
+    await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_close",
+      type: "command",
+      name: "terminal.close_session",
+      payload: {
+        project_id: openProjectResponse.result.id,
+        session_id: openTerminalResponse.result.sessionId,
+      },
+    })
+
+    const closedSessionsEvent = parseTerminalSessionsEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    expect(closedSessionsEvent.payload.sessions[0]?.status).toBe("exited")
+
+    await connection.close()
     await runtime.close()
     databaseRuntime.close()
     await rm(directory, { recursive: true, force: true })
