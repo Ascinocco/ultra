@@ -453,13 +453,8 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
                 [projectId]: normalized,
               },
             },
-            terminal: {
-              ...state.terminal,
-              drawerOpenByProjectId: {
-                ...state.terminal.drawerOpenByProjectId,
-                [projectId]: deriveDrawerOpen(normalized),
-              },
-            },
+            // Don't derive drawer state on hydration — terminal drawer
+            // always starts closed and must be explicitly toggled open.
           }
         }),
       setLayoutField: (projectId, partial) =>

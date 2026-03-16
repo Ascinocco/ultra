@@ -657,18 +657,11 @@ button {
 }
 
 .terminal-drawer__tab {
-  appearance: none;
-  display: grid;
-  gap: 1px;
-  text-align: left;
-  padding: 5px 8px;
-  border: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   border-radius: 4px;
   background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: 0.78rem;
-  cursor: pointer;
 }
 
 .terminal-drawer__tab:hover {
@@ -677,30 +670,50 @@ button {
 
 .terminal-drawer__tab--active {
   background: rgba(91, 141, 239, 0.08);
+}
+
+.terminal-drawer__tab--active .terminal-drawer__tab-label {
   color: var(--text-primary);
 }
 
-.terminal-drawer__tab small {
-  font-size: 0.68rem;
-  color: var(--text-muted);
+.terminal-drawer__tab-label {
+  appearance: none;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 5px 4px 5px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.terminal-drawer__tab--new {
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 1rem;
-  text-align: center;
-}
-
-.terminal-drawer__tab--new:hover {
+.terminal-drawer__tab-edit {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 4px 4px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--surface-0);
   color: var(--text-primary);
-  background: rgba(148, 163, 200, 0.08);
+  font: inherit;
+  font-size: 0.78rem;
+  outline: none;
 }
 
 .terminal-drawer__tab-close {
-  margin-left: auto;
-  padding: 0 2px;
+  appearance: none;
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
   color: var(--text-muted);
+  font: inherit;
   font-size: 0.8rem;
   cursor: pointer;
   line-height: 1;
@@ -712,10 +725,45 @@ button {
   background: rgba(148, 163, 200, 0.12);
 }
 
+.terminal-drawer__tab-new {
+  appearance: none;
+  margin-top: 4px;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 1rem;
+  text-align: center;
+  cursor: pointer;
+  width: 100%;
+}
+
+.terminal-drawer__tab-new:hover {
+  color: var(--text-primary);
+  background: rgba(148, 163, 200, 0.08);
+}
+
 .terminal-drawer__panel {
   flex: 1;
-  overflow: auto;
-  padding: 8px 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.terminal-drawer__pane-wrapper {
+  position: absolute;
+  inset: 0;
+}
+
+.terminal-drawer__pane-wrapper--visible {
+  visibility: visible;
+  z-index: 1;
+}
+
+.terminal-drawer__pane-wrapper--hidden {
+  visibility: hidden;
+  z-index: 0;
 }
 
 .terminal-drawer__output {

@@ -1,15 +1,15 @@
 import type { SandboxContextSnapshot } from "@ultra/shared"
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 
 import { ChatPageShell } from "../pages/ChatPageShell.js"
 import {
   hydrateLastProject,
   openProjectFromPicker,
+  switchActiveSandbox,
 } from "../projects/project-workflows.js"
 import { SandboxSelector } from "../sandbox/SandboxSelector.js"
-import { switchActiveSandbox } from "../projects/project-workflows.js"
-import { openTerminal } from "../terminal/terminal-workflows.js"
 import { useAppStore } from "../state/app-store.js"
+import { openTerminal } from "../terminal/terminal-workflows.js"
 import { TitleBar } from "./TitleBar.js"
 
 export function AppShell() {
@@ -41,6 +41,26 @@ export function AppShell() {
     void hydrateLastProject(actions, app.capabilities).catch(() => undefined)
   }, [actions, app.backendStatus.sessionId, app.capabilities, canOpenProjects])
 
+  const handleToggleTerminal = useCallback(() => {
+    if (!activeProjectId) return
+    const isOpen = terminal.drawerOpenByProjectId[activeProjectId] ?? false
+    const hasRunningSessions = (
+      terminal.sessionsByProjectId[activeProjectId] ?? []
+    ).some((s) => s.status === "running")
+
+    if (!isOpen && !hasRunningSessions) {
+      // No running sessions: create one and open the drawer
+      void openTerminal(activeProjectId, actions)
+    } else {
+      actions.setTerminalDrawerOpen(activeProjectId, !isOpen)
+    }
+  }, [
+    activeProjectId,
+    actions,
+    terminal.drawerOpenByProjectId,
+    terminal.sessionsByProjectId,
+  ])
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const isToggleTerminal =
@@ -54,7 +74,7 @@ export function AppShell() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [actions, activeProjectId, terminal.drawerOpenByProjectId, terminal.sessionsByProjectId])
+  }, [activeProjectId, handleToggleTerminal])
 
   const terminalOpen = activeProjectId
     ? (terminal.drawerOpenByProjectId[activeProjectId] ?? false)
@@ -73,19 +93,6 @@ export function AppShell() {
   const activeSandbox = activeSandboxId
     ? (sandboxes.byId[activeSandboxId] ?? null)
     : null
-
-  function handleToggleTerminal() {
-    if (!activeProjectId) return
-    const isOpen = terminal.drawerOpenByProjectId[activeProjectId] ?? false
-    const hasSessions = (terminal.sessionsByProjectId[activeProjectId] ?? []).length > 0
-
-    if (!isOpen && !hasSessions) {
-      // First open: create a session via backend
-      void openTerminal(activeProjectId, actions)
-    } else {
-      actions.setTerminalDrawerOpen(activeProjectId, !isOpen)
-    }
-  }
 
   function handleSandboxSelect(sandboxId: string) {
     if (!activeProjectId) return

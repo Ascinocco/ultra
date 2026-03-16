@@ -46,6 +46,7 @@ export const terminalOpenInputSchema = z.object({
   sandbox_id: sandboxIdSchema.optional(),
   cols: z.number().int().positive().optional(),
   rows: z.number().int().positive().optional(),
+  force_new: z.boolean().optional().default(false),
 })
 
 export const terminalListSessionsInputSchema = z.object({

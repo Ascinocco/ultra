@@ -20,11 +20,12 @@ export async function openTerminal(
   projectId: string,
   actions: OpenTerminalActions,
   client: WorkflowClient = ipcClient,
-  opts?: { cols?: number; rows?: number },
+  opts?: { cols?: number; rows?: number; forceNew?: boolean },
 ): Promise<TerminalSessionSnapshot> {
   const payload: Record<string, unknown> = { project_id: projectId }
   if (opts?.cols) payload.cols = opts.cols
   if (opts?.rows) payload.rows = opts.rows
+  if (opts?.forceNew) payload.force_new = true
 
   const result = await client.command("terminal.open", payload)
   const session = parseTerminalSessionSnapshot(result)
