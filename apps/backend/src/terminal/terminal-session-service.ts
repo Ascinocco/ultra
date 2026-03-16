@@ -15,6 +15,8 @@ import type {
   TerminalResizeSessionInput,
   TerminalRunSavedCommandInput,
   TerminalSessionSnapshot,
+  TerminalPinSessionInput,
+  TerminalRenameSessionInput,
   TerminalWriteInputInput,
 } from "@ultra/shared"
 
@@ -246,6 +248,34 @@ export class TerminalSessionService {
     return null
   }
 
+  renameSession(input: TerminalRenameSessionInput): TerminalSessionSnapshot {
+    this.getRequiredSession(input.project_id, input.session_id)
+    const updated = this.registry.updateSession(
+      input.project_id,
+      input.session_id,
+      {
+        displayName: input.display_name,
+        updatedAt: this.now(),
+      },
+    )
+    this.publishSessions(input.project_id)
+    return updated
+  }
+
+  pinSession(input: TerminalPinSessionInput): TerminalSessionSnapshot {
+    this.getRequiredSession(input.project_id, input.session_id)
+    const updated = this.registry.updateSession(
+      input.project_id,
+      input.session_id,
+      {
+        pinned: input.pinned,
+        updatedAt: this.now(),
+      },
+    )
+    this.publishSessions(input.project_id)
+    return updated
+  }
+
   runSavedCommand(
     input: TerminalRunSavedCommandInput,
   ): TerminalSessionSnapshot {
@@ -395,6 +425,8 @@ export class TerminalSessionService {
         lastOutputAt: null,
         lastOutputSequence: 0,
         recentOutput: "",
+        displayName: null,
+        pinned: false,
       },
       handle,
     )
