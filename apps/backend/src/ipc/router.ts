@@ -25,6 +25,9 @@ import {
   projectsListQuerySchema,
   projectsSetLayoutInputSchema,
   runtimeListGlobalComponentsInputSchema,
+  runtimePauseProjectRuntimeInputSchema,
+  runtimeResumeProjectRuntimeInputSchema,
+  runtimeRetryThreadInputSchema,
   sandboxesGetActiveInputSchema,
   sandboxesListInputSchema,
   sandboxesSetActiveInputSchema,
@@ -53,6 +56,7 @@ import {
 import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
 import type { ChatService } from "../chats/chat-service.js"
 import type { ProjectService } from "../projects/project-service.js"
+import type { CoordinatorService } from "../runtime/coordinator-service.js"
 import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import type { SystemService } from "../system/system-service.js"
@@ -162,6 +166,7 @@ export async function routeIpcRequest(
   services: {
     artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
+    coordinatorService: CoordinatorService
     systemService: SystemService
     projectService: ProjectService
     watchService: WatchService
@@ -260,6 +265,33 @@ export async function routeIpcRequest(
         return createSuccessResponse(listQuery.request_id, {
           components: services.watchService.listGlobalComponents(),
         })
+      }
+      case "runtime.retry_thread": {
+        const retryCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          retryCommand.request_id,
+          services.coordinatorService.retryThread(
+            runtimeRetryThreadInputSchema.parse(retryCommand.payload),
+          ),
+        )
+      }
+      case "runtime.pause_project_runtime": {
+        const pauseCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          pauseCommand.request_id,
+          services.coordinatorService.pauseProjectRuntime(
+            runtimePauseProjectRuntimeInputSchema.parse(pauseCommand.payload),
+          ),
+        )
+      }
+      case "runtime.resume_project_runtime": {
+        const resumeCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          resumeCommand.request_id,
+          services.coordinatorService.resumeProjectRuntime(
+            runtimeResumeProjectRuntimeInputSchema.parse(resumeCommand.payload),
+          ),
+        )
       }
       case "chats.create": {
         const createCommand = assertCommandRequest(request)
@@ -528,6 +560,16 @@ export async function routeIpcRequest(
           ),
         )
       }
+      case "threads.get_messages": {
+        const getMessagesQuery = assertQueryRequest(request)
+        return createSuccessResponse(
+          getMessagesQuery.request_id,
+          services.threadService.getMessages(
+            threadsGetMessagesInputSchema.parse(getMessagesQuery.payload)
+              .thread_id,
+          ),
+        )
+      }
       case "threads.get_events": {
         const getThreadEventsQuery = assertQueryRequest(request)
         const { thread_id, from_sequence } = threadsGetEventsInputSchema.parse(
@@ -538,24 +580,13 @@ export async function routeIpcRequest(
           services.threadService.getEvents(thread_id, from_sequence),
         )
       }
-      case "threads.get_messages": {
-        const getMessagesQuery = assertQueryRequest(request)
-        const { thread_id } = threadsGetMessagesInputSchema.parse(
-          getMessagesQuery.payload,
-        )
-        return createSuccessResponse(
-          getMessagesQuery.request_id,
-          services.threadService.getMessages(thread_id),
-        )
-      }
       case "threads.send_message": {
         const sendMessageCommand = assertCommandRequest(request)
-        const sendMessageInput = threadsSendMessageInputSchema.parse(
-          sendMessageCommand.payload,
-        )
         return createSuccessResponse(
           sendMessageCommand.request_id,
-          services.threadService.sendMessage(sendMessageInput),
+          services.threadService.sendMessage(
+            threadsSendMessageInputSchema.parse(sendMessageCommand.payload),
+          ),
         )
       }
       default:

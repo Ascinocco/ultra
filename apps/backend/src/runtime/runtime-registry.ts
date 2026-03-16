@@ -111,6 +111,23 @@ export class RuntimeRegistry {
     return persisted
   }
 
+  getRuntimeComponent(componentId: string): RuntimeComponentSnapshot | null {
+    const cached = this.componentsById.get(componentId)
+
+    if (cached) {
+      return cached
+    }
+
+    try {
+      const persisted =
+        this.runtimePersistenceService.getRuntimeComponentSnapshot(componentId)
+      this.patchComponent(persisted, false)
+      return persisted
+    } catch {
+      return null
+    }
+  }
+
   listAllProjectRuntimeSnapshots(): ProjectRuntimeSnapshot[] {
     const persisted =
       this.runtimePersistenceService.listAllProjectRuntimeSnapshots()

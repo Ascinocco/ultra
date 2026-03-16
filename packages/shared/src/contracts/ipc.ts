@@ -26,8 +26,8 @@ export const queryMethodSchema = z.enum([
   "threads.list_by_project",
   "threads.list_by_chat",
   "threads.get",
-  "threads.get_events",
   "threads.get_messages",
+  "threads.get_events",
 ])
 
 export const commandMethodSchema = z.enum([
@@ -41,6 +41,10 @@ export const commandMethodSchema = z.enum([
   "chats.restore",
   "chats.start_thread",
   "chats.promote_work_to_thread",
+  "threads.send_message",
+  "runtime.retry_thread",
+  "runtime.pause_project_runtime",
+  "runtime.resume_project_runtime",
   "terminal.open",
   "terminal.run_saved_command",
   "terminal.sync_runtime_files",
@@ -52,13 +56,13 @@ export const commandMethodSchema = z.enum([
   "sandboxes.set_active",
   "projects.open",
   "projects.set_layout",
-  "threads.send_message",
 ])
 
 export const subscriptionMethodSchema = z.enum([
   "projects.updated",
   "projects.layout_updated",
   "runtime.component_updated",
+  "threads.messages",
   "terminal.sessions",
   "terminal.output",
 ])

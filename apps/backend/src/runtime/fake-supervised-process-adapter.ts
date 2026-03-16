@@ -3,6 +3,7 @@ import type {
   SupervisedProcessExit,
   SupervisedProcessExitListener,
   SupervisedProcessHandle,
+  SupervisedProcessLineListener,
   SupervisedProcessSpec,
 } from "./supervised-process-adapter.js"
 
@@ -10,8 +11,11 @@ export class FakeSupervisedProcessHandle implements SupervisedProcessHandle {
   readonly pid: number
 
   private readonly listeners = new Set<SupervisedProcessExitListener>()
+  private readonly stderrListeners = new Set<SupervisedProcessLineListener>()
+  private readonly stdoutListeners = new Set<SupervisedProcessLineListener>()
 
   killCalls = 0
+  readonly writtenLines: string[] = []
 
   constructor(pid: number) {
     this.pid = pid
@@ -29,9 +33,41 @@ export class FakeSupervisedProcessHandle implements SupervisedProcessHandle {
     }
   }
 
+  onStdoutLine(listener: SupervisedProcessLineListener): () => void {
+    this.stdoutListeners.add(listener)
+
+    return () => {
+      this.stdoutListeners.delete(listener)
+    }
+  }
+
+  onStderrLine(listener: SupervisedProcessLineListener): () => void {
+    this.stderrListeners.add(listener)
+
+    return () => {
+      this.stderrListeners.delete(listener)
+    }
+  }
+
+  writeLine(line: string): void {
+    this.writtenLines.push(line)
+  }
+
   emitExit(event: SupervisedProcessExit): void {
     for (const listener of this.listeners) {
       listener(event)
+    }
+  }
+
+  emitStdoutLine(line: string): void {
+    for (const listener of this.stdoutListeners) {
+      listener(line)
+    }
+  }
+
+  emitStderrLine(line: string): void {
+    for (const listener of this.stderrListeners) {
+      listener(line)
     }
   }
 }

@@ -2,12 +2,14 @@ import { z } from "zod"
 
 import { isoUtcTimestampSchema, opaqueIdSchema } from "./constants.js"
 import {
+  commandRequestEnvelopeSchema,
   queryRequestEnvelopeSchema,
   subscribeRequestEnvelopeSchema,
   subscriptionEventEnvelopeSchema,
   successResponseEnvelopeSchema,
 } from "./ipc.js"
 import { projectIdSchema } from "./projects.js"
+import { threadIdSchema } from "./threads.js"
 
 export const runtimeComponentScopeSchema = z.enum(["project", "global"])
 export const runtimeComponentHealthStatusSchema = z.enum([
@@ -71,6 +73,20 @@ export const projectRuntimeHealthSummarySchema = z.object({
 
 export const runtimeListGlobalComponentsInputSchema = z.object({}).strict()
 export const runtimeComponentUpdatedSubscribeInputSchema = z.object({}).strict()
+export const runtimeRetryThreadInputSchema = z.object({
+  project_id: projectIdSchema,
+  thread_id: threadIdSchema,
+})
+export const runtimePauseProjectRuntimeInputSchema = z.object({
+  project_id: projectIdSchema,
+})
+export const runtimeResumeProjectRuntimeInputSchema = z.object({
+  project_id: projectIdSchema,
+})
+export const runtimeCoordinatorCommandResultSchema = z.object({
+  accepted: z.boolean(),
+  message: z.string().min(1).nullable(),
+})
 
 export const runtimeListGlobalComponentsResultSchema = z.object({
   components: z.array(runtimeComponentSnapshotSchema),
@@ -99,6 +115,39 @@ export const runtimeComponentUpdatedEventSchema =
     payload: runtimeComponentSnapshotSchema,
   })
 
+export const runtimeRetryThreadCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.retry_thread"),
+    payload: runtimeRetryThreadInputSchema,
+  })
+
+export const runtimePauseProjectRuntimeCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.pause_project_runtime"),
+    payload: runtimePauseProjectRuntimeInputSchema,
+  })
+
+export const runtimeResumeProjectRuntimeCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.resume_project_runtime"),
+    payload: runtimeResumeProjectRuntimeInputSchema,
+  })
+
+export const runtimeRetryThreadSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: runtimeCoordinatorCommandResultSchema,
+  })
+
+export const runtimePauseProjectRuntimeSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: runtimeCoordinatorCommandResultSchema,
+  })
+
+export const runtimeResumeProjectRuntimeSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: runtimeCoordinatorCommandResultSchema,
+  })
+
 export type RuntimeComponentScope = z.infer<typeof runtimeComponentScopeSchema>
 export type RuntimeComponentHealthStatus = z.infer<
   typeof runtimeComponentHealthStatusSchema
@@ -120,11 +169,23 @@ export type ProjectRuntimeHealthSummary = z.infer<
 export type RuntimeListGlobalComponentsInput = z.infer<
   typeof runtimeListGlobalComponentsInputSchema
 >
+export type RuntimeRetryThreadInput = z.infer<
+  typeof runtimeRetryThreadInputSchema
+>
+export type RuntimePauseProjectRuntimeInput = z.infer<
+  typeof runtimePauseProjectRuntimeInputSchema
+>
+export type RuntimeResumeProjectRuntimeInput = z.infer<
+  typeof runtimeResumeProjectRuntimeInputSchema
+>
 export type RuntimeComponentUpdatedSubscribeInput = z.infer<
   typeof runtimeComponentUpdatedSubscribeInputSchema
 >
 export type RuntimeListGlobalComponentsResult = z.infer<
   typeof runtimeListGlobalComponentsResultSchema
+>
+export type RuntimeCoordinatorCommandResult = z.infer<
+  typeof runtimeCoordinatorCommandResultSchema
 >
 export type RuntimeComponentUpdatedEvent = z.infer<
   typeof runtimeComponentUpdatedEventSchema
@@ -158,6 +219,12 @@ export function parseRuntimeListGlobalComponentsResult(
   input: unknown,
 ): RuntimeListGlobalComponentsResult {
   return runtimeListGlobalComponentsResultSchema.parse(input)
+}
+
+export function parseRuntimeCoordinatorCommandResult(
+  input: unknown,
+): RuntimeCoordinatorCommandResult {
+  return runtimeCoordinatorCommandResultSchema.parse(input)
 }
 
 export function parseRuntimeComponentUpdatedEvent(

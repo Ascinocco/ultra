@@ -16,6 +16,7 @@ import {
   runtimeComponentUpdatedSubscribeInputSchema,
   terminalOutputSubscribeInputSchema,
   terminalSessionsSubscribeInputSchema,
+  threadsMessagesSubscribeInputSchema,
 } from "@ultra/shared"
 
 import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
@@ -23,6 +24,7 @@ import type { ChatService } from "../chats/chat-service.js"
 import { createErrorResponse, IpcProtocolError } from "../ipc/errors.js"
 import { routeIpcRequest } from "../ipc/router.js"
 import type { ProjectService } from "../projects/project-service.js"
+import type { CoordinatorService } from "../runtime/coordinator-service.js"
 import type { RuntimeRegistry } from "../runtime/runtime-registry.js"
 import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
@@ -62,6 +64,7 @@ export async function startSocketServer(
   services: {
     artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
+    coordinatorService: CoordinatorService
     systemService?: SystemService
     projectService: ProjectService
     runtimeRegistry: RuntimeRegistry
@@ -107,6 +110,7 @@ export async function startSocketServer(
           {
             artifactCaptureService: services.artifactCaptureService,
             chatService: services.chatService,
+            coordinatorService: services.coordinatorService,
             systemService,
             projectService: services.projectService,
             runtimeRegistry: services.runtimeRegistry,
@@ -145,6 +149,7 @@ async function handleLine(
   services: {
     artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
+    coordinatorService: CoordinatorService
     systemService: SystemService
     projectService: ProjectService
     runtimeRegistry: RuntimeRegistry
@@ -285,6 +290,7 @@ function handleSubscribeRequest(
   request: SubscribeRequestEnvelope,
   services: {
     chatService: ChatService
+    coordinatorService: CoordinatorService
     systemService: SystemService
     projectService: ProjectService
     runtimeRegistry: RuntimeRegistry
@@ -378,6 +384,33 @@ function handleSubscribeRequest(
                 subscriptionId,
                 "runtime.component_updated",
                 component,
+              ),
+            )}\n`,
+          )
+        },
+      )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "threads.messages": {
+      const { thread_id } = threadsMessagesSubscribeInputSchema.parse(
+        request.payload,
+      )
+      const cleanup = services.threadService.subscribeToMessages(
+        thread_id,
+        (message) => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(
+                subscriptionId,
+                "threads.messages",
+                message,
               ),
             )}\n`,
           )

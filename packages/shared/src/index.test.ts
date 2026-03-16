@@ -22,6 +22,7 @@ import {
   parseQueryRequest,
   parseRuntimeComponentSnapshot,
   parseRuntimeComponentUpdatedEvent,
+  parseRuntimeCoordinatorCommandResult,
   parseRuntimeHealthCheckSnapshot,
   parseRuntimeListGlobalComponentsResult,
   parseSandboxesListResult,
@@ -40,6 +41,8 @@ import {
   parseThreadMessageSnapshot,
   parseThreadsGetMessagesResult,
   parseThreadsListResult,
+  parseThreadsMessagesEvent,
+  parseThreadsSendMessageResult,
   projectLayoutStateSchema,
 } from "./index.js"
 
@@ -259,6 +262,54 @@ describe("shared contracts", () => {
 
     expect(listQuery.name).toBe("runtime.list_global_components")
     expect(subscribeRequest.name).toBe("runtime.component_updated")
+  })
+
+  it("parses thread message and runtime control envelopes", () => {
+    const getMessagesQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_messages",
+      type: "query",
+      name: "threads.get_messages",
+      payload: {
+        thread_id: "thread_123",
+      },
+    })
+    const sendMessageCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_send_message",
+      type: "command",
+      name: "threads.send_message",
+      payload: {
+        project_id: "proj_123",
+        thread_id: "thread_123",
+        content: "Please rerun tests.",
+        attachments: [],
+      },
+    })
+    const subscribeRequest = parseSubscribeRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_messages_subscribe",
+      type: "subscribe",
+      name: "threads.messages",
+      payload: {
+        thread_id: "thread_123",
+      },
+    })
+    const retryCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_retry",
+      type: "command",
+      name: "runtime.retry_thread",
+      payload: {
+        project_id: "proj_123",
+        thread_id: "thread_123",
+      },
+    })
+
+    expect(getMessagesQuery.name).toBe("threads.get_messages")
+    expect(sendMessageCommand.name).toBe("threads.send_message")
+    expect(subscribeRequest.name).toBe("threads.messages")
+    expect(retryCommand.name).toBe("runtime.retry_thread")
   })
 
   it("parses the system hello result contract", () => {
@@ -815,6 +866,39 @@ describe("shared contracts", () => {
     expect(listResult.threads).toHaveLength(1)
   })
 
+  it("parses thread message snapshots, results, and events", () => {
+    const message = parseThreadMessageSnapshot({
+      id: "thread_msg_123",
+      threadId: "thread_123",
+      role: "coordinator",
+      provider: "codex",
+      model: "gpt-5.4",
+      messageType: "text",
+      content: {
+        text: "Tests are rerunning now.",
+      },
+      artifactRefs: [],
+      createdAt: "2026-03-16T00:00:00Z",
+    })
+    const messages = parseThreadsGetMessagesResult({
+      messages: [message],
+    })
+    const sendMessage = parseThreadsSendMessageResult({
+      message,
+    })
+    const event = parseThreadsMessagesEvent({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      type: "event",
+      subscription_id: "sub_123",
+      event_name: "threads.messages",
+      payload: message,
+    })
+
+    expect(messages.messages).toHaveLength(1)
+    expect(sendMessage.message.content.text).toBe("Tests are rerunning now.")
+    expect(event.payload.id).toBe("thread_msg_123")
+  })
+
   it("parses runtime snapshots", () => {
     const runtime = parseProjectRuntimeSnapshot({
       projectRuntimeId: "project_runtime_123",
@@ -899,9 +983,14 @@ describe("shared contracts", () => {
       event_name: "runtime.component_updated",
       payload: component,
     })
+    const commandResult = parseRuntimeCoordinatorCommandResult({
+      accepted: true,
+      message: "Retry requested.",
+    })
 
     expect(result.components).toHaveLength(1)
     expect(event.payload.componentType).toBe("ov_watch")
+    expect(commandResult.accepted).toBe(true)
   })
 
   it("parses sandbox list results", () => {
