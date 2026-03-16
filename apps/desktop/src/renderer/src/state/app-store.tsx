@@ -216,10 +216,10 @@ function normalizeLayout(layout: ProjectLayoutState): ProjectLayoutState {
   }
 }
 
-function deriveDrawerOpen(layout: ProjectLayoutState): boolean {
-  return (
-    layout.selectedBottomPaneTab === "terminal" && !layout.rightBottomCollapsed
-  )
+function deriveDrawerOpen(_layout: ProjectLayoutState): boolean {
+  // Terminal drawer always starts closed — user must explicitly toggle it open.
+  // Persisted layout no longer auto-opens the drawer on project load.
+  return false
 }
 
 function debouncedPersistLayout(
