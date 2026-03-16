@@ -37,6 +37,8 @@ import {
   parseTerminalSessionsEvent,
   parseThreadDetailResult,
   parseThreadEventSnapshot,
+  parseThreadMessageSnapshot,
+  parseThreadsGetMessagesResult,
   parseThreadsListResult,
   projectLayoutStateSchema,
 } from "./index.js"
@@ -1036,6 +1038,42 @@ describe("shared contracts", () => {
         lastEditorTargetId: null,
       }),
     ).toThrow()
+  })
+
+  it("ThreadMessageSnapshot round-trips through schema", () => {
+    const raw = {
+      id: "msg_1",
+      threadId: "thread_1",
+      role: "coordinator",
+      provider: "claude",
+      model: "claude-sonnet-4-20250514",
+      messageType: "status",
+      content: { text: "Starting implementation" },
+      artifactRefs: [],
+      createdAt: "2026-03-16T00:00:00.000Z",
+    }
+    const parsed = parseThreadMessageSnapshot(raw)
+    expect(parsed).toEqual(raw)
+  })
+
+  it("ThreadsGetMessagesResult round-trips through schema", () => {
+    const raw = {
+      messages: [
+        {
+          id: "msg_1",
+          threadId: "thread_1",
+          role: "coordinator",
+          provider: null,
+          model: null,
+          messageType: "text",
+          content: { text: "hello" },
+          artifactRefs: [],
+          createdAt: "2026-03-16T00:00:00.000Z",
+        },
+      ],
+    }
+    const parsed = parseThreadsGetMessagesResult(raw)
+    expect(parsed).toEqual(raw)
   })
 
   it("parses typed error responses", () => {

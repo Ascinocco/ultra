@@ -14,6 +14,12 @@ import {
   resizeTerminalSession,
   writeTerminalInput,
 } from "../terminal/terminal-workflows.js"
+import { ThreadPane } from "../threads/ThreadPane.js"
+import {
+  fetchThreadMessages,
+  fetchThreads,
+  sendThreadMessage,
+} from "../threads/thread-workflows.js"
 
 const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
@@ -266,6 +272,7 @@ export function ChatPageShell({
   const sidebar = useAppStore((state) => state.sidebar)
   const layout = useAppStore((state) => state.layout)
   const actions = useAppStore((state) => state.actions)
+  const threads = useAppStore((state) => state.threads)
 
   const chatFrameRef = useRef<HTMLDivElement>(null)
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
@@ -294,6 +301,16 @@ export function ChatPageShell({
   const drawerOpen = activeProjectId
     ? (terminal.drawerOpenByProjectId[activeProjectId] ?? false)
     : false
+
+  const projectThreads = activeProjectId
+    ? (threads.threadsByProjectId[activeProjectId] ?? [])
+    : []
+  const selectedThreadId = activeProjectId
+    ? (layout.byProjectId[activeProjectId]?.selectedThreadId ?? null)
+    : null
+  const threadFetchStatus = activeProjectId
+    ? (threads.threadFetchStatus[activeProjectId] ?? "idle")
+    : "idle"
 
   function handleResize(height: number) {
     const maxHeight = chatFrameRef.current
@@ -349,6 +366,30 @@ export function ChatPageShell({
     )
   }
 
+  useEffect(() => {
+    if (!activeProjectId) return
+    fetchThreads(activeProjectId, actions).catch((err) => {
+      console.error("[threads] failed to fetch:", err)
+    })
+  }, [activeProjectId, actions])
+
+  function handleSelectThread(threadId: string | null) {
+    if (!activeProjectId) return
+    actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
+  }
+
+  function handleFetchMessages(threadId: string) {
+    fetchThreadMessages(threadId, actions).catch((err) => {
+      console.error("[threads] failed to fetch messages:", err)
+    })
+  }
+
+  function handleSendMessage(threadId: string, content: string) {
+    sendThreadMessage(threadId, content, actions).catch((err) => {
+      console.error("[threads] failed to send message:", err)
+    })
+  }
+
   return (
     <div className="chat-frame" ref={chatFrameRef} data-page="chat">
       <div
@@ -384,13 +425,15 @@ export function ChatPageShell({
               <p className="surface__eyebrow">Threads</p>
               <h2 className="surface__title">Execution pane</h2>
             </div>
-            <div className="placeholder-card">
-              <strong>Thread list and detail stay in this pane</strong>
-              <p>
-                ULR-26 will replace this shell with thread cards, timeline
-                detail, and review-aware context.
-              </p>
-            </div>
+            <ThreadPane
+              threads={projectThreads}
+              selectedThreadId={selectedThreadId}
+              messagesByThreadId={threads.messagesByThreadId}
+              fetchStatus={threadFetchStatus}
+              onSelectThread={handleSelectThread}
+              onFetchMessages={handleFetchMessages}
+              onSendMessage={handleSendMessage}
+            />
           </section>
           <section className="chat-frame__side-bottom">
             <div className="surface__header">

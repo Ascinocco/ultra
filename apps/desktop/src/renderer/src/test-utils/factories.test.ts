@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, test } from "vitest"
 
-import { makeTerminalSession } from "./factories.js"
+import {
+  makeTerminalSession,
+  makeThread,
+  makeThreadMessage,
+} from "./factories.js"
 
 describe("makeTerminalSession", () => {
   it("creates a session with required fields and overrides", () => {
@@ -16,5 +20,32 @@ describe("makeTerminalSession", () => {
     expect(session.recentOutput).toBe("")
     expect(session.displayName).toBeNull()
     expect(session.pinned).toBe(false)
+  })
+})
+
+describe("thread factories", () => {
+  test("makeThread returns a valid ThreadSnapshot with defaults", () => {
+    const thread = makeThread("t1", "proj_1")
+    expect(thread.id).toBe("t1")
+    expect(thread.projectId).toBe("proj_1")
+    expect(thread.executionState).toBe("queued")
+    expect(thread.reviewState).toBe("not_ready")
+  })
+
+  test("makeThread accepts overrides", () => {
+    const thread = makeThread("t1", "proj_1", {
+      executionState: "running",
+      branchName: "feat/test",
+    })
+    expect(thread.executionState).toBe("running")
+    expect(thread.branchName).toBe("feat/test")
+  })
+
+  test("makeThreadMessage returns a valid ThreadMessageSnapshot", () => {
+    const msg = makeThreadMessage("msg_1", "t1")
+    expect(msg.id).toBe("msg_1")
+    expect(msg.threadId).toBe("t1")
+    expect(msg.role).toBe("coordinator")
+    expect(msg.content.text).toBe("Hello from coordinator")
   })
 })

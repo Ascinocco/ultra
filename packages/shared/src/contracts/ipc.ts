@@ -27,6 +27,7 @@ export const queryMethodSchema = z.enum([
   "threads.list_by_chat",
   "threads.get",
   "threads.get_events",
+  "threads.get_messages",
 ])
 
 export const commandMethodSchema = z.enum([
@@ -51,6 +52,7 @@ export const commandMethodSchema = z.enum([
   "sandboxes.set_active",
   "projects.open",
   "projects.set_layout",
+  "threads.send_message",
 ])
 
 export const subscriptionMethodSchema = z.enum([
