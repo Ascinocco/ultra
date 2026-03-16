@@ -82,3 +82,41 @@ export async function resizeTerminalSession(
     rows,
   })
 }
+
+type RenameTerminalActions = Pick<AppActions, "upsertTerminalSession">
+
+export async function renameTerminalSession(
+  projectId: string,
+  sessionId: string,
+  displayName: string | null,
+  actions: RenameTerminalActions,
+  client: WorkflowClient = ipcClient,
+): Promise<TerminalSessionSnapshot> {
+  const result = await client.command("terminal.rename_session", {
+    project_id: projectId,
+    session_id: sessionId,
+    display_name: displayName,
+  })
+  const session = parseTerminalSessionSnapshot(result)
+  actions.upsertTerminalSession(projectId, session)
+  return session
+}
+
+type PinTerminalActions = Pick<AppActions, "upsertTerminalSession">
+
+export async function pinTerminalSession(
+  projectId: string,
+  sessionId: string,
+  pinned: boolean,
+  actions: PinTerminalActions,
+  client: WorkflowClient = ipcClient,
+): Promise<TerminalSessionSnapshot> {
+  const result = await client.command("terminal.pin_session", {
+    project_id: projectId,
+    session_id: sessionId,
+    pinned,
+  })
+  const session = parseTerminalSessionSnapshot(result)
+  actions.upsertTerminalSession(projectId, session)
+  return session
+}
