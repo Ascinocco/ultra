@@ -188,11 +188,13 @@ export function ChatPageShell({
     setDrawerHeight(Math.min(Math.max(height, MIN_DRAWER_HEIGHT), maxHeight))
   }
 
-  function handleOpenTerminal() {
+  function handleNewTerminalSession() {
     if (!activeProjectId) return
-    openTerminal(activeProjectId, actions).catch((err) => {
-      console.error("[terminal] failed to open new session:", err)
-    })
+    openTerminal(activeProjectId, actions, undefined, { forceNew: true }).catch(
+      (err) => {
+        console.error("[terminal] failed to open new session:", err)
+      },
+    )
   }
 
   function handleCloseSession(sessionId: string) {
@@ -286,7 +288,7 @@ export function ChatPageShell({
             }}
             onTerminalInput={handleTerminalInput}
             onTerminalResize={handleTerminalResize}
-            onNewSession={handleOpenTerminal}
+            onNewSession={handleNewTerminalSession}
             onCloseSession={handleCloseSession}
           />
         )}

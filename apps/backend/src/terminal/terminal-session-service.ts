@@ -205,22 +205,25 @@ export class TerminalSessionService {
       input.project_id,
       input.sandbox_id,
     )
-    const existing = this.registry.findReusableShell(
-      runtimeContext.sandbox.projectId,
-      runtimeContext.sandbox.sandboxId,
-    )
 
-    if (existing) {
-      const reused = this.registry.updateSession(
-        existing.projectId,
-        existing.sessionId,
-        {
-          updatedAt: this.now(),
-        },
+    if (!input.force_new) {
+      const existing = this.registry.findReusableShell(
+        runtimeContext.sandbox.projectId,
+        runtimeContext.sandbox.sandboxId,
       )
 
-      this.publishSessions(reused.projectId)
-      return reused
+      if (existing) {
+        const reused = this.registry.updateSession(
+          existing.projectId,
+          existing.sessionId,
+          {
+            updatedAt: this.now(),
+          },
+        )
+
+        this.publishSessions(reused.projectId)
+        return reused
+      }
     }
 
     return this.createSession({
