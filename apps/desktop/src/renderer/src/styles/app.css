@@ -725,6 +725,16 @@ button {
   background: rgba(148, 163, 200, 0.12);
 }
 
+.terminal-drawer__tab-pin {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--accent, #5b8def);
+  flex-shrink: 0;
+}
+
 .terminal-drawer__tab-new {
   appearance: none;
   margin-top: 4px;
@@ -764,6 +774,48 @@ button {
 .terminal-drawer__pane-wrapper--hidden {
   visibility: hidden;
   z-index: 0;
+}
+
+/* ── Terminal Tab Context Menu ────────────────────────── */
+
+.terminal-tab-context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 140px;
+  padding: 4px 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.terminal-tab-context-menu__item {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.terminal-tab-context-menu__item:hover {
+  background: rgba(148, 163, 200, 0.1);
+  color: var(--text-primary);
+}
+
+.terminal-tab-context-menu__item--danger:hover {
+  color: var(--red, #fb7185);
+}
+
+.terminal-tab-context-menu__separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
 }
 
 .terminal-drawer__output {
