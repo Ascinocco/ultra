@@ -57,6 +57,9 @@ describe("database bootstrap", () => {
     expect(runtime.migrationResult.appliedMigrationIds).toContain(
       "0007_thread_events_foundation",
     )
+    expect(runtime.migrationResult.appliedMigrationIds).toContain(
+      "0008_artifacts_and_sharing",
+    )
 
     const tables = runtime.database
       .prepare<[string], { name: string }>(
@@ -121,6 +124,20 @@ describe("database bootstrap", () => {
         )
         .all("thread_events"),
     ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("artifacts"),
+    ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("artifact_shares"),
+    ).toHaveLength(1)
 
     runtime.close()
   })
@@ -139,7 +156,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0007_thread_events_foundation",
+      "0008_artifacts_and_sharing",
     )
 
     secondRuntime.close()

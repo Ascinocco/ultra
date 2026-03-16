@@ -47,6 +47,7 @@ describe("migration runner", () => {
       "0005_thread_core",
       "0006_sandbox_context_and_runtime_sync",
       "0007_thread_events_foundation",
+      "0008_artifacts_and_sharing",
     ])
     expect(rows).toEqual([
       {
@@ -75,6 +76,10 @@ describe("migration runner", () => {
       },
       {
         id: "0007_thread_events_foundation",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0008_artifacts_and_sharing",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
@@ -117,7 +122,7 @@ describe("migration runner", () => {
     database.close()
   })
 
-  it("applies 0005_thread_core, 0006_sandbox_context_and_runtime_sync, and 0007_thread_events_foundation on a fresh database", () => {
+  it("applies 0005_thread_core through 0008_artifacts_and_sharing on a fresh database", () => {
     const database = createDatabase()
     const result = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
@@ -130,7 +135,8 @@ describe("migration runner", () => {
     expect(result.appliedMigrationIds).toContain(
       "0007_thread_events_foundation",
     )
-    expect(result.totalMigrationCount).toBe(7)
+    expect(result.appliedMigrationIds).toContain("0008_artifacts_and_sharing")
+    expect(result.totalMigrationCount).toBe(8)
 
     // Verify threads table exists with correct columns
     const threadColumns = database
@@ -195,6 +201,48 @@ describe("migration runner", () => {
       .all() as Array<{ name: string }>
     expect(threadEventColumns.map((c) => c.name)).toContain("event_id")
     expect(threadEventColumns.map((c) => c.name)).toContain("sequence_number")
+
+    const artifactColumns = database
+      .prepare("PRAGMA table_info(artifacts)")
+      .all() as Array<{ name: string }>
+    expect(artifactColumns.map((c) => c.name)).toEqual([
+      "artifact_id",
+      "project_id",
+      "thread_id",
+      "artifact_type",
+      "title",
+      "path",
+      "metadata_json",
+      "created_at",
+    ])
+
+    const artifactShareColumns = database
+      .prepare("PRAGMA table_info(artifact_shares)")
+      .all() as Array<{ name: string }>
+    expect(artifactShareColumns.map((c) => c.name)).toEqual([
+      "share_id",
+      "artifact_id",
+      "destination_type",
+      "destination_id",
+      "shared_by",
+      "shared_at",
+    ])
+
+    const artifactIndexes = database
+      .prepare(
+        `
+          SELECT name
+          FROM sqlite_master
+          WHERE type = 'index'
+            AND name IN ('idx_artifacts_thread_created', 'idx_artifact_shares_destination')
+          ORDER BY name ASC
+        `,
+      )
+      .all() as Array<{ name: string }>
+    expect(artifactIndexes).toEqual([
+      { name: "idx_artifact_shares_destination" },
+      { name: "idx_artifacts_thread_created" },
+    ])
 
     database.close()
   })
@@ -268,6 +316,28 @@ describe("thread core FK constraints", () => {
         "none",
         "none",
         "2026-03-15T00:00:00Z",
+        "2026-03-15T00:00:00Z",
+      )
+  }
+
+  function insertArtifact(
+    database: DatabaseSync,
+    artifactId = "artifact_1",
+    projectId = "proj_1",
+    threadId = "thread_1",
+  ): void {
+    database
+      .prepare(
+        "INSERT INTO artifacts (artifact_id, project_id, thread_id, artifact_type, title, path, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        artifactId,
+        projectId,
+        threadId,
+        "runtime_bundle",
+        "Runtime bundle",
+        "/tmp/artifact.json",
+        '{"summary":"bundle"}',
         "2026-03-15T00:00:00Z",
       )
   }
@@ -417,25 +487,141 @@ describe("thread core FK constraints", () => {
     database.close()
   })
 
-  it("incremental apply on DB with 0001-0006 applies only 0007", () => {
+  it("rejects an artifact with nonexistent project_id", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    expect(() =>
+      database
+        .prepare(
+          "INSERT INTO artifacts (artifact_id, project_id, thread_id, artifact_type, title, path, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(
+          "artifact_1",
+          "nonexistent",
+          "thread_1",
+          "runtime_bundle",
+          "Runtime bundle",
+          "/tmp/artifact.json",
+          '{"summary":"bundle"}',
+          "2026-03-15T00:00:00Z",
+        ),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("rejects an artifact with nonexistent thread_id", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+
+    expect(() =>
+      database
+        .prepare(
+          "INSERT INTO artifacts (artifact_id, project_id, thread_id, artifact_type, title, path, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run(
+          "artifact_1",
+          "proj_1",
+          "nonexistent",
+          "runtime_bundle",
+          "Runtime bundle",
+          "/tmp/artifact.json",
+          '{"summary":"bundle"}',
+          "2026-03-15T00:00:00Z",
+        ),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("cascades project deletion to artifacts", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+    insertArtifact(database)
+
+    database.prepare("DELETE FROM projects WHERE id = ?").run("proj_1")
+
+    const artifacts = database
+      .prepare("SELECT artifact_id FROM artifacts")
+      .all() as Array<{ artifact_id: string }>
+    expect(artifacts).toEqual([])
+
+    database.close()
+  })
+
+  it("cascades thread deletion to artifacts", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+    insertArtifact(database)
+
+    database.prepare("DELETE FROM threads WHERE id = ?").run("thread_1")
+
+    const artifacts = database
+      .prepare("SELECT artifact_id FROM artifacts")
+      .all() as Array<{ artifact_id: string }>
+    expect(artifacts).toEqual([])
+
+    database.close()
+  })
+
+  it("cascades artifact deletion to artifact_shares", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+    insertArtifact(database)
+
+    database
+      .prepare(
+        "INSERT INTO artifact_shares (share_id, artifact_id, destination_type, destination_id, shared_by, shared_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        "share_1",
+        "artifact_1",
+        "chat",
+        "chat_1",
+        "user_1",
+        "2026-03-15T00:00:00Z",
+      )
+
+    database
+      .prepare("DELETE FROM artifacts WHERE artifact_id = ?")
+      .run("artifact_1")
+
+    const shares = database
+      .prepare("SELECT share_id FROM artifact_shares")
+      .all() as Array<{ share_id: string }>
+    expect(shares).toEqual([])
+
+    database.close()
+  })
+
+  it("incremental apply on DB with 0001-0007 applies only 0008", () => {
     const database = createDatabase()
 
-    // Apply only 0001-0006 first
+    // Apply only 0001-0007 first
     const firstResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
-      migrations: DATABASE_MIGRATIONS.slice(0, 6),
+      migrations: DATABASE_MIGRATIONS.slice(0, 7),
     })
-    expect(firstResult.appliedMigrationIds).toHaveLength(6)
+    expect(firstResult.appliedMigrationIds).toHaveLength(7)
 
-    // Now run full migrations — only 0007 should apply
+    // Now run full migrations — only 0008 should apply
     const secondResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
     })
 
     expect(secondResult.appliedMigrationIds).toEqual([
-      "0007_thread_events_foundation",
+      "0008_artifacts_and_sharing",
     ])
-    expect(secondResult.totalMigrationCount).toBe(7)
+    expect(secondResult.totalMigrationCount).toBe(8)
 
     database.close()
   })
@@ -585,7 +771,7 @@ describe("thread core FK constraints", () => {
     })
 
     expect(result.appliedMigrationIds).toEqual([])
-    expect(result.totalMigrationCount).toBe(7)
+    expect(result.totalMigrationCount).toBe(8)
 
     database.close()
   })

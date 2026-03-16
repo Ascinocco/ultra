@@ -463,4 +463,34 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON thread_events(project_id, recorded_at);
     `,
   },
+  {
+    id: "0008_artifacts_and_sharing",
+    sql: `
+      CREATE TABLE IF NOT EXISTS artifacts (
+        artifact_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        artifact_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        path TEXT,
+        metadata_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_artifacts_thread_created
+        ON artifacts(thread_id, created_at);
+
+      CREATE TABLE IF NOT EXISTS artifact_shares (
+        share_id TEXT PRIMARY KEY,
+        artifact_id TEXT NOT NULL REFERENCES artifacts(artifact_id) ON DELETE CASCADE,
+        destination_type TEXT NOT NULL,
+        destination_id TEXT NOT NULL,
+        shared_by TEXT,
+        shared_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_artifact_shares_destination
+        ON artifact_shares(destination_type, destination_id, shared_at DESC);
+    `,
+  },
 ]
