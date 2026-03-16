@@ -39,6 +39,8 @@ import {
   terminalResizeSessionInputSchema,
   terminalRunSavedCommandInputSchema,
   terminalSyncRuntimeFilesInputSchema,
+  terminalPinSessionInputSchema,
+  terminalRenameSessionInputSchema,
   terminalWriteInputInputSchema,
   threadsGetEventsInputSchema,
   threadsGetInputSchema,
@@ -400,6 +402,24 @@ export async function routeIpcRequest(
           closeSessionCommand.request_id,
           services.terminalSessionService.closeSession(
             terminalCloseSessionInputSchema.parse(closeSessionCommand.payload),
+          ),
+        )
+      }
+      case "terminal.rename_session": {
+        const renameCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          renameCommand.request_id,
+          services.terminalSessionService.renameSession(
+            terminalRenameSessionInputSchema.parse(renameCommand.payload),
+          ),
+        )
+      }
+      case "terminal.pin_session": {
+        const pinCommand = assertCommandRequest(request)
+        return createSuccessResponse(
+          pinCommand.request_id,
+          services.terminalSessionService.pinSession(
+            terminalPinSessionInputSchema.parse(pinCommand.payload),
           ),
         )
       }
