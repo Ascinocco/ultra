@@ -1,7 +1,8 @@
 import type { SandboxContextSnapshot } from "@ultra/shared"
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { ChatPageShell } from "../pages/ChatPageShell.js"
+import { SettingsPageShell } from "../pages/SettingsPageShell.js"
 import {
   hydrateLastProject,
   openProjectFromPicker,
@@ -13,6 +14,7 @@ import { openTerminal } from "../terminal/terminal-workflows.js"
 import { TitleBar } from "./TitleBar.js"
 
 export function AppShell() {
+  const [showSettings, setShowSettings] = useState(false)
   const app = useAppStore((state) => state.app)
   const actions = useAppStore((state) => state.actions)
   const sandboxes = useAppStore((state) => state.sandboxes)
@@ -86,7 +88,7 @@ export function AppShell() {
 
       const isToggleSidebar =
         e.key === "b" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey
-      if (isToggleSidebar) {
+      if (isToggleSidebar && !showSettings) {
         e.preventDefault()
         handleToggleSidebar()
       }
@@ -94,7 +96,7 @@ export function AppShell() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [activeProjectId, handleToggleTerminal, handleToggleSidebar])
+  }, [activeProjectId, handleToggleTerminal, handleToggleSidebar, showSettings])
 
   const terminalOpen = activeProjectId
     ? (terminal.drawerOpenByProjectId[activeProjectId] ?? false)
@@ -145,11 +147,16 @@ export function AppShell() {
       </TitleBar>
 
       <section className="app-shell__body">
-        <ChatPageShell
-          onOpenProject={() => {
-            void handleOpenProject()
-          }}
-        />
+        {showSettings ? (
+          <SettingsPageShell onBack={() => setShowSettings(false)} />
+        ) : (
+          <ChatPageShell
+            onOpenProject={() => {
+              void handleOpenProject()
+            }}
+            onOpenSettings={() => setShowSettings(true)}
+          />
+        )}
       </section>
     </main>
   )

@@ -14,7 +14,13 @@ import {
   unpinChat,
 } from "./chat-workflows.js"
 
-export function Sidebar({ onOpenProject }: { onOpenProject: () => void }) {
+export function Sidebar({
+  onOpenProject,
+  onOpenSettings,
+}: {
+  onOpenProject: () => void
+  onOpenSettings: () => void
+}) {
   const projects = useAppStore((s) => s.projects)
   const sidebar = useAppStore((s) => s.sidebar)
   const activeProjectId = useAppStore((s) => s.app.activeProjectId)
@@ -129,7 +135,11 @@ export function Sidebar({ onOpenProject }: { onOpenProject: () => void }) {
       </div>
 
       <div className="sidebar__footer">
-        <button className="sidebar__settings" type="button">
+        <button
+          className="sidebar__settings"
+          type="button"
+          onClick={onOpenSettings}
+        >
           Settings
         </button>
         <button

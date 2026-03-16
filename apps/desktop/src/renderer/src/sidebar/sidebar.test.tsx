@@ -16,7 +16,7 @@ function renderSidebar(
   store.getInitialState = () => currentState
   return renderToStaticMarkup(
     <AppStoreProvider store={store}>
-      <Sidebar onOpenProject={() => undefined} />
+      <Sidebar onOpenProject={() => undefined} onOpenSettings={() => undefined} />
     </AppStoreProvider>,
   )
 }

@@ -1788,6 +1788,110 @@ button {
   font-size: 0.75rem;
 }
 
+/* ── Settings Page ─────────────────────────────────────────── */
+
+.settings-page {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  min-height: 100%;
+}
+
+.settings-page__header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.settings-page__back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+  transition: color 0.15s;
+}
+
+.settings-page__back:hover {
+  color: var(--text-secondary);
+}
+
+.settings-page__title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.settings-page__section {
+  margin-bottom: 24px;
+}
+
+.settings-page__section-title {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+
+.settings-page__status-card {
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.settings-page__status-card--empty {
+  color: var(--text-muted);
+}
+
+.settings-page__status-card--empty p {
+  margin: 0;
+}
+
+.settings-page__status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-page__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.settings-page__status-dot--healthy {
+  background: var(--success);
+}
+
+.settings-page__status-dot--degraded {
+  background: var(--warning);
+}
+
+.settings-page__status-dot--down {
+  background: var(--danger);
+}
+
+.settings-page__status-label {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.settings-page__status-value {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin-left: auto;
+}
+
 /* ── Responsive ────────────────────────────────────────────── */
 
 @media (max-width: 900px) {

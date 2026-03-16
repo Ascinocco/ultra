@@ -264,8 +264,10 @@ function TerminalDrawer({
 
 export function ChatPageShell({
   onOpenProject,
+  onOpenSettings,
 }: {
   onOpenProject: () => void
+  onOpenSettings: () => void
 }) {
   const activeProjectId = useAppStore((state) => state.app.activeProjectId)
   const terminal = useAppStore((state) => state.terminal)
@@ -458,7 +460,7 @@ export function ChatPageShell({
         style={gridStyle}
       >
         <aside className={`chat-frame__rail ${sidebarCollapsed ? "chat-frame__rail--collapsed" : ""}`}>
-          <Sidebar onOpenProject={onOpenProject} />
+          <Sidebar onOpenProject={onOpenProject} onOpenSettings={onOpenSettings} />
         </aside>
 
         <section className="chat-frame__main">
