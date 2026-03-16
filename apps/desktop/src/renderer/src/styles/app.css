@@ -706,6 +706,19 @@ button {
   font-size: 0.82rem;
 }
 
+/* ── Terminal Pane (xterm.js) ────────────────────────────── */
+
+.terminal-pane {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.terminal-pane__xterm {
+  width: 100%;
+  height: 100%;
+}
+
 .editor-layout,
 .browser-layout {
   min-height: 100%;
