@@ -87,39 +87,33 @@ function TerminalDrawer({
       <div className="terminal-drawer__content">
         <div className="terminal-drawer__tabs" role="tablist">
           {sessions.map((session) => (
-            <button
+            <div
               key={session.sessionId}
               className={`terminal-drawer__tab ${session.sessionId === focusedSession?.sessionId ? "terminal-drawer__tab--active" : ""}`}
-              type="button"
-              role="tab"
-              aria-selected={
-                session.sessionId === focusedSession?.sessionId
-              }
-              onClick={() => onFocusSession(session.sessionId)}
             >
-              {session.title}
-              <span
+              <button
+                className="terminal-drawer__tab-label"
+                type="button"
+                role="tab"
+                aria-selected={
+                  session.sessionId === focusedSession?.sessionId
+                }
+                onClick={() => onFocusSession(session.sessionId)}
+              >
+                {session.title}
+              </button>
+              <button
                 className="terminal-drawer__tab-close"
-                role="button"
-                tabIndex={0}
+                type="button"
                 aria-label={`Close ${session.title}`}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onCloseSession(session.sessionId)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation()
-                    onCloseSession(session.sessionId)
-                  }
-                }}
+                onClick={() => onCloseSession(session.sessionId)}
               >
                 ×
-              </span>
-            </button>
+              </button>
+            </div>
           ))}
           <button
-            className="terminal-drawer__tab terminal-drawer__tab--new"
+            className="terminal-drawer__tab-new"
             type="button"
             onClick={onNewSession}
             aria-label="New terminal session"
