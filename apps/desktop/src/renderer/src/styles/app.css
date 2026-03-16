@@ -229,6 +229,40 @@ button {
   box-sizing: border-box;
 }
 
+.title-bar__actions {
+  position: absolute;
+  right: 12px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.title-bar__terminal-toggle {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.title-bar__terminal-toggle:hover {
+  background: rgba(148, 163, 200, 0.08);
+  color: var(--text-secondary);
+}
+
+.title-bar__terminal-toggle--active {
+  color: var(--text-primary);
+}
+
 /* ── Project Selector ─────────────────────────────────────── */
 
 .project-selector {

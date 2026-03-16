@@ -94,6 +94,12 @@ describe("AppShell", () => {
 
     expect(markup).not.toContain("terminal-drawer")
   })
+
+  it("renders a terminal toggle button in the title bar", () => {
+    const markup = renderShell()
+
+    expect(markup).toContain("title-bar__terminal-toggle")
+  })
 })
 
 describe("app store", () => {
