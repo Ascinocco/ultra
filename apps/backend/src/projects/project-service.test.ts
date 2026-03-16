@@ -173,12 +173,12 @@ describe("ProjectService", () => {
     expect(layout).toEqual({
       currentPage: "chat",
       rightTopCollapsed: false,
-      rightBottomCollapsed: false,
       selectedRightPaneTab: null,
-      selectedBottomPaneTab: null,
       activeChatId: null,
       selectedThreadId: null,
       lastEditorTargetId: null,
+      sidebarCollapsed: false,
+      chatThreadSplitRatio: 0.55,
     })
 
     runtime.close()
@@ -198,12 +198,12 @@ describe("ProjectService", () => {
     service.setLayout(project.id, {
       currentPage: "editor",
       rightTopCollapsed: true,
-      rightBottomCollapsed: false,
       selectedRightPaneTab: "files",
-      selectedBottomPaneTab: null,
       activeChatId: "chat_abc",
       selectedThreadId: null,
       lastEditorTargetId: "target_xyz",
+      sidebarCollapsed: false,
+      chatThreadSplitRatio: 0.55,
     })
 
     const layout = service.getLayout(project.id)
@@ -211,12 +211,12 @@ describe("ProjectService", () => {
     expect(layout).toEqual({
       currentPage: "editor",
       rightTopCollapsed: true,
-      rightBottomCollapsed: false,
       selectedRightPaneTab: "files",
-      selectedBottomPaneTab: null,
       activeChatId: "chat_abc",
       selectedThreadId: null,
       lastEditorTargetId: "target_xyz",
+      sidebarCollapsed: false,
+      chatThreadSplitRatio: 0.55,
     })
 
     runtime.close()
@@ -237,35 +237,35 @@ describe("ProjectService", () => {
     service.setLayout(project.id, {
       currentPage: "chat",
       rightTopCollapsed: false,
-      rightBottomCollapsed: false,
       selectedRightPaneTab: null,
-      selectedBottomPaneTab: null,
       activeChatId: null,
       selectedThreadId: null,
       lastEditorTargetId: null,
+      sidebarCollapsed: false,
+      chatThreadSplitRatio: 0.55,
     })
 
     service.setLayout(project.id, {
       currentPage: "browser",
       rightTopCollapsed: true,
-      rightBottomCollapsed: true,
       selectedRightPaneTab: "timeline",
-      selectedBottomPaneTab: "logs",
       activeChatId: "chat_123",
       selectedThreadId: "thread_456",
       lastEditorTargetId: "target_789",
+      sidebarCollapsed: true,
+      chatThreadSplitRatio: 0.7,
     })
 
     const layout = service.getLayout(project.id)
 
     expect(layout.currentPage).toBe("browser")
     expect(layout.rightTopCollapsed).toBe(true)
-    expect(layout.rightBottomCollapsed).toBe(true)
     expect(layout.selectedRightPaneTab).toBe("timeline")
-    expect(layout.selectedBottomPaneTab).toBe("logs")
     expect(layout.activeChatId).toBe("chat_123")
     expect(layout.selectedThreadId).toBe("thread_456")
     expect(layout.lastEditorTargetId).toBe("target_789")
+    expect(layout.sidebarCollapsed).toBe(true)
+    expect(layout.chatThreadSplitRatio).toBe(0.7)
 
     runtime.close()
   })
@@ -290,12 +290,12 @@ describe("ProjectService", () => {
     service.setLayout(project.id, {
       currentPage: "browser",
       rightTopCollapsed: false,
-      rightBottomCollapsed: true,
       selectedRightPaneTab: "timeline",
-      selectedBottomPaneTab: "logs",
       activeChatId: "chat_123",
       selectedThreadId: "thread_456",
       lastEditorTargetId: "target_789",
+      sidebarCollapsed: true,
+      chatThreadSplitRatio: 0.6,
     })
 
     const after = runtime.database
@@ -324,9 +324,9 @@ describe("ProjectService", () => {
     const layout = service.getLayout(project.id)
 
     expect(layout.rightTopCollapsed).toBe(false)
-    expect(layout.rightBottomCollapsed).toBe(false)
+    expect(layout.sidebarCollapsed).toBe(false)
     expect(typeof layout.rightTopCollapsed).toBe("boolean")
-    expect(typeof layout.rightBottomCollapsed).toBe("boolean")
+    expect(typeof layout.sidebarCollapsed).toBe("boolean")
 
     runtime.close()
   })
@@ -340,12 +340,12 @@ describe("ProjectService", () => {
       service.setLayout("proj_nonexistent", {
         currentPage: "chat",
         rightTopCollapsed: false,
-        rightBottomCollapsed: false,
         selectedRightPaneTab: null,
-        selectedBottomPaneTab: null,
         activeChatId: null,
         selectedThreadId: null,
         lastEditorTargetId: null,
+        sidebarCollapsed: false,
+        chatThreadSplitRatio: 0.55,
       }),
     ).toThrow()
 

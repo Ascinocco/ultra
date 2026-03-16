@@ -156,7 +156,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0008_artifacts_and_sharing",
+      "0009_layout_sidebar_and_split_ratio",
     )
 
     secondRuntime.close()

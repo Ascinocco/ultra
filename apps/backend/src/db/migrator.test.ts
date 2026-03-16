@@ -48,6 +48,7 @@ describe("migration runner", () => {
       "0006_sandbox_context_and_runtime_sync",
       "0007_thread_events_foundation",
       "0008_artifacts_and_sharing",
+      "0009_layout_sidebar_and_split_ratio",
     ])
     expect(rows).toEqual([
       {
@@ -80,6 +81,10 @@ describe("migration runner", () => {
       },
       {
         id: "0008_artifacts_and_sharing",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0009_layout_sidebar_and_split_ratio",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
@@ -136,7 +141,10 @@ describe("migration runner", () => {
       "0007_thread_events_foundation",
     )
     expect(result.appliedMigrationIds).toContain("0008_artifacts_and_sharing")
-    expect(result.totalMigrationCount).toBe(8)
+    expect(result.appliedMigrationIds).toContain(
+      "0009_layout_sidebar_and_split_ratio",
+    )
+    expect(result.totalMigrationCount).toBe(9)
 
     // Verify threads table exists with correct columns
     const threadColumns = database
@@ -620,8 +628,9 @@ describe("thread core FK constraints", () => {
 
     expect(secondResult.appliedMigrationIds).toEqual([
       "0008_artifacts_and_sharing",
+      "0009_layout_sidebar_and_split_ratio",
     ])
-    expect(secondResult.totalMigrationCount).toBe(8)
+    expect(secondResult.totalMigrationCount).toBe(9)
 
     database.close()
   })
@@ -771,7 +780,7 @@ describe("thread core FK constraints", () => {
     })
 
     expect(result.appliedMigrationIds).toEqual([])
-    expect(result.totalMigrationCount).toBe(8)
+    expect(result.totalMigrationCount).toBe(9)
 
     database.close()
   })
