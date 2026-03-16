@@ -19,7 +19,12 @@ export function AppShell() {
   const terminal = useAppStore((state) => state.terminal)
   const loadedProjectsSessionRef = useRef<string | null>(null)
 
+  const layout = useAppStore((state) => state.layout)
+
   const activeProjectId = app.activeProjectId
+  const sidebarCollapsed = activeProjectId
+    ? (layout.byProjectId[activeProjectId]?.sidebarCollapsed ?? false)
+    : false
 
   const canOpenProjects =
     app.connectionStatus === "connected" &&
@@ -61,6 +66,14 @@ export function AppShell() {
     terminal.sessionsByProjectId,
   ])
 
+  const handleToggleSidebar = useCallback(() => {
+    if (!activeProjectId) return
+    const currentLayout = useAppStore.getState().layout.byProjectId[activeProjectId]
+    actions.setLayoutField(activeProjectId, {
+      sidebarCollapsed: !(currentLayout?.sidebarCollapsed ?? false),
+    })
+  }, [activeProjectId, actions])
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const isToggleTerminal =
@@ -70,11 +83,18 @@ export function AppShell() {
         if (!activeProjectId) return
         handleToggleTerminal()
       }
+
+      const isToggleSidebar =
+        e.key === "b" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey
+      if (isToggleSidebar) {
+        e.preventDefault()
+        handleToggleSidebar()
+      }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [activeProjectId, handleToggleTerminal])
+  }, [activeProjectId, handleToggleTerminal, handleToggleSidebar])
 
   const terminalOpen = activeProjectId
     ? (terminal.drawerOpenByProjectId[activeProjectId] ?? false)
@@ -114,6 +134,8 @@ export function AppShell() {
       <TitleBar
         terminalOpen={terminalOpen}
         onToggleTerminal={handleToggleTerminal}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={handleToggleSidebar}
       >
         <SandboxSelector
           activeSandbox={activeSandbox}

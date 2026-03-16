@@ -457,7 +457,7 @@ export function ChatPageShell({
         ref={gridRef}
         style={gridStyle}
       >
-        <aside className="chat-frame__rail">
+        <aside className={`chat-frame__rail ${sidebarCollapsed ? "chat-frame__rail--collapsed" : ""}`}>
           <Sidebar onOpenProject={onOpenProject} />
         </aside>
 

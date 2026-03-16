@@ -526,6 +526,7 @@ button {
   grid-template-columns: 280px minmax(0, 1fr) 5px minmax(320px, 0.95fr);
   grid-template-rows: minmax(0, 1fr);
   height: 100%;
+  transition: grid-template-columns 0.2s ease;
 }
 
 .chat-frame__grid--drawer-open {
@@ -537,6 +538,15 @@ button {
   background: var(--surface-2);
   overflow: hidden;
   grid-row: 1 / -1;
+  transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease, border-width 0.2s ease;
+}
+
+.chat-frame__rail--collapsed {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  border-right-width: 0;
+  visibility: hidden;
 }
 
 .chat-frame__main {
