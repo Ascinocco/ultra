@@ -1,4 +1,3 @@
-import type { ProjectSnapshot } from "@ultra/shared"
 import { useEffect, useRef } from "react"
 
 import { BrowserPageShell } from "../pages/BrowserPageShell.js"
@@ -37,6 +36,20 @@ export function AppShell() {
     void hydrateLastProject(actions, app.capabilities).catch(() => undefined)
   }, [actions, app.backendStatus.sessionId, app.capabilities, canOpenProjects])
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const isToggleTerminal =
+        e.key === "`" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey
+      if (isToggleTerminal) {
+        e.preventDefault()
+        actions.toggleTerminalDrawer()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [actions])
+
   async function handleOpenProject() {
     await openProjectFromPicker(
       () => window.ultraShell.pickProjectDirectory(),
@@ -47,7 +60,10 @@ export function AppShell() {
 
   return (
     <main className="app-shell">
-      <TitleBar />
+      <TitleBar
+        terminalOpen={app.terminalDrawerOpen}
+        onToggleTerminal={() => actions.toggleTerminalDrawer()}
+      />
 
       <section className="app-shell__body">
         <ChatPageShell
