@@ -263,6 +263,31 @@ button {
   color: var(--text-primary);
 }
 
+.title-bar__sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.title-bar__sidebar-toggle:hover {
+  color: var(--text-secondary);
+  border-color: var(--surface-border);
+}
+
+.title-bar__sidebar-toggle--collapsed {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 /* ── Project Selector ─────────────────────────────────────── */
 
 .project-selector {
@@ -1783,6 +1808,10 @@ button {
   }
 
   .chat-frame__drag-handle {
+    display: none;
+  }
+
+  .title-bar__sidebar-toggle {
     display: none;
   }
 
