@@ -197,6 +197,75 @@ export const threadsGetEventsResultSchema = z.object({
   events: z.array(threadEventSnapshotSchema),
 })
 
+// ── Thread Messages ──────────────────────────────────────────────────
+
+export const threadMessageRoleSchema = z.enum(["coordinator", "user", "system"])
+
+export const threadMessageTypeSchema = z.enum([
+  "text",
+  "status",
+  "blocking_question",
+  "summary",
+  "review_ready",
+  "change_request_followup",
+])
+
+export const threadMessageContentSchema = z.object({
+  text: z.string(),
+})
+
+export const threadMessageSnapshotSchema = z.object({
+  id: opaqueIdSchema,
+  threadId: threadIdSchema,
+  role: threadMessageRoleSchema,
+  provider: z.string().nullable(),
+  model: z.string().nullable(),
+  messageType: threadMessageTypeSchema,
+  content: threadMessageContentSchema,
+  artifactRefs: z.array(z.string()),
+  createdAt: isoUtcTimestampSchema,
+})
+
+export const threadsGetMessagesInputSchema = z.object({
+  thread_id: threadIdSchema,
+  after_id: opaqueIdSchema.optional(),
+  limit: z.number().int().positive().max(200).optional(),
+})
+
+export const threadsSendMessageInputSchema = z.object({
+  thread_id: threadIdSchema,
+  content: z.string().min(1),
+})
+
+export const threadsGetMessagesResultSchema = z.object({
+  messages: z.array(threadMessageSnapshotSchema),
+})
+
+export const threadsSendMessageResultSchema = z.object({
+  message: threadMessageSnapshotSchema,
+})
+
+export const threadsGetMessagesQuerySchema = queryRequestEnvelopeSchema.extend({
+  name: z.literal("threads.get_messages"),
+  payload: threadsGetMessagesInputSchema,
+})
+
+export const threadsSendMessageCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("threads.send_message"),
+    payload: threadsSendMessageInputSchema,
+  })
+
+export const threadsGetMessagesSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: threadsGetMessagesResultSchema,
+  })
+
+export const threadsSendMessageSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: threadsSendMessageResultSchema,
+  })
+
 export const chatsStartThreadCommandSchema =
   commandRequestEnvelopeSchema.extend({
     name: z.literal("chats.start_thread"),
@@ -296,6 +365,22 @@ export type ThreadsListResult = z.infer<typeof threadsListResultSchema>
 export type ThreadsGetEventsResult = z.infer<
   typeof threadsGetEventsResultSchema
 >
+export type ThreadMessageRole = z.infer<typeof threadMessageRoleSchema>
+export type ThreadMessageType = z.infer<typeof threadMessageTypeSchema>
+export type ThreadMessageContent = z.infer<typeof threadMessageContentSchema>
+export type ThreadMessageSnapshot = z.infer<typeof threadMessageSnapshotSchema>
+export type ThreadsGetMessagesInput = z.infer<
+  typeof threadsGetMessagesInputSchema
+>
+export type ThreadsSendMessageInput = z.infer<
+  typeof threadsSendMessageInputSchema
+>
+export type ThreadsGetMessagesResult = z.infer<
+  typeof threadsGetMessagesResultSchema
+>
+export type ThreadsSendMessageResult = z.infer<
+  typeof threadsSendMessageResultSchema
+>
 
 export function parseThreadSnapshot(input: unknown): ThreadSnapshot {
   return threadSnapshotSchema.parse(input)
@@ -323,4 +408,22 @@ export function parseThreadsGetEventsResult(
   input: unknown,
 ): ThreadsGetEventsResult {
   return threadsGetEventsResultSchema.parse(input)
+}
+
+export function parseThreadMessageSnapshot(
+  input: unknown,
+): ThreadMessageSnapshot {
+  return threadMessageSnapshotSchema.parse(input)
+}
+
+export function parseThreadsGetMessagesResult(
+  input: unknown,
+): ThreadsGetMessagesResult {
+  return threadsGetMessagesResultSchema.parse(input)
+}
+
+export function parseThreadsSendMessageResult(
+  input: unknown,
+): ThreadsSendMessageResult {
+  return threadsSendMessageResultSchema.parse(input)
 }
