@@ -11,6 +11,15 @@ import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import type { RuntimeProfileService } from "./runtime-profile-service.js"
 import type { RuntimeSyncService } from "./runtime-sync-service.js"
 
+export type ResolvedRuntimeContext = {
+  profile: ReturnType<RuntimeProfileService["resolve"]>["profile"]
+  sandbox: SandboxContextSnapshot
+}
+
+export type EnsuredRuntimeContext = ResolvedRuntimeContext & {
+  sync: TerminalRuntimeProfileResult["sync"]
+}
+
 export class TerminalService {
   constructor(
     private readonly sandboxService: SandboxService,
@@ -21,16 +30,18 @@ export class TerminalService {
   getRuntimeProfile(
     input: TerminalGetRuntimeProfileInput,
   ): TerminalRuntimeProfileResult {
-    const sandbox = this.resolveSandbox(input.project_id, input.sandbox_id)
-    const runtimeProfile = this.runtimeProfileService.resolve(input.project_id)
+    const { sandbox, profile } = this.resolveRuntimeContext(
+      input.project_id,
+      input.sandbox_id,
+    )
     const sync = this.runtimeSyncService.refreshRuntimeSync(
       sandbox,
-      runtimeProfile,
+      this.runtimeProfileService.resolve(input.project_id),
     )
 
     return {
       sandbox,
-      profile: runtimeProfile.profile,
+      profile,
       sync,
     }
   }
@@ -38,7 +49,10 @@ export class TerminalService {
   syncRuntimeFiles(
     input: TerminalSyncRuntimeFilesInput,
   ): TerminalRuntimeProfileResult {
-    const sandbox = this.resolveSandbox(input.project_id, input.sandbox_id)
+    const { sandbox, profile } = this.resolveRuntimeContext(
+      input.project_id,
+      input.sandbox_id,
+    )
     const runtimeProfile = this.runtimeProfileService.resolve(input.project_id)
     const sync = this.runtimeSyncService.syncRuntimeFiles(
       sandbox,
@@ -48,8 +62,41 @@ export class TerminalService {
 
     return {
       sandbox,
-      profile: runtimeProfile.profile,
+      profile,
       sync,
+    }
+  }
+
+  ensureRuntimeContext(
+    projectId: ProjectId,
+    sandboxId?: string,
+  ): EnsuredRuntimeContext {
+    const { sandbox, profile } = this.resolveRuntimeContext(
+      projectId,
+      sandboxId,
+    )
+    const sync = this.runtimeSyncService.syncRuntimeFiles(
+      sandbox,
+      this.runtimeProfileService.resolve(projectId),
+      false,
+    )
+
+    return {
+      sandbox,
+      profile,
+      sync,
+    }
+  }
+
+  resolveRuntimeContext(
+    projectId: ProjectId,
+    sandboxId?: string,
+  ): ResolvedRuntimeContext {
+    const runtimeProfile = this.runtimeProfileService.resolve(projectId)
+
+    return {
+      sandbox: this.resolveSandbox(projectId, sandboxId),
+      profile: runtimeProfile.profile,
     }
   }
 

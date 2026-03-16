@@ -15,6 +15,8 @@ export const queryMethodSchema = z.enum([
   "chats.list",
   "chats.get",
   "terminal.get_runtime_profile",
+  "terminal.list_sessions",
+  "terminal.list_saved_commands",
   "sandboxes.list",
   "sandboxes.get_active",
   "projects.list",
@@ -36,7 +38,12 @@ export const commandMethodSchema = z.enum([
   "chats.restore",
   "chats.start_thread",
   "chats.promote_work_to_thread",
+  "terminal.open",
+  "terminal.run_saved_command",
   "terminal.sync_runtime_files",
+  "terminal.write_input",
+  "terminal.resize_session",
+  "terminal.close_session",
   "sandboxes.set_active",
   "projects.open",
   "projects.set_layout",
@@ -45,6 +52,8 @@ export const commandMethodSchema = z.enum([
 export const subscriptionMethodSchema = z.enum([
   "projects.updated",
   "projects.layout_updated",
+  "terminal.sessions",
+  "terminal.output",
 ])
 
 export const queryRequestEnvelopeSchema = z.object({

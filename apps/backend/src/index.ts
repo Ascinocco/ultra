@@ -16,6 +16,7 @@ import { SystemService } from "./system/system-service.js"
 import { RuntimeProfileService } from "./terminal/runtime-profile-service.js"
 import { RuntimeSyncService } from "./terminal/runtime-sync-service.js"
 import { TerminalService } from "./terminal/terminal-service.js"
+import { TerminalSessionService } from "./terminal/terminal-session-service.js"
 import { ThreadService } from "./threads/thread-service.js"
 
 export function createBackendBanner(): string {
@@ -34,6 +35,7 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
   const socketPath = process.env.ULTRA_SOCKET_PATH ?? null
   let databaseRuntime: DatabaseRuntime | null = null
   let socketRuntime: SocketServerRuntime | null = null
+  let terminalSessionService: TerminalSessionService | null = null
 
   console.log(createBackendBanner())
 
@@ -55,13 +57,18 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
       databaseRuntime.database,
     )
     const sandboxService = new SandboxService(sandboxPersistenceService)
+    const runtimeProfileService = new RuntimeProfileService(
+      databaseRuntime.database,
+      sandboxPersistenceService,
+    )
     const terminalService = new TerminalService(
       sandboxService,
-      new RuntimeProfileService(
-        databaseRuntime.database,
-        sandboxPersistenceService,
-      ),
+      runtimeProfileService,
       new RuntimeSyncService(sandboxPersistenceService),
+    )
+    terminalSessionService = new TerminalSessionService(
+      terminalService,
+      runtimeProfileService,
     )
     sandboxService.setActivationSyncHandler((projectId, sandboxId) => {
       terminalService.syncRuntimeFilesForActivation(projectId, sandboxId)
@@ -71,6 +78,7 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
       projectService: new ProjectService(databaseRuntime.database),
       sandboxService,
       systemService: new SystemService(),
+      terminalSessionService,
       terminalService,
       threadService,
     })
@@ -85,6 +93,7 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
     databasePath: databaseRuntime.databasePath,
     runtimeRegistry,
     stop: async () => {
+      terminalSessionService?.dispose()
       await socketRuntime?.close()
       databaseRuntime?.close()
     },

@@ -19,8 +19,16 @@ import {
   parseRuntimeComponentSnapshot,
   parseRuntimeHealthCheckSnapshot,
   parseSandboxesListResult,
+  parseSavedCommandSnapshot,
+  parseSubscribeRequest,
+  parseSubscriptionEventEnvelope,
   parseSystemHelloResult,
+  parseTerminalListSavedCommandsResult,
+  parseTerminalListSessionsResult,
+  parseTerminalOutputEvent,
   parseTerminalRuntimeProfileResult,
+  parseTerminalSessionSnapshot,
+  parseTerminalSessionsEvent,
   parseThreadDetailResult,
   parseThreadEventSnapshot,
   parseThreadsListResult,
@@ -153,6 +161,42 @@ describe("shared contracts", () => {
     expect(syncCommand.name).toBe("terminal.sync_runtime_files")
   })
 
+  it("parses terminal session commands, queries, and subscriptions", () => {
+    const openCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_open",
+      type: "command",
+      name: "terminal.open",
+      payload: {
+        project_id: "proj_123",
+        cols: 120,
+        rows: 30,
+      },
+    })
+    const listSessionsQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_list_sessions",
+      type: "query",
+      name: "terminal.list_sessions",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+    const subscribeRequest = parseSubscribeRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_terminal_sessions_subscribe",
+      type: "subscribe",
+      name: "terminal.sessions",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+
+    expect(openCommand.name).toBe("terminal.open")
+    expect(listSessionsQuery.name).toBe("terminal.list_sessions")
+    expect(subscribeRequest.name).toBe("terminal.sessions")
+  })
+
   it("parses a valid command envelope for chats.start_thread", () => {
     const command = parseCommandRequest({
       protocol_version: IPC_PROTOCOL_VERSION,
@@ -203,6 +247,74 @@ describe("shared contracts", () => {
     })
 
     expect(result.capabilities.supportsProjects).toBe(true)
+  })
+
+  it("parses terminal session snapshots, results, and events", () => {
+    const session = parseTerminalSessionSnapshot({
+      sessionId: "term_123",
+      projectId: "proj_123",
+      sandboxId: "sandbox_123",
+      threadId: null,
+      cwd: "/tmp/project",
+      title: "Main",
+      sessionKind: "shell",
+      status: "running",
+      commandId: null,
+      commandLabel: null,
+      commandLine: "/bin/bash",
+      exitCode: null,
+      startedAt: "2026-03-15T00:00:00Z",
+      updatedAt: "2026-03-15T00:00:00Z",
+      lastOutputAt: null,
+      lastOutputSequence: 0,
+      recentOutput: "",
+    })
+    const sessionsResult = parseTerminalListSessionsResult({
+      sessions: [session],
+    })
+    const commandsResult = parseTerminalListSavedCommandsResult({
+      commands: [
+        parseSavedCommandSnapshot({
+          commandId: "test",
+          label: "Test",
+          commandLine: "pnpm run test",
+          isAvailable: true,
+          reasonUnavailable: null,
+        }),
+      ],
+    })
+    const sessionsEvent = parseTerminalSessionsEvent(
+      parseSubscriptionEventEnvelope({
+        protocol_version: IPC_PROTOCOL_VERSION,
+        type: "event",
+        subscription_id: "sub_123",
+        event_name: "terminal.sessions",
+        payload: {
+          project_id: "proj_123",
+          sessions: [session],
+        },
+      }),
+    )
+    const outputEvent = parseTerminalOutputEvent(
+      parseSubscriptionEventEnvelope({
+        protocol_version: IPC_PROTOCOL_VERSION,
+        type: "event",
+        subscription_id: "sub_456",
+        event_name: "terminal.output",
+        payload: {
+          project_id: "proj_123",
+          session_id: "term_123",
+          sequence_number: 1,
+          chunk: "hello",
+          occurred_at: "2026-03-15T00:00:01Z",
+        },
+      }),
+    )
+
+    expect(sessionsResult.sessions[0]?.sessionId).toBe("term_123")
+    expect(commandsResult.commands[0]?.commandId).toBe("test")
+    expect(sessionsEvent.payload.project_id).toBe("proj_123")
+    expect(outputEvent.payload.chunk).toBe("hello")
   })
 
   it("parses environment readiness snapshots", () => {
