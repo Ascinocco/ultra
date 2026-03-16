@@ -9,6 +9,8 @@ import type {
   SavedCommandSnapshot,
   TerminalRuntimeProfileResult,
   TerminalSessionSnapshot,
+  ThreadMessageSnapshot,
+  ThreadSnapshot,
 } from "@ultra/shared"
 import {
   createContext,
@@ -75,6 +77,12 @@ type TerminalSlice = {
   savedCommandsByProjectId: Record<string, SavedCommandSnapshot[]>
 }
 
+type ThreadsSlice = {
+  threadsByProjectId: Record<string, ThreadSnapshot[]>
+  messagesByThreadId: Record<string, ThreadMessageSnapshot[]>
+  threadFetchStatus: Record<string, "idle" | "loading" | "error">
+}
+
 type AppActions = {
   setCurrentPage: (page: AppPage) => void
   toggleProjectExpanded: (projectId: string) => void
@@ -134,6 +142,16 @@ type AppActions = {
   setReadinessError: (error: string) => void
   resetReadiness: () => void
   setSystemToolsOpen: (open: boolean) => void
+  setThreadsForProject: (projectId: string, threads: ThreadSnapshot[]) => void
+  setMessagesForThread: (
+    threadId: string,
+    messages: ThreadMessageSnapshot[],
+  ) => void
+  appendMessage: (threadId: string, message: ThreadMessageSnapshot) => void
+  setThreadFetchStatus: (
+    projectId: string,
+    status: "idle" | "loading" | "error",
+  ) => void
 }
 
 export type AppStoreState = {
@@ -144,6 +162,7 @@ export type AppStoreState = {
   sidebar: SidebarSlice
   sandboxes: SandboxSlice
   terminal: TerminalSlice
+  threads: ThreadsSlice
   actions: AppActions
 }
 
@@ -193,6 +212,12 @@ const defaultTerminalState: TerminalSlice = {
   sessionsByProjectId: {},
   focusedSessionIdByProjectId: {},
   savedCommandsByProjectId: {},
+}
+
+const defaultThreadsState: ThreadsSlice = {
+  threadsByProjectId: {},
+  messagesByThreadId: {},
+  threadFetchStatus: {},
 }
 
 const DEFAULT_LAYOUT: ProjectLayoutState = {
@@ -266,6 +291,7 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
     sidebar: { ...defaultSidebarState },
     sandboxes: { ...defaultSandboxState },
     terminal: { ...defaultTerminalState },
+    threads: { ...defaultThreadsState },
     actions: {
       setCurrentPage: () => undefined,
       toggleProjectExpanded: () => undefined,
@@ -295,6 +321,10 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       setReadinessError: () => undefined,
       resetReadiness: () => undefined,
       setSystemToolsOpen: () => undefined,
+      setThreadsForProject: () => undefined,
+      setMessagesForThread: () => undefined,
+      appendMessage: () => undefined,
+      setThreadFetchStatus: () => undefined,
     },
   }
 }
@@ -665,6 +695,57 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           readiness: {
             ...state.readiness,
             systemToolsOpen: open,
+          },
+        })),
+      setThreadsForProject: (projectId, threads) =>
+        set((state) => ({
+          ...state,
+          threads: {
+            ...state.threads,
+            threadsByProjectId: {
+              ...state.threads.threadsByProjectId,
+              [projectId]: threads,
+            },
+            threadFetchStatus: {
+              ...state.threads.threadFetchStatus,
+              [projectId]: "idle",
+            },
+          },
+        })),
+      setMessagesForThread: (threadId, messages) =>
+        set((state) => ({
+          ...state,
+          threads: {
+            ...state.threads,
+            messagesByThreadId: {
+              ...state.threads.messagesByThreadId,
+              [threadId]: messages,
+            },
+          },
+        })),
+      appendMessage: (threadId, message) =>
+        set((state) => ({
+          ...state,
+          threads: {
+            ...state.threads,
+            messagesByThreadId: {
+              ...state.threads.messagesByThreadId,
+              [threadId]: [
+                ...(state.threads.messagesByThreadId[threadId] ?? []),
+                message,
+              ],
+            },
+          },
+        })),
+      setThreadFetchStatus: (projectId, status) =>
+        set((state) => ({
+          ...state,
+          threads: {
+            ...state.threads,
+            threadFetchStatus: {
+              ...state.threads.threadFetchStatus,
+              [projectId]: status,
+            },
           },
         })),
     },

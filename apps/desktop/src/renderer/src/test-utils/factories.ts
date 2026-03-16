@@ -3,6 +3,8 @@ import type {
   ProjectSnapshot,
   SandboxContextSnapshot,
   TerminalSessionSnapshot,
+  ThreadMessageSnapshot,
+  ThreadSnapshot,
 } from "@ultra/shared"
 
 export function makeProject(id: string, name: string): ProjectSnapshot {
@@ -91,6 +93,65 @@ export function makeTerminalSession(
     recentOutput: "",
     displayName: null,
     pinned: false,
+    ...opts,
+  }
+}
+
+export function makeThread(
+  id: string,
+  projectId: string,
+  opts?: Partial<ThreadSnapshot>,
+): ThreadSnapshot {
+  return {
+    id,
+    projectId,
+    sourceChatId: "chat_1",
+    title: `Thread ${id}`,
+    summary: null,
+    executionState: "queued",
+    reviewState: "not_ready",
+    publishState: "not_requested",
+    backendHealth: "healthy",
+    coordinatorHealth: "healthy",
+    watchHealth: "healthy",
+    ovProjectId: null,
+    ovCoordinatorId: null,
+    ovThreadKey: null,
+    worktreeId: null,
+    branchName: null,
+    baseBranch: null,
+    latestCommitSha: null,
+    prProvider: null,
+    prNumber: null,
+    prUrl: null,
+    lastEventSequence: 0,
+    restartCount: 0,
+    failureReason: null,
+    createdByMessageId: null,
+    createdAt: "2026-03-16T00:00:00.000Z",
+    updatedAt: "2026-03-16T00:00:00.000Z",
+    lastActivityAt: null,
+    approvedAt: null,
+    completedAt: null,
+    ...opts,
+  }
+}
+
+export function makeThreadMessage(
+  id: string,
+  threadId: string,
+  opts?: Partial<ThreadMessageSnapshot>,
+): ThreadMessageSnapshot {
+  return {
+    id,
+    threadId,
+    role: "coordinator",
+    provider: null,
+    model: null,
+    messageType: "text",
+    content: { text: "Hello from coordinator" },
+    artifactRefs: [],
+    createdAt: "2026-03-16T00:00:00.000Z",
     ...opts,
   }
 }
