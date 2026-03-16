@@ -275,13 +275,16 @@ export class RuntimeSupervisor {
       })
     }
 
-    return this.runtimeRegistry.upsertRuntimeComponent({
-      componentType: spec.componentType,
-      details: spec.details ?? null,
-      projectId: spec.projectId ?? null,
-      scope: spec.scope,
-      status: "down",
-    })
+    return this.runtimeRegistry.upsertRuntimeComponent(
+      {
+        componentType: spec.componentType,
+        details: spec.details ?? null,
+        projectId: spec.projectId ?? null,
+        scope: spec.scope,
+        status: "down",
+      },
+      false,
+    )
   }
 
   private getPersistedComponent(componentId: string): RuntimeComponentSnapshot {

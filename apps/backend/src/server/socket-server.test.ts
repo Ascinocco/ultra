@@ -6,6 +6,8 @@ import {
   IPC_PROTOCOL_VERSION,
   parseArtifactSnapshot,
   parseIpcResponseEnvelope,
+  parseRuntimeComponentUpdatedEvent,
+  parseRuntimeListGlobalComponentsResult,
   parseSubscriptionEventEnvelope,
   parseTerminalOutputEvent,
   parseTerminalSessionsEvent,
@@ -17,6 +19,11 @@ import { ArtifactStorageService } from "../artifacts/artifact-storage-service.js
 import { ChatService } from "../chats/chat-service.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
+import { FakeSupervisedProcessAdapter } from "../runtime/fake-supervised-process-adapter.js"
+import { RuntimePersistenceService } from "../runtime/runtime-persistence-service.js"
+import { RuntimeRegistry } from "../runtime/runtime-registry.js"
+import { RuntimeSupervisor } from "../runtime/runtime-supervisor.js"
+import { WatchService } from "../runtime/watch-service.js"
 import { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
 import { SandboxService } from "../sandboxes/sandbox-service.js"
 import { FakePtyAdapter } from "../terminal/fake-pty-adapter.js"
@@ -31,6 +38,21 @@ async function createServerRuntime(directory: string, socketPath: string) {
   const databaseRuntime = bootstrapDatabase({
     ULTRA_DB_PATH: join(directory, "ultra.db"),
   })
+  const runtimePersistence = new RuntimePersistenceService(
+    databaseRuntime.database,
+  )
+  const runtimeRegistry = new RuntimeRegistry(runtimePersistence)
+  runtimeRegistry.hydrate()
+  const processAdapter = new FakeSupervisedProcessAdapter()
+  const runtimeSupervisor = new RuntimeSupervisor(
+    runtimeRegistry,
+    processAdapter,
+  )
+  const watchService = new WatchService(
+    runtimeSupervisor,
+    runtimeRegistry,
+    databaseRuntime.databasePath,
+  )
   const sandboxPersistenceService = new SandboxPersistenceService(
     databaseRuntime.database,
   )
@@ -67,6 +89,8 @@ async function createServerRuntime(directory: string, socketPath: string) {
       artifactCaptureService,
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
+      runtimeRegistry,
+      watchService,
       sandboxService,
       terminalSessionService,
       terminalService,
@@ -82,6 +106,10 @@ async function createServerRuntime(directory: string, socketPath: string) {
     runtime,
     artifactCaptureService,
     databaseRuntime,
+    processAdapter,
+    runtimeRegistry,
+    runtimeSupervisor,
+    watchService,
     sandboxPersistenceService,
     ptyAdapter,
   }
@@ -858,6 +886,106 @@ describe("socket server", () => {
       expect(syncResponse.result.sync.syncedFiles).toEqual([".env"])
     }
 
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips global runtime queries and component update subscriptions over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const { runtime, databaseRuntime, processAdapter, watchService } =
+      await createServerRuntime(directory, socketPath)
+
+    const initialListRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_globals_initial",
+      type: "query",
+      name: "runtime.list_global_components",
+      payload: {},
+    })
+    const initialListResponse = parseIpcResponseEnvelope(initialListRaw)
+
+    expect(initialListResponse.ok).toBe(true)
+    if (!initialListResponse.ok) {
+      throw new Error("Expected runtime.list_global_components to succeed")
+    }
+
+    expect(
+      parseRuntimeListGlobalComponentsResult(initialListResponse.result)
+        .components,
+    ).toHaveLength(0)
+
+    const connection = await openPersistentConnection(socketPath)
+
+    connection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_component_subscribe",
+      type: "subscribe",
+      name: "runtime.component_updated",
+      payload: {},
+    })
+
+    const subscribeResponse = parseIpcResponseEnvelope(
+      await connection.nextMessage(),
+    )
+    expect(subscribeResponse.ok).toBe(true)
+
+    const startedComponent = watchService.ensureRunning()
+    const startedEvent = parseRuntimeComponentUpdatedEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+
+    expect(startedEvent.payload.componentId).toBe(startedComponent.componentId)
+    expect(startedEvent.payload.componentType).toBe("ov_watch")
+    expect(startedEvent.payload.projectId).toBeNull()
+    expect(startedEvent.payload.status).toBe("healthy")
+
+    processAdapter.spawns[0]?.handle.emitExit({
+      code: 1,
+      signal: null,
+    })
+
+    const degradedEvent = parseRuntimeComponentUpdatedEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    expect(degradedEvent.payload.componentId).toBe(startedComponent.componentId)
+    expect(degradedEvent.payload.status).toBe("degraded")
+
+    let recoveredEvent = parseRuntimeComponentUpdatedEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+
+    if (recoveredEvent.payload.status !== "healthy") {
+      recoveredEvent = parseRuntimeComponentUpdatedEvent(
+        parseSubscriptionEventEnvelope(await connection.nextMessage()),
+      )
+    }
+
+    expect(recoveredEvent.payload.componentId).toBe(
+      startedComponent.componentId,
+    )
+    expect(recoveredEvent.payload.status).toBe("healthy")
+
+    const listRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_globals_after_start",
+      type: "query",
+      name: "runtime.list_global_components",
+      payload: {},
+    })
+    const listResponse = parseIpcResponseEnvelope(listRaw)
+
+    expect(listResponse.ok).toBe(true)
+    if (!listResponse.ok) {
+      throw new Error("Expected runtime.list_global_components to succeed")
+    }
+
+    const result = parseRuntimeListGlobalComponentsResult(listResponse.result)
+    expect(result.components).toHaveLength(1)
+    expect(result.components[0]?.componentType).toBe("ov_watch")
+
+    await connection.close()
     await runtime.close()
     databaseRuntime.close()
     await rm(directory, { recursive: true, force: true })

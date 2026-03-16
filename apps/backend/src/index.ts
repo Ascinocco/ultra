@@ -11,6 +11,8 @@ import { NodeSupervisedProcessAdapter } from "./runtime/node-supervised-process-
 import { RuntimePersistenceService } from "./runtime/runtime-persistence-service.js"
 import { RuntimeRegistry } from "./runtime/runtime-registry.js"
 import { RuntimeSupervisor } from "./runtime/runtime-supervisor.js"
+import type { SupervisedProcessAdapter } from "./runtime/supervised-process-adapter.js"
+import { WatchService } from "./runtime/watch-service.js"
 import { SandboxPersistenceService } from "./sandboxes/sandbox-persistence-service.js"
 import { SandboxService } from "./sandboxes/sandbox-service.js"
 import {
@@ -37,7 +39,9 @@ export type BackendRuntime = {
   stop: () => Promise<void>
 }
 
-export async function startBackendScaffold(): Promise<BackendRuntime> {
+export async function startBackendScaffold(options?: {
+  processAdapter?: SupervisedProcessAdapter
+}): Promise<BackendRuntime> {
   const socketPath = process.env.ULTRA_SOCKET_PATH ?? null
   let databaseRuntime: DatabaseRuntime | null = null
   let socketRuntime: SocketServerRuntime | null = null
@@ -52,10 +56,16 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
   const runtimeRegistry = new RuntimeRegistry(runtimePersistenceService)
   const runtimeSupervisor = new RuntimeSupervisor(
     runtimeRegistry,
-    new NodeSupervisedProcessAdapter(),
+    options?.processAdapter ?? new NodeSupervisedProcessAdapter(),
+  )
+  const watchService = new WatchService(
+    runtimeSupervisor,
+    runtimeRegistry,
+    databaseRuntime.databasePath,
   )
 
   runtimeSupervisor.hydrate()
+  watchService.ensureRunning()
 
   console.log(
     `[backend] database ready at ${databaseRuntime.databasePath} (${databaseRuntime.migrationResult.appliedMigrationIds.length} migrations applied)`,
@@ -95,6 +105,8 @@ export async function startBackendScaffold(): Promise<BackendRuntime> {
       artifactCaptureService,
       chatService: new ChatService(databaseRuntime.database),
       projectService: new ProjectService(databaseRuntime.database),
+      runtimeRegistry,
+      watchService,
       sandboxService,
       systemService: new SystemService(),
       terminalSessionService,

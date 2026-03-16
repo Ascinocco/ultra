@@ -21,7 +21,9 @@ import {
   parseProjectsListResult,
   parseQueryRequest,
   parseRuntimeComponentSnapshot,
+  parseRuntimeComponentUpdatedEvent,
   parseRuntimeHealthCheckSnapshot,
+  parseRuntimeListGlobalComponentsResult,
   parseSandboxesListResult,
   parseSavedCommandSnapshot,
   parseSubscribeRequest,
@@ -235,6 +237,26 @@ describe("shared contracts", () => {
     })
 
     expect(query.name).toBe("threads.get_events")
+  })
+
+  it("parses runtime global component query and subscription envelopes", () => {
+    const listQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_globals",
+      type: "query",
+      name: "runtime.list_global_components",
+      payload: {},
+    })
+    const subscribeRequest = parseSubscribeRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_component_subscribe",
+      type: "subscribe",
+      name: "runtime.component_updated",
+      payload: {},
+    })
+
+    expect(listQuery.name).toBe("runtime.list_global_components")
+    expect(subscribeRequest.name).toBe("runtime.component_updated")
   })
 
   it("parses the system hello result contract", () => {
@@ -844,6 +866,40 @@ describe("shared contracts", () => {
     expect(component.componentType).toBe("coordinator")
     expect(healthCheck.details?.source).toBe("heartbeat")
     expect(summary.components).toHaveLength(1)
+  })
+
+  it("parses runtime global component results and update events", () => {
+    const component = {
+      componentId: "component_ov_watch",
+      projectId: null,
+      componentType: "ov_watch",
+      scope: "global",
+      processId: 4242,
+      status: "healthy",
+      startedAt: "2026-03-16T21:00:00Z",
+      lastHeartbeatAt: "2026-03-16T21:00:00Z",
+      restartCount: 0,
+      reason: null,
+      details: {
+        command: "ov",
+        cwd: "/tmp/ultra",
+      },
+      createdAt: "2026-03-16T21:00:00Z",
+      updatedAt: "2026-03-16T21:00:00Z",
+    }
+    const result = parseRuntimeListGlobalComponentsResult({
+      components: [component],
+    })
+    const event = parseRuntimeComponentUpdatedEvent({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      type: "event",
+      subscription_id: "sub_runtime_123",
+      event_name: "runtime.component_updated",
+      payload: component,
+    })
+
+    expect(result.components).toHaveLength(1)
+    expect(event.payload.componentType).toBe("ov_watch")
   })
 
   it("parses sandbox list results", () => {

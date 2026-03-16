@@ -12,6 +12,7 @@ export const queryMethodSchema = z.enum([
   "system.get_backend_info",
   "system.get_environment_readiness",
   "system.ping",
+  "runtime.list_global_components",
   "chats.list",
   "chats.get",
   "terminal.get_runtime_profile",
@@ -55,6 +56,7 @@ export const commandMethodSchema = z.enum([
 export const subscriptionMethodSchema = z.enum([
   "projects.updated",
   "projects.layout_updated",
+  "runtime.component_updated",
   "terminal.sessions",
   "terminal.output",
 ])

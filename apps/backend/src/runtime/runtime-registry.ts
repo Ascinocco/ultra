@@ -22,6 +22,9 @@ export class RuntimeRegistry {
   private readonly componentsById = new Map<string, RuntimeComponentSnapshot>()
   private readonly componentIdsByProjectId = new Map<ProjectId, Set<string>>()
   private readonly globalComponentIds = new Set<string>()
+  private readonly componentUpdateListeners = new Set<
+    (component: RuntimeComponentSnapshot) => void
+  >()
 
   constructor(
     private readonly runtimePersistenceService: RuntimePersistenceService,
@@ -38,12 +41,22 @@ export class RuntimeRegistry {
       for (const component of this.runtimePersistenceService.listProjectRuntimeComponents(
         runtime.projectId,
       )) {
-        this.patchComponent(component)
+        this.patchComponent(component, false)
       }
     }
 
     for (const component of this.runtimePersistenceService.listGlobalRuntimeComponents()) {
-      this.patchComponent(component)
+      this.patchComponent(component, false)
+    }
+  }
+
+  subscribeToComponentUpdates(
+    listener: (component: RuntimeComponentSnapshot) => void,
+  ): () => void {
+    this.componentUpdateListeners.add(listener)
+
+    return () => {
+      this.componentUpdateListeners.delete(listener)
     }
   }
 
@@ -64,10 +77,11 @@ export class RuntimeRegistry {
 
   upsertRuntimeComponent(
     input: UpsertRuntimeComponentInput,
+    emitUpdate = true,
   ): RuntimeComponentSnapshot {
     const snapshot =
       this.runtimePersistenceService.upsertRuntimeComponent(input)
-    this.patchComponent(snapshot)
+    this.patchComponent(snapshot, emitUpdate)
     return snapshot
   }
 
@@ -182,7 +196,11 @@ export class RuntimeRegistry {
     }
   }
 
-  private patchComponent(component: RuntimeComponentSnapshot): void {
+  private patchComponent(
+    component: RuntimeComponentSnapshot,
+    emitUpdate = true,
+  ): void {
+    const previous = this.componentsById.get(component.componentId)
     this.componentsById.set(component.componentId, component)
 
     if (component.scope === "global") {
@@ -192,19 +210,27 @@ export class RuntimeRegistry {
           .get(component.projectId)
           ?.delete(component.componentId)
       }
-      return
+    } else {
+      this.globalComponentIds.delete(component.componentId)
+
+      if (component.projectId) {
+        const projectComponents =
+          this.componentIdsByProjectId.get(component.projectId) ??
+          new Set<string>()
+
+        projectComponents.add(component.componentId)
+        this.componentIdsByProjectId.set(component.projectId, projectComponents)
+      }
     }
 
-    this.globalComponentIds.delete(component.componentId)
-
-    if (!component.projectId) {
-      return
+    if (
+      emitUpdate &&
+      (previous === undefined ||
+        JSON.stringify(previous) !== JSON.stringify(component))
+    ) {
+      for (const listener of this.componentUpdateListeners) {
+        listener(component)
+      }
     }
-
-    const projectComponents =
-      this.componentIdsByProjectId.get(component.projectId) ?? new Set<string>()
-
-    projectComponents.add(component.componentId)
-    this.componentIdsByProjectId.set(component.projectId, projectComponents)
   }
 }
