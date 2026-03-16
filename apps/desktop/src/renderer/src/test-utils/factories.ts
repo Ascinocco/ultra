@@ -1,4 +1,4 @@
-import type { ChatSummary, ProjectSnapshot } from "@ultra/shared"
+import type { ChatSummary, ProjectSnapshot, SandboxContextSnapshot } from "@ultra/shared"
 
 export function makeProject(id: string, name: string): ProjectSnapshot {
   return {
@@ -30,6 +30,28 @@ export function makeChat(id: string, projectId: string, opts?: Partial<ChatSumma
     currentSessionId: null,
     createdAt: "2026-03-14T00:00:00Z",
     updatedAt: "2026-03-14T00:00:00Z",
+    ...opts,
+  }
+}
+
+export function makeSandbox(
+  id: string,
+  projectId: string,
+  opts?: Partial<SandboxContextSnapshot>,
+): SandboxContextSnapshot {
+  return {
+    sandboxId: id,
+    projectId,
+    threadId: null,
+    path: `/projects/${projectId}`,
+    displayName: `Sandbox ${id}`,
+    sandboxType: "main_checkout",
+    branchName: "main",
+    baseBranch: null,
+    isMainCheckout: true,
+    createdAt: "2026-03-14T00:00:00Z",
+    updatedAt: "2026-03-14T00:00:00Z",
+    lastUsedAt: null,
     ...opts,
   }
 }
