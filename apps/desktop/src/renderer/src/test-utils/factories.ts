@@ -1,4 +1,8 @@
-import type { ChatSummary, ProjectSnapshot, SandboxContextSnapshot } from "@ultra/shared"
+import type {
+  ChatSummary,
+  ProjectSnapshot,
+  SandboxContextSnapshot,
+} from "@ultra/shared"
 
 export function makeProject(id: string, name: string): ProjectSnapshot {
   return {

@@ -28,10 +28,7 @@ export function TerminalDrawer({
   }
 
   return (
-    <div
-      className="terminal-drawer"
-      style={{ height: `${height}px` }}
-    >
+    <div className="terminal-drawer" style={{ height: `${height}px` }}>
       <div
         className="terminal-drawer__drag-handle"
         onPointerDown={handlePointerDown}

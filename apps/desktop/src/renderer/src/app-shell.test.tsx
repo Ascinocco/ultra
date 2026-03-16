@@ -1,4 +1,8 @@
-import type { BackendCapabilities, ProjectLayoutState } from "@ultra/shared"
+import type {
+  BackendCapabilities,
+  ProjectLayoutState,
+  ProjectSnapshot,
+} from "@ultra/shared"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
