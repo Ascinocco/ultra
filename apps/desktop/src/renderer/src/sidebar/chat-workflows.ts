@@ -39,7 +39,10 @@ export async function renameChat(
   actions: Pick<AppActions, "upsertChat">,
   client: WorkflowClient = ipcClient,
 ): Promise<void> {
-  const result = await client.command("chats.rename", { chat_id: chatId, title })
+  const result = await client.command("chats.rename", {
+    chat_id: chatId,
+    title,
+  })
   const chat = parseChatSnapshot(result)
   actions.upsertChat(chat)
 }

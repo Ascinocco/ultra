@@ -18,7 +18,7 @@ export class SystemService {
   private readonly capabilities: BackendCapabilities = {
     supportsProjects: true,
     supportsLayoutPersistence: true,
-    supportsSubscriptions: false,
+    supportsSubscriptions: true,
     supportsBackendInfo: true,
   }
 

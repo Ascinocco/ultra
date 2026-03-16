@@ -1,4 +1,8 @@
-import type { ChatSummary, ProjectSnapshot, SandboxContextSnapshot } from "@ultra/shared"
+import type {
+  ChatSummary,
+  ProjectSnapshot,
+  SandboxContextSnapshot,
+} from "@ultra/shared"
 
 export function makeProject(id: string, name: string): ProjectSnapshot {
   return {
@@ -13,7 +17,11 @@ export function makeProject(id: string, name: string): ProjectSnapshot {
   }
 }
 
-export function makeChat(id: string, projectId: string, opts?: Partial<ChatSummary>): ChatSummary {
+export function makeChat(
+  id: string,
+  projectId: string,
+  opts?: Partial<ChatSummary>,
+): ChatSummary {
   return {
     id,
     projectId,

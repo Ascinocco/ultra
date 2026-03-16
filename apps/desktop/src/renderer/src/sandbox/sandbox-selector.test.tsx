@@ -1,7 +1,6 @@
+import type { SandboxContextSnapshot } from "@ultra/shared"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
-
-import type { SandboxContextSnapshot } from "@ultra/shared"
 import { makeSandbox } from "../test-utils/factories.js"
 import { SandboxSelector } from "./SandboxSelector.js"
 

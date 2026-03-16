@@ -1,6 +1,7 @@
 import type {
   BackendCapabilities,
   ProjectLayoutState,
+  ProjectSnapshot,
 } from "@ultra/shared"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -12,7 +13,7 @@ import {
   type ConnectionStatus,
   createAppStore,
 } from "./state/app-store.js"
-import { makeChat, makeProject, makeSandbox } from "./test-utils/factories.js"
+import { makeChat, makeProject } from "./test-utils/factories.js"
 
 function renderShell(options?: {
   currentPage?: "chat" | "editor" | "browser"
@@ -39,11 +40,13 @@ function renderShell(options?: {
 }
 
 describe("AppShell", () => {
-  it("defaults to the Chat page", () => {
+  it("renders the chat-first workspace shell", () => {
     const markup = renderShell()
 
     expect(markup).toContain('data-page="chat"')
     expect(markup).toContain("Open Project")
+    expect(markup).toContain("Open Terminal")
+    expect(markup).toContain("System &amp; Tools")
   })
 
   it("renders the title bar", () => {
@@ -52,76 +55,14 @@ describe("AppShell", () => {
     expect(markup).toContain("title-bar")
   })
 
-  it("keeps all page shells mounted in the router", () => {
-    const markup = renderShell({ currentPage: "editor" })
-
-    expect(markup).toContain('data-page="chat"')
-    expect(markup).toContain('data-page="editor"')
-    expect(markup).toContain('data-page="browser"')
-  })
-
-  it("does not render gradient class names in chat layout", () => {
-    const markup = renderShell()
-    expect(markup).not.toContain("surface--rail")
-  })
-
-  it("wraps the chat layout in a chat-frame container", () => {
+  it("renders the sidebar, main pane, thread pane, and drawer shell", () => {
     const markup = renderShell()
 
-    expect(markup).toContain("chat-frame")
-    expect(markup).toContain("chat-frame__grid")
-    expect(markup).toContain("chat-frame__rail")
-    expect(markup).toContain("chat-frame__main")
-    expect(markup).toContain("chat-frame__side")
-  })
-
-  it("renders the terminal drawer when terminalDrawerOpen is true", () => {
-    const store = createAppStore()
-    store.getState().actions.toggleTerminalDrawer()
-    const currentState = store.getState()
-    store.getInitialState = () => currentState
-    const markup = renderToStaticMarkup(
-      <AppStoreProvider store={store}>
-        <AppShell />
-      </AppStoreProvider>,
-    )
-
+    expect(markup).toContain("chat-workspace")
+    expect(markup).toContain("chat-workspace__sidebar")
+    expect(markup).toContain("chat-workspace__main")
+    expect(markup).toContain("chat-workspace__thread-pane")
     expect(markup).toContain("terminal-drawer")
-  })
-
-  it("does not render the terminal drawer when closed", () => {
-    const markup = renderShell()
-
-    expect(markup).not.toContain("terminal-drawer")
-  })
-
-  it("renders a terminal toggle button in the title bar", () => {
-    const markup = renderShell()
-
-    expect(markup).toContain("title-bar__terminal-toggle")
-  })
-
-  it("renders the sandbox selector in the title bar", () => {
-    const store = createAppStore()
-    const sb = makeSandbox("sb-1", "proj-1", { displayName: "main checkout" })
-    const state = {
-      ...store.getState(),
-      sandbox: {
-        ...store.getState().sandbox,
-        activeSandbox: sb,
-        sandboxes: [sb],
-      },
-    }
-    store.getInitialState = () => state
-
-    const markup = renderToStaticMarkup(
-      <AppStoreProvider store={store}>
-        <AppShell />
-      </AppStoreProvider>,
-    )
-
-    expect(markup).toContain("sandbox-selector")
-    expect(markup).toContain("main checkout")
   })
 })
 
@@ -200,7 +141,10 @@ describe("app store", () => {
 
     store.getState().actions.setLayoutForProject("proj-1", layout)
 
-    expect(store.getState().layout.byProjectId["proj-1"]).toEqual(layout)
+    expect(store.getState().layout.byProjectId["proj-1"]).toEqual({
+      ...layout,
+      currentPage: "chat",
+    })
   })
 
   it("setCapabilities stores capabilities on the app slice", () => {
@@ -239,7 +183,6 @@ describe("app store", () => {
 
   it("setBackendStatus clears capabilities when disconnected", () => {
     const store = createAppStore()
-    // First set capabilities via connected status
     store.getState().actions.setCapabilities({
       supportsProjects: true,
       supportsLayoutPersistence: true,
@@ -291,7 +234,7 @@ describe("app store", () => {
     store.getState().actions.setLayoutField("proj-1", { currentPage: "editor" })
 
     const result = store.getState().layout.byProjectId["proj-1"]
-    expect(result.currentPage).toBe("editor")
+    expect(result.currentPage).toBe("chat")
     expect(result.rightTopCollapsed).toBe(false)
   })
 
@@ -385,7 +328,10 @@ describe("sidebar slice", () => {
     expect(store.getState().sidebar.expandedProjectIds).toEqual(["proj-1"])
 
     store.getState().actions.toggleProjectExpanded("proj-2")
-    expect(store.getState().sidebar.expandedProjectIds).toEqual(["proj-1", "proj-2"])
+    expect(store.getState().sidebar.expandedProjectIds).toEqual([
+      "proj-1",
+      "proj-2",
+    ])
 
     store.getState().actions.toggleProjectExpanded("proj-1")
     expect(store.getState().sidebar.expandedProjectIds).toEqual(["proj-2"])
@@ -417,90 +363,118 @@ describe("sidebar slice", () => {
     store.getState().actions.upsertChat(makeChat("c1", "proj-1"))
 
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
-    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe("c1")
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe(
+      "c1",
+    )
   })
 
   it("upsertChat updates an existing chat in place", () => {
     const store = createAppStore()
-    store.getState().actions.setChatsForProject("proj-1", [
-      makeChat("c1", "proj-1", { title: "Old Title" }),
-    ])
+    store
+      .getState()
+      .actions.setChatsForProject("proj-1", [
+        makeChat("c1", "proj-1", { title: "Old Title" }),
+      ])
 
-    store.getState().actions.upsertChat(makeChat("c1", "proj-1", { title: "New Title" }))
+    store
+      .getState()
+      .actions.upsertChat(makeChat("c1", "proj-1", { title: "New Title" }))
 
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
-    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.title).toBe("New Title")
+    expect(
+      store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.title,
+    ).toBe("New Title")
   })
 
   it("removeChat removes a chat from the project list", () => {
     const store = createAppStore()
-    store.getState().actions.setChatsForProject("proj-1", [
-      makeChat("c1", "proj-1"),
-      makeChat("c2", "proj-1"),
-    ])
+    store
+      .getState()
+      .actions.setChatsForProject("proj-1", [
+        makeChat("c1", "proj-1"),
+        makeChat("c2", "proj-1"),
+      ])
 
     store.getState().actions.removeChat("c1", "proj-1")
 
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
-    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe("c2")
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe(
+      "c2",
+    )
   })
 })
 
-describe("sandbox slice", () => {
-  it("starts with empty sandbox state", () => {
+describe("sandbox and terminal slices", () => {
+  it("stores project sandboxes and active sandbox IDs", () => {
     const store = createAppStore()
-    const { sandbox } = store.getState()
 
-    expect(sandbox.activeSandbox).toBeNull()
-    expect(sandbox.sandboxes).toEqual([])
-    expect(sandbox.sandboxFetchStatus).toBe("idle")
+    store.getState().actions.setSandboxesForProject("proj-1", [
+      {
+        sandboxId: "sandbox-1",
+        projectId: "proj-1",
+        threadId: null,
+        path: "/projects/alpha",
+        displayName: "Main",
+        sandboxType: "main_checkout",
+        branchName: "main",
+        baseBranch: "main",
+        isMainCheckout: true,
+        createdAt: "2026-03-14T00:00:00Z",
+        updatedAt: "2026-03-14T00:00:00Z",
+        lastUsedAt: "2026-03-14T00:00:00Z",
+      },
+    ])
+    store.getState().actions.setActiveSandboxIdForProject("proj-1", "sandbox-1")
+
+    expect(store.getState().sandboxes.idsByProjectId["proj-1"]).toEqual([
+      "sandbox-1",
+    ])
+    expect(store.getState().sandboxes.activeByProjectId["proj-1"]).toBe(
+      "sandbox-1",
+    )
   })
 
-  it("setSandboxes stores the sandbox list", () => {
+  it("tracks terminal drawer state through the layout compatibility mapping", () => {
     const store = createAppStore()
-    const sb = makeSandbox("sb-1", "proj-1", { displayName: "main checkout" })
 
-    store.getState().actions.setSandboxes([sb])
+    store.getState().actions.setTerminalDrawerOpen("proj-1", true)
 
-    expect(store.getState().sandbox.sandboxes).toHaveLength(1)
-    expect(store.getState().sandbox.sandboxes[0]?.displayName).toBe("main checkout")
+    expect(store.getState().terminal.drawerOpenByProjectId["proj-1"]).toBe(true)
+    expect(
+      store.getState().layout.byProjectId["proj-1"]?.selectedBottomPaneTab,
+    ).toBe("terminal")
+    expect(
+      store.getState().layout.byProjectId["proj-1"]?.rightBottomCollapsed,
+    ).toBe(false)
   })
 
-  it("setActiveSandbox sets the active sandbox", () => {
-    const store = createAppStore()
-    const sb = makeSandbox("sb-1", "proj-1", { displayName: "main checkout" })
-
-    store.getState().actions.setActiveSandbox(sb)
-
-    expect(store.getState().sandbox.activeSandbox?.displayName).toBe("main checkout")
-  })
-
-  it("setSandboxFetchStatus tracks loading state", () => {
+  it("keeps the focused terminal session in sync with session updates", () => {
     const store = createAppStore()
 
-    store.getState().actions.setSandboxFetchStatus("loading")
-    expect(store.getState().sandbox.sandboxFetchStatus).toBe("loading")
+    store.getState().actions.setTerminalSessionsForProject("proj-1", [
+      {
+        sessionId: "term-1",
+        projectId: "proj-1",
+        sandboxId: "sandbox-1",
+        threadId: null,
+        cwd: "/projects/alpha",
+        title: "Shell · Main",
+        sessionKind: "shell",
+        status: "running",
+        commandId: null,
+        commandLabel: null,
+        commandLine: "zsh",
+        exitCode: null,
+        startedAt: "2026-03-14T00:00:00Z",
+        updatedAt: "2026-03-14T00:00:00Z",
+        lastOutputAt: null,
+        lastOutputSequence: 0,
+        recentOutput: "",
+      },
+    ])
 
-    store.getState().actions.setSandboxFetchStatus("error")
-    expect(store.getState().sandbox.sandboxFetchStatus).toBe("error")
+    expect(
+      store.getState().terminal.focusedSessionIdByProjectId["proj-1"],
+    ).toBe("term-1")
   })
 })
-
-describe("terminal drawer state", () => {
-  it("starts with terminal drawer closed", () => {
-    const store = createAppStore()
-
-    expect(store.getState().app.terminalDrawerOpen).toBe(false)
-  })
-
-  it("toggleTerminalDrawer opens and closes the drawer", () => {
-    const store = createAppStore()
-
-    store.getState().actions.toggleTerminalDrawer()
-    expect(store.getState().app.terminalDrawerOpen).toBe(true)
-
-    store.getState().actions.toggleTerminalDrawer()
-    expect(store.getState().app.terminalDrawerOpen).toBe(false)
-  })
-})
-

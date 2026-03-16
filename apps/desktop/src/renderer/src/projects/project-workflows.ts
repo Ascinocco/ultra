@@ -1,12 +1,24 @@
 import type {
   BackendCapabilities,
+  ChatSummary,
   ProjectLayoutState,
   ProjectSnapshot,
+  SandboxContextSnapshot,
+  SavedCommandSnapshot,
+  TerminalRuntimeProfileResult,
+  TerminalSessionSnapshot,
 } from "@ultra/shared"
 import {
+  parseChatsListResult,
   parseProjectLayoutState,
   parseProjectSnapshot,
   parseProjectsListResult,
+  parseSandboxContextSnapshot,
+  parseSandboxesListResult,
+  parseTerminalListSavedCommandsResult,
+  parseTerminalListSessionsResult,
+  parseTerminalRuntimeProfileResult,
+  parseTerminalSessionSnapshot,
 } from "@ultra/shared"
 
 import { ipcClient } from "../ipc/ipc-client.js"
@@ -24,6 +36,36 @@ export type ProjectWorkflowActions = {
   ) => void
   setLayoutForProject: (projectId: string, layout: ProjectLayoutState) => void
   setCurrentPage: (page: AppPage) => void
+  setChatsFetchStatus: (
+    projectId: string,
+    status: "idle" | "loading" | "error",
+  ) => void
+  setChatsForProject: (projectId: string, chats: ChatSummary[]) => void
+  setSandboxesForProject: (
+    projectId: string,
+    sandboxes: SandboxContextSnapshot[],
+  ) => void
+  setActiveSandboxIdForProject: (
+    projectId: string,
+    sandboxId: string | null,
+  ) => void
+  setRuntimeProfileForProject: (
+    projectId: string,
+    runtimeProfile: TerminalRuntimeProfileResult | null,
+  ) => void
+  setTerminalSessionsForProject: (
+    projectId: string,
+    sessions: TerminalSessionSnapshot[],
+  ) => void
+  upsertTerminalSession: (
+    projectId: string,
+    session: TerminalSessionSnapshot,
+  ) => void
+  setSavedCommandsForProject: (
+    projectId: string,
+    commands: SavedCommandSnapshot[],
+  ) => void
+  setTerminalDrawerOpen: (projectId: string, open: boolean) => void
 }
 
 function getErrorMessage(error: unknown): string {
@@ -57,19 +99,7 @@ export async function openProjectFromPath(
     actions.upsertProject(project)
     actions.setActiveProjectId(project.id)
 
-    if (capabilities?.supportsLayoutPersistence) {
-      try {
-        const layoutResult = await client.query("projects.get_layout", {
-          project_id: project.id,
-        })
-        const layout = parseProjectLayoutState(layoutResult)
-
-        actions.setLayoutForProject(project.id, layout)
-        actions.setCurrentPage(layout.currentPage)
-      } catch {
-        // Layout restore is optional until ULR-13 is fully wired.
-      }
-    }
+    await hydrateProjectShell(project.id, actions, capabilities, client)
 
     try {
       await loadRecentProjects(actions, client)
@@ -126,18 +156,206 @@ export async function hydrateLastProject(
   // biome-ignore lint/style/noNonNullAssertion: length checked above
   const lastProject = projects[0]!
   actions.setActiveProjectId(lastProject.id)
+  await hydrateProjectShell(lastProject.id, actions, capabilities, client)
+}
 
-  if (capabilities?.supportsLayoutPersistence) {
+export async function hydrateProjectShell(
+  projectId: string,
+  actions: ProjectWorkflowActions,
+  capabilities: BackendCapabilities | null,
+  client: ProjectWorkflowClient = ipcClient,
+): Promise<void> {
+  actions.setChatsFetchStatus(projectId, "loading")
+
+  const queries = await Promise.allSettled([
+    capabilities?.supportsLayoutPersistence
+      ? client.query("projects.get_layout", {
+          project_id: projectId,
+        })
+      : Promise.resolve(null),
+    client.query("chats.list", {
+      project_id: projectId,
+    }),
+    client.query("sandboxes.list", {
+      project_id: projectId,
+    }),
+    client.query("sandboxes.get_active", {
+      project_id: projectId,
+    }),
+    client.query("terminal.get_runtime_profile", {
+      project_id: projectId,
+    }),
+    client.query("terminal.list_sessions", {
+      project_id: projectId,
+    }),
+    client.query("terminal.list_saved_commands", {
+      project_id: projectId,
+    }),
+  ])
+
+  const [
+    layoutResult,
+    chatsResult,
+    sandboxesResult,
+    activeSandboxResult,
+    runtimeResult,
+    sessionsResult,
+    commandsResult,
+  ] = queries
+
+  if (layoutResult?.status === "fulfilled" && layoutResult.value) {
     try {
-      const layoutResult = await client.query("projects.get_layout", {
-        project_id: lastProject.id,
-      })
-      const layout = parseProjectLayoutState(layoutResult)
-
-      actions.setLayoutForProject(lastProject.id, layout)
-      actions.setCurrentPage(layout.currentPage)
+      const layout = parseProjectLayoutState(layoutResult.value)
+      actions.setLayoutForProject(projectId, layout)
+      actions.setCurrentPage("chat")
     } catch {
-      // Layout restore is best-effort.
+      // Layout restore is best-effort for shell hydration.
     }
   }
+
+  if (chatsResult.status === "fulfilled") {
+    try {
+      const chats = parseChatsListResult(chatsResult.value).chats
+      actions.setChatsForProject(projectId, chats)
+    } catch {
+      actions.setChatsFetchStatus(projectId, "error")
+    }
+  } else {
+    actions.setChatsFetchStatus(projectId, "error")
+  }
+
+  if (sandboxesResult.status === "fulfilled") {
+    try {
+      const sandboxes = parseSandboxesListResult(
+        sandboxesResult.value,
+      ).sandboxes
+      actions.setSandboxesForProject(projectId, sandboxes)
+    } catch {
+      // Sandbox hydration is best-effort; preserve the rest of the shell.
+    }
+  }
+
+  if (activeSandboxResult.status === "fulfilled") {
+    try {
+      const activeSandbox = parseSandboxContextSnapshot(
+        activeSandboxResult.value,
+      )
+      actions.setActiveSandboxIdForProject(projectId, activeSandbox.sandboxId)
+    } catch {
+      // Ignore partial active-sandbox restore failures.
+    }
+  }
+
+  if (runtimeResult.status === "fulfilled") {
+    try {
+      const runtimeProfile = parseTerminalRuntimeProfileResult(
+        runtimeResult.value,
+      )
+      actions.setRuntimeProfileForProject(projectId, runtimeProfile)
+      actions.setActiveSandboxIdForProject(
+        projectId,
+        runtimeProfile.sandbox.sandboxId,
+      )
+    } catch {
+      // Runtime sync/status is additive to the shell.
+    }
+  }
+
+  if (sessionsResult.status === "fulfilled") {
+    try {
+      const sessions = parseTerminalListSessionsResult(
+        sessionsResult.value,
+      ).sessions
+      actions.setTerminalSessionsForProject(projectId, sessions)
+    } catch {
+      // Session hydration is best-effort.
+    }
+  }
+
+  if (commandsResult.status === "fulfilled") {
+    try {
+      const commands = parseTerminalListSavedCommandsResult(
+        commandsResult.value,
+      ).commands
+      actions.setSavedCommandsForProject(projectId, commands)
+    } catch {
+      // Saved command hydration is best-effort.
+    }
+  }
+}
+
+export async function switchActiveProject(
+  projectId: string,
+  actions: ProjectWorkflowActions,
+  capabilities: BackendCapabilities | null,
+  client: ProjectWorkflowClient = ipcClient,
+): Promise<void> {
+  actions.setActiveProjectId(projectId)
+  await hydrateProjectShell(projectId, actions, capabilities, client)
+}
+
+export async function switchActiveSandbox(
+  projectId: string,
+  sandboxId: string,
+  actions: ProjectWorkflowActions,
+  client: ProjectWorkflowClient = ipcClient,
+): Promise<void> {
+  const result = await client.command("sandboxes.set_active", {
+    project_id: projectId,
+    sandbox_id: sandboxId,
+  })
+  const activeSandbox = parseSandboxContextSnapshot(result)
+
+  actions.setActiveSandboxIdForProject(projectId, activeSandbox.sandboxId)
+
+  const [sandboxesResult, runtimeResult, sessionsResult, commandsResult] =
+    await Promise.all([
+      client.query("sandboxes.list", {
+        project_id: projectId,
+      }),
+      client.query("terminal.get_runtime_profile", {
+        project_id: projectId,
+      }),
+      client.query("terminal.list_sessions", {
+        project_id: projectId,
+      }),
+      client.query("terminal.list_saved_commands", {
+        project_id: projectId,
+      }),
+    ])
+
+  actions.setSandboxesForProject(
+    projectId,
+    parseSandboxesListResult(sandboxesResult).sandboxes,
+  )
+  actions.setRuntimeProfileForProject(
+    projectId,
+    parseTerminalRuntimeProfileResult(runtimeResult),
+  )
+  actions.setTerminalSessionsForProject(
+    projectId,
+    parseTerminalListSessionsResult(sessionsResult).sessions,
+  )
+  actions.setSavedCommandsForProject(
+    projectId,
+    parseTerminalListSavedCommandsResult(commandsResult).commands,
+  )
+}
+
+export async function runSavedCommandForProject(
+  projectId: string,
+  commandId: "test" | "dev" | "lint" | "build",
+  actions: ProjectWorkflowActions,
+  client: ProjectWorkflowClient = ipcClient,
+): Promise<TerminalSessionSnapshot> {
+  const result = await client.command("terminal.run_saved_command", {
+    project_id: projectId,
+    command_id: commandId,
+  })
+  const session = parseTerminalSessionSnapshot(result)
+
+  actions.upsertTerminalSession(projectId, session)
+  actions.setTerminalDrawerOpen(projectId, true)
+
+  return session
 }

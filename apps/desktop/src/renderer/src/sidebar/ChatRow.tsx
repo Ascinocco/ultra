@@ -26,7 +26,10 @@ export function ChatRow({
   onContextMenu: (event: React.MouseEvent) => void
 }) {
   function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
-    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+    if (
+      event.key === "ContextMenu" ||
+      (event.key === "F10" && event.shiftKey)
+    ) {
       event.preventDefault()
       const rect = event.currentTarget.getBoundingClientRect()
       onContextMenu({
@@ -47,7 +50,9 @@ export function ChatRow({
       aria-current={isActive ? "true" : undefined}
     >
       <span className="chat-row__title">{chat.title}</span>
-      <span className="chat-row__time">{formatRelativeTime(chat.updatedAt)}</span>
+      <span className="chat-row__time">
+        {formatRelativeTime(chat.updatedAt)}
+      </span>
     </button>
   )
 }

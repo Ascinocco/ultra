@@ -22,7 +22,9 @@ describe("loadChatsForProject", () => {
 
     await loadChatsForProject("proj-1", store.getState().actions, client)
 
-    expect(client.query).toHaveBeenCalledWith("chats.list", { project_id: "proj-1" })
+    expect(client.query).toHaveBeenCalledWith("chats.list", {
+      project_id: "proj-1",
+    })
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toEqual(chats)
     expect(store.getState().sidebar.chatsFetchStatus["proj-1"]).toBe("idle")
   })
@@ -68,8 +70,12 @@ describe("createChat", () => {
 
     const result = await createChat("proj-1", store.getState().actions, client)
 
-    expect(client.command).toHaveBeenCalledWith("chats.create", { project_id: "proj-1" })
-    expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toContainEqual(newChat)
+    expect(client.command).toHaveBeenCalledWith("chats.create", {
+      project_id: "proj-1",
+    })
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toContainEqual(
+      newChat,
+    )
     expect(result).toEqual(newChat)
   })
 })
@@ -87,8 +93,13 @@ describe("renameChat", () => {
 
     await renameChat("c1", "New", store.getState().actions, client)
 
-    expect(client.command).toHaveBeenCalledWith("chats.rename", { chat_id: "c1", title: "New" })
-    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.title).toBe("New")
+    expect(client.command).toHaveBeenCalledWith("chats.rename", {
+      chat_id: "c1",
+      title: "New",
+    })
+    expect(
+      store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.title,
+    ).toBe("New")
   })
 })
 
@@ -106,14 +117,19 @@ describe("pinChat", () => {
     await pinChat("c1", store.getState().actions, client)
 
     expect(client.command).toHaveBeenCalledWith("chats.pin", { chat_id: "c1" })
-    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.isPinned).toBe(true)
+    expect(
+      store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.isPinned,
+    ).toBe(true)
   })
 })
 
 describe("unpinChat", () => {
   it("unpins a chat and upserts the result", async () => {
     const store = createAppStore()
-    const chat = makeChat("c1", "proj-1", { isPinned: true, pinnedAt: "2026-03-15T00:00:00Z" })
+    const chat = makeChat("c1", "proj-1", {
+      isPinned: true,
+      pinnedAt: "2026-03-15T00:00:00Z",
+    })
     store.getState().actions.setChatsForProject("proj-1", [chat])
     const unpinned = { ...chat, isPinned: false, pinnedAt: null }
     const client = {
@@ -123,18 +139,24 @@ describe("unpinChat", () => {
 
     await unpinChat("c1", store.getState().actions, client)
 
-    expect(client.command).toHaveBeenCalledWith("chats.unpin", { chat_id: "c1" })
-    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.isPinned).toBe(false)
+    expect(client.command).toHaveBeenCalledWith("chats.unpin", {
+      chat_id: "c1",
+    })
+    expect(
+      store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.isPinned,
+    ).toBe(false)
   })
 })
 
 describe("archiveChat", () => {
   it("archives a chat and removes it from sidebar state", async () => {
     const store = createAppStore()
-    store.getState().actions.setChatsForProject("proj-1", [
-      makeChat("c1", "proj-1"),
-      makeChat("c2", "proj-1"),
-    ])
+    store
+      .getState()
+      .actions.setChatsForProject("proj-1", [
+        makeChat("c1", "proj-1"),
+        makeChat("c2", "proj-1"),
+      ])
     const client = {
       query: vi.fn(),
       command: vi.fn().mockResolvedValue(undefined),
@@ -142,8 +164,12 @@ describe("archiveChat", () => {
 
     await archiveChat("c1", "proj-1", store.getState().actions, client)
 
-    expect(client.command).toHaveBeenCalledWith("chats.archive", { chat_id: "c1" })
+    expect(client.command).toHaveBeenCalledWith("chats.archive", {
+      chat_id: "c1",
+    })
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
-    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe("c2")
+    expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe(
+      "c2",
+    )
   })
 })

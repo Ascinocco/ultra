@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react"
-
 import type { SandboxContextSnapshot } from "@ultra/shared"
+import { useEffect, useRef, useState } from "react"
 
 export function SandboxSelector({
   activeSandbox,

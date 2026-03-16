@@ -10,32 +10,28 @@ type WorkflowClient = Pick<typeof ipcClient, "query" | "command">
 
 export async function hydrateSandboxes(
   projectId: string,
-  actions: Pick<AppActions, "setSandboxes" | "setActiveSandbox" | "setSandboxFetchStatus">,
+  actions: Pick<
+    AppActions,
+    "setSandboxesForProject" | "setActiveSandboxIdForProject"
+  >,
   client: WorkflowClient = ipcClient,
 ): Promise<void> {
-  actions.setSandboxFetchStatus("loading")
+  const [listResult, activeResult] = await Promise.all([
+    client.query("sandboxes.list", { project_id: projectId }),
+    client.query("sandboxes.get_active", { project_id: projectId }),
+  ])
 
-  try {
-    const [listResult, activeResult] = await Promise.all([
-      client.query("sandboxes.list", { project_id: projectId }),
-      client.query("sandboxes.get_active", { project_id: projectId }),
-    ])
+  const { sandboxes } = parseSandboxesListResult(listResult)
+  const activeSandbox = parseSandboxContextSnapshot(activeResult)
 
-    const { sandboxes } = parseSandboxesListResult(listResult)
-    const activeSandbox = parseSandboxContextSnapshot(activeResult)
-
-    actions.setSandboxes(sandboxes)
-    actions.setActiveSandbox(activeSandbox)
-    actions.setSandboxFetchStatus("idle")
-  } catch {
-    actions.setSandboxFetchStatus("error")
-  }
+  actions.setSandboxesForProject(projectId, sandboxes)
+  actions.setActiveSandboxIdForProject(projectId, activeSandbox.sandboxId)
 }
 
 export async function switchSandbox(
   projectId: string,
   sandboxId: string,
-  actions: Pick<AppActions, "setActiveSandbox">,
+  actions: Pick<AppActions, "setActiveSandboxIdForProject">,
   client: WorkflowClient = ipcClient,
 ): Promise<void> {
   const result = await client.command("sandboxes.set_active", {
@@ -44,5 +40,5 @@ export async function switchSandbox(
   })
 
   const sandbox = parseSandboxContextSnapshot(result)
-  actions.setActiveSandbox(sandbox)
+  actions.setActiveSandboxIdForProject(projectId, sandbox.sandboxId)
 }

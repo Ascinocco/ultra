@@ -3,6 +3,8 @@ import type {
   BackendInfoSnapshot,
   CommandMethodName,
   QueryMethodName,
+  SubscriptionEventEnvelope,
+  SubscriptionMethodName,
   SystemPingResult,
 } from "@ultra/shared"
 import {
@@ -102,6 +104,21 @@ export class BackendConnection {
     }
 
     return response.result
+  }
+
+  async subscribeToIpc(
+    name: SubscriptionMethodName,
+    payload: unknown,
+    onEvent: (event: SubscriptionEventEnvelope) => void,
+  ): Promise<{ subscriptionId: string; unsubscribe: () => void }> {
+    const socketPath = this.status.socketPath
+
+    if (!socketPath) {
+      throw new Error("Backend socket path is not available.")
+    }
+
+    const client = new BackendSocketClient(socketPath, this.logger)
+    return client.subscribe(name, payload, onEvent)
   }
 
   private async handleProcessStatus(

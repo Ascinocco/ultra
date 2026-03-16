@@ -119,4 +119,78 @@ describe("registerShellIpc", () => {
 
     unregister()
   })
+
+  it("bridges backend subscriptions to renderer events and supports unsubscribe", async () => {
+    const sender = {
+      id: 99,
+      send: vi.fn(),
+      isDestroyed: vi.fn(() => false),
+      once: vi.fn(),
+    }
+    const unsubscribe = vi.fn()
+    let onEvent: ((event: unknown) => void) | null = null
+    const connection = {
+      getStatus: vi.fn(() => ({ phase: "running" })),
+      ping: vi.fn(),
+      getBackendInfo: vi.fn(),
+      retryStartup: vi.fn(),
+      query: vi.fn(),
+      command: vi.fn(),
+      subscribe: vi.fn(() => () => undefined),
+      subscribeToIpc: vi.fn(
+        async (
+          _name: string,
+          _payload: unknown,
+          listener: (event: unknown) => void,
+        ) => {
+          onEvent = listener
+          return {
+            subscriptionId: "sub_terminal_sessions",
+            unsubscribe,
+          }
+        },
+      ),
+    }
+
+    const unregister = registerShellIpc(connection as never)
+    const subscribeResult = await handlers.get("ultra-shell:ipc-subscribe")?.(
+      { sender },
+      "terminal.sessions",
+      { project_id: "proj_1" },
+    )
+
+    expect(connection.subscribeToIpc).toHaveBeenCalledWith(
+      "terminal.sessions",
+      { project_id: "proj_1" },
+      expect.any(Function),
+    )
+    expect(subscribeResult).toEqual({ subscriptionId: "sub_terminal_sessions" })
+
+    onEvent?.({
+      protocol_version: "1.0",
+      type: "event",
+      subscription_id: "sub_terminal_sessions",
+      event_name: "terminal.sessions",
+      payload: {
+        project_id: "proj_1",
+        sessions: [],
+      },
+    })
+
+    expect(sender.send).toHaveBeenCalledWith(
+      "ultra-shell:ipc-subscription-event",
+      expect.objectContaining({
+        subscription_id: "sub_terminal_sessions",
+      }),
+    )
+
+    await handlers.get("ultra-shell:ipc-unsubscribe")?.(
+      { sender },
+      "sub_terminal_sessions",
+    )
+
+    expect(unsubscribe).toHaveBeenCalledOnce()
+
+    unregister()
+  })
 })
