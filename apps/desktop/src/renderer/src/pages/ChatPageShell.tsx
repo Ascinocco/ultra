@@ -11,6 +11,13 @@ import {
 } from "../projects/project-workflows.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
+import { TerminalPane } from "../terminal/TerminalPane.js"
+import {
+  closeTerminalSession,
+  openTerminal,
+  writeTerminalInput,
+  resizeTerminalSession,
+} from "../terminal/terminal-workflows.js"
 
 const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
@@ -37,6 +44,10 @@ function TerminalDrawer({
   onClose,
   onFocusSession,
   onRunSavedCommand,
+  onTerminalInput,
+  onTerminalResize,
+  onNewSession,
+  onCloseSession,
 }: {
   height: number
   activeSandbox: SandboxContextSnapshot | null
@@ -48,6 +59,10 @@ function TerminalDrawer({
   onClose: () => void
   onFocusSession: (sessionId: string) => void
   onRunSavedCommand: (commandId: SavedCommandSnapshot["commandId"]) => void
+  onTerminalInput: (sessionId: string, data: string) => void
+  onTerminalResize: (sessionId: string, cols: number, rows: number) => void
+  onNewSession: () => void
+  onCloseSession: (sessionId: string) => void
 }) {
   const focusedSession =
     sessions.find((session) => session.sessionId === focusedSessionId) ??
@@ -113,7 +128,7 @@ function TerminalDrawer({
         </div>
       </div>
       <div className="terminal-drawer__content">
-        {sessions.length > 1 && (
+        {sessions.length > 0 && (
           <div className="terminal-drawer__tabs" role="tablist">
             {sessions.map((session) => (
               <button
@@ -128,16 +143,46 @@ function TerminalDrawer({
               >
                 {session.title}
                 <small>{session.status}</small>
+                <span
+                  className="terminal-drawer__tab-close"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Close ${session.title}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onCloseSession(session.sessionId)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation()
+                      onCloseSession(session.sessionId)
+                    }
+                  }}
+                >
+                  ×
+                </span>
               </button>
             ))}
+            <button
+              className="terminal-drawer__tab terminal-drawer__tab--new"
+              type="button"
+              onClick={onNewSession}
+              aria-label="New terminal session"
+            >
+              +
+            </button>
           </div>
         )}
         <div className="terminal-drawer__panel">
           {focusedSession ? (
-            <pre className="terminal-drawer__output">
-              {focusedSession.recentOutput ||
-                "Session output will appear here once activity is available."}
-            </pre>
+            <TerminalPane
+              key={focusedSession.sessionId}
+              sessionId={focusedSession.sessionId}
+              projectId={focusedSession.projectId}
+              recentOutput={focusedSession.recentOutput}
+              onInput={onTerminalInput}
+              onResize={onTerminalResize}
+            />
           ) : (
             <p className="terminal-drawer__placeholder">
               Terminal sessions will appear here
@@ -214,6 +259,26 @@ export function ChatPageShell({
     }
 
     void runSavedCommandForProject(activeProjectId, commandId, actions)
+  }
+
+  function handleOpenTerminal() {
+    if (!activeProjectId) return
+    void openTerminal(activeProjectId, actions)
+  }
+
+  function handleCloseSession(sessionId: string) {
+    if (!activeProjectId) return
+    void closeTerminalSession(activeProjectId, sessionId, actions)
+  }
+
+  function handleTerminalInput(sessionId: string, data: string) {
+    if (!activeProjectId) return
+    void writeTerminalInput(activeProjectId, sessionId, data)
+  }
+
+  function handleTerminalResize(sessionId: string, cols: number, rows: number) {
+    if (!activeProjectId) return
+    void resizeTerminalSession(activeProjectId, sessionId, cols, rows)
   }
 
   return (
@@ -294,6 +359,10 @@ export function ChatPageShell({
               }
             }}
             onRunSavedCommand={handleRunSavedCommand}
+            onTerminalInput={handleTerminalInput}
+            onTerminalResize={handleTerminalResize}
+            onNewSession={handleOpenTerminal}
+            onCloseSession={handleCloseSession}
           />
         )}
       </div>
