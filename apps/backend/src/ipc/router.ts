@@ -24,6 +24,7 @@ import {
   projectsGetLayoutInputSchema,
   projectsListQuerySchema,
   projectsSetLayoutInputSchema,
+  runtimeListGlobalComponentsInputSchema,
   sandboxesGetActiveInputSchema,
   sandboxesListInputSchema,
   sandboxesSetActiveInputSchema,
@@ -50,6 +51,7 @@ import {
 import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
 import type { ChatService } from "../chats/chat-service.js"
 import type { ProjectService } from "../projects/project-service.js"
+import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import type { SystemService } from "../system/system-service.js"
 import type { TerminalService } from "../terminal/terminal-service.js"
@@ -160,6 +162,7 @@ export async function routeIpcRequest(
     chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
+    watchService: WatchService
     sandboxService: SandboxService
     terminalService: TerminalService
     terminalSessionService: TerminalSessionService
@@ -248,6 +251,13 @@ export async function routeIpcRequest(
           listQuery.request_id,
           services.projectService.list(),
         )
+      }
+      case "runtime.list_global_components": {
+        const listQuery = assertQueryRequest(request)
+        runtimeListGlobalComponentsInputSchema.parse(listQuery.payload)
+        return createSuccessResponse(listQuery.request_id, {
+          components: services.watchService.listGlobalComponents(),
+        })
       }
       case "chats.create": {
         const createCommand = assertCommandRequest(request)

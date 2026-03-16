@@ -13,6 +13,7 @@ import type {
 import {
   IPC_PROTOCOL_VERSION,
   parseIpcRequestEnvelope,
+  runtimeComponentUpdatedSubscribeInputSchema,
   terminalOutputSubscribeInputSchema,
   terminalSessionsSubscribeInputSchema,
 } from "@ultra/shared"
@@ -22,6 +23,8 @@ import type { ChatService } from "../chats/chat-service.js"
 import { createErrorResponse, IpcProtocolError } from "../ipc/errors.js"
 import { routeIpcRequest } from "../ipc/router.js"
 import type { ProjectService } from "../projects/project-service.js"
+import type { RuntimeRegistry } from "../runtime/runtime-registry.js"
+import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import { SystemService } from "../system/system-service.js"
 import type { TerminalService } from "../terminal/terminal-service.js"
@@ -61,6 +64,8 @@ export async function startSocketServer(
     chatService: ChatService
     systemService?: SystemService
     projectService: ProjectService
+    runtimeRegistry: RuntimeRegistry
+    watchService: WatchService
     threadService: ThreadService
     sandboxService: SandboxService
     terminalSessionService: TerminalSessionService
@@ -104,6 +109,8 @@ export async function startSocketServer(
             chatService: services.chatService,
             systemService,
             projectService: services.projectService,
+            runtimeRegistry: services.runtimeRegistry,
+            watchService: services.watchService,
             threadService: services.threadService,
             sandboxService: services.sandboxService,
             terminalSessionService: services.terminalSessionService,
@@ -140,6 +147,8 @@ async function handleLine(
     chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
+    runtimeRegistry: RuntimeRegistry
+    watchService: WatchService
     threadService: ThreadService
     sandboxService: SandboxService
     terminalSessionService: TerminalSessionService
@@ -278,6 +287,8 @@ function handleSubscribeRequest(
     chatService: ChatService
     systemService: SystemService
     projectService: ProjectService
+    runtimeRegistry: RuntimeRegistry
+    watchService: WatchService
     threadService: ThreadService
     sandboxService: SandboxService
     terminalSessionService: TerminalSessionService
@@ -343,6 +354,30 @@ function handleSubscribeRequest(
                 subscriptionId,
                 "terminal.output",
                 payload,
+              ),
+            )}\n`,
+          )
+        },
+      )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "runtime.component_updated": {
+      runtimeComponentUpdatedSubscribeInputSchema.parse(request.payload)
+      const cleanup = services.runtimeRegistry.subscribeToComponentUpdates(
+        (component) => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(
+                subscriptionId,
+                "runtime.component_updated",
+                component,
               ),
             )}\n`,
           )

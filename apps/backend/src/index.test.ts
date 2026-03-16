@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { createBackendBanner, startBackendScaffold } from "./index.js"
+import { FakeSupervisedProcessAdapter } from "./runtime/fake-supervised-process-adapter.js"
 
 describe("backend scaffold", () => {
   it("returns a stable placeholder banner", () => {
@@ -17,11 +18,18 @@ describe("backend scaffold", () => {
     process.env.ULTRA_SOCKET_PATH = join(directory, "ultra-backend.sock")
     process.env.ULTRA_DB_PATH = join(directory, "ultra.db")
 
-    const runtime = await startBackendScaffold()
+    const runtime = await startBackendScaffold({
+      processAdapter: new FakeSupervisedProcessAdapter(),
+    })
 
     expect(runtime.socketPath).toBe(process.env.ULTRA_SOCKET_PATH)
     expect(runtime.databasePath).toBe(process.env.ULTRA_DB_PATH)
-    expect(runtime.runtimeRegistry.listGlobalRuntimeComponents()).toEqual([])
+    expect(runtime.runtimeRegistry.listGlobalRuntimeComponents()).toHaveLength(
+      1,
+    )
+    expect(
+      runtime.runtimeRegistry.listGlobalRuntimeComponents()[0]?.componentType,
+    ).toBe("ov_watch")
 
     await runtime.stop()
     delete process.env.ULTRA_SOCKET_PATH

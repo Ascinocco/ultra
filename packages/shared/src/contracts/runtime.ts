@@ -1,6 +1,12 @@
 import { z } from "zod"
 
 import { isoUtcTimestampSchema, opaqueIdSchema } from "./constants.js"
+import {
+  queryRequestEnvelopeSchema,
+  subscribeRequestEnvelopeSchema,
+  subscriptionEventEnvelopeSchema,
+  successResponseEnvelopeSchema,
+} from "./ipc.js"
 import { projectIdSchema } from "./projects.js"
 
 export const runtimeComponentScopeSchema = z.enum(["project", "global"])
@@ -63,6 +69,36 @@ export const projectRuntimeHealthSummarySchema = z.object({
   components: z.array(runtimeComponentSnapshotSchema),
 })
 
+export const runtimeListGlobalComponentsInputSchema = z.object({}).strict()
+export const runtimeComponentUpdatedSubscribeInputSchema = z.object({}).strict()
+
+export const runtimeListGlobalComponentsResultSchema = z.object({
+  components: z.array(runtimeComponentSnapshotSchema),
+})
+
+export const runtimeListGlobalComponentsQuerySchema =
+  queryRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.list_global_components"),
+    payload: runtimeListGlobalComponentsInputSchema,
+  })
+
+export const runtimeListGlobalComponentsSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: runtimeListGlobalComponentsResultSchema,
+  })
+
+export const runtimeComponentUpdatedSubscribeRequestSchema =
+  subscribeRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.component_updated"),
+    payload: runtimeComponentUpdatedSubscribeInputSchema,
+  })
+
+export const runtimeComponentUpdatedEventSchema =
+  subscriptionEventEnvelopeSchema.extend({
+    event_name: z.literal("runtime.component_updated"),
+    payload: runtimeComponentSnapshotSchema,
+  })
+
 export type RuntimeComponentScope = z.infer<typeof runtimeComponentScopeSchema>
 export type RuntimeComponentHealthStatus = z.infer<
   typeof runtimeComponentHealthStatusSchema
@@ -80,6 +116,18 @@ export type RuntimeHealthCheckSnapshot = z.infer<
 >
 export type ProjectRuntimeHealthSummary = z.infer<
   typeof projectRuntimeHealthSummarySchema
+>
+export type RuntimeListGlobalComponentsInput = z.infer<
+  typeof runtimeListGlobalComponentsInputSchema
+>
+export type RuntimeComponentUpdatedSubscribeInput = z.infer<
+  typeof runtimeComponentUpdatedSubscribeInputSchema
+>
+export type RuntimeListGlobalComponentsResult = z.infer<
+  typeof runtimeListGlobalComponentsResultSchema
+>
+export type RuntimeComponentUpdatedEvent = z.infer<
+  typeof runtimeComponentUpdatedEventSchema
 >
 
 export function parseRuntimeComponentSnapshot(
@@ -104,4 +152,16 @@ export function parseProjectRuntimeHealthSummary(
   input: unknown,
 ): ProjectRuntimeHealthSummary {
   return projectRuntimeHealthSummarySchema.parse(input)
+}
+
+export function parseRuntimeListGlobalComponentsResult(
+  input: unknown,
+): RuntimeListGlobalComponentsResult {
+  return runtimeListGlobalComponentsResultSchema.parse(input)
+}
+
+export function parseRuntimeComponentUpdatedEvent(
+  input: unknown,
+): RuntimeComponentUpdatedEvent {
+  return runtimeComponentUpdatedEventSchema.parse(input)
 }
