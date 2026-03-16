@@ -81,6 +81,13 @@ export class RuntimeSupervisor {
     string,
     RuntimeSupervisorState
   >()
+  private readonly handleLaunchListeners = new Set<
+    (
+      componentId: string,
+      handle: SupervisedProcessHandle,
+      spec: SupervisedProcessSpec,
+    ) => void
+  >()
 
   constructor(
     private readonly runtimeRegistry: RuntimeRegistry,
@@ -118,6 +125,20 @@ export class RuntimeSupervisor {
 
   getLiveHandle(componentId: string): SupervisedProcessHandle | null {
     return this.statesByComponentId.get(componentId)?.handle ?? null
+  }
+
+  subscribeToHandleLaunches(
+    listener: (
+      componentId: string,
+      handle: SupervisedProcessHandle,
+      spec: SupervisedProcessSpec,
+    ) => void,
+  ): () => void {
+    this.handleLaunchListeners.add(listener)
+
+    return () => {
+      this.handleLaunchListeners.delete(listener)
+    }
   }
 
   hydrate(): void {
@@ -388,6 +409,9 @@ export class RuntimeSupervisor {
     state.handle = handle
     state.spec = spec
     state.stopRequested = false
+    for (const listener of this.handleLaunchListeners) {
+      listener(componentId, handle, spec)
+    }
 
     if (state.stabilityTimer) {
       clearTimeout(state.stabilityTimer)

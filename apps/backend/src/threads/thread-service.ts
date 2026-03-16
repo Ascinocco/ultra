@@ -8,6 +8,7 @@ import type {
   ThreadDetailResult,
   ThreadExecutionState,
   ThreadId,
+  ThreadMessageAttachment,
   ThreadMessageContent,
   ThreadMessageRole,
   ThreadMessageSnapshot,
@@ -83,6 +84,32 @@ type ThreadTicketRefRow = {
   url: string | null
   metadata_json: string | null
   created_at: string
+}
+
+type ThreadMessageRow = {
+  id: string
+  thread_id: string
+  role: string
+  provider: string | null
+  model: string | null
+  message_type: string
+  content_json: string
+  artifact_refs_json: string | null
+  created_at: string
+}
+
+type CoordinatorDispatchHandler = {
+  sendThreadMessage: (input: {
+    attachments: ThreadMessageAttachment[]
+    contentMarkdown: string
+    messageId: string
+    projectId: ProjectId
+    threadId: ThreadId
+  }) => void
+  startThread: (input: {
+    input: ChatsStartThreadInput
+    thread: ThreadDetailResult
+  }) => void
 }
 
 function readThreadRow(result: unknown): ThreadRow | null {
@@ -175,19 +202,48 @@ function mapThreadTicketRefRow(
   }
 }
 
-type ThreadMessageRow = {
-  id: string
-  thread_id: string
-  role: string
-  provider: string | null
-  model: string | null
-  message_type: string
-  content_json: string
-  artifact_refs_json: string | null
-  created_at: string
+function readThreadMessageRow(result: unknown): ThreadMessageRow | null {
+  if (!result || typeof result !== "object") {
+    return null
+  }
+
+  return result as ThreadMessageRow
 }
 
-function mapMessageRow(row: ThreadMessageRow): ThreadMessageSnapshot {
+function parseThreadMessageContent(contentJson: string): ThreadMessageContent {
+  const parsed = JSON.parse(contentJson) as unknown
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Thread message content JSON must decode to an object.")
+  }
+
+  const candidate = parsed as Record<string, unknown>
+
+  return {
+    text:
+      typeof candidate.text === "string"
+        ? candidate.text
+        : typeof candidate.content_markdown === "string"
+          ? candidate.content_markdown
+          : "",
+  }
+}
+
+function parseArtifactRefs(artifactRefsJson: string | null): string[] {
+  if (!artifactRefsJson) {
+    return []
+  }
+
+  const parsed = JSON.parse(artifactRefsJson) as unknown
+
+  return Array.isArray(parsed)
+    ? parsed.filter((entry): entry is string => typeof entry === "string")
+    : []
+}
+
+function mapThreadMessageRow(row: ThreadMessageRow): ThreadMessageSnapshot {
+  const content = parseThreadMessageContent(row.content_json)
+
   return {
     id: row.id,
     threadId: row.thread_id,
@@ -195,10 +251,8 @@ function mapMessageRow(row: ThreadMessageRow): ThreadMessageSnapshot {
     provider: row.provider,
     model: row.model,
     messageType: row.message_type as ThreadMessageType,
-    content: JSON.parse(row.content_json) as ThreadMessageContent,
-    artifactRefs: row.artifact_refs_json
-      ? (JSON.parse(row.artifact_refs_json) as string[])
-      : [],
+    content,
+    artifactRefs: parseArtifactRefs(row.artifact_refs_json),
     createdAt: row.created_at,
   }
 }
@@ -216,12 +270,23 @@ export class ThreadService {
 
   private readonly projectionService: ThreadProjectionService
 
+  private coordinatorDispatchHandler: CoordinatorDispatchHandler | null = null
+
+  private readonly messageListenersByThreadId = new Map<
+    ThreadId,
+    Set<(message: ThreadMessageSnapshot) => void>
+  >()
+
   constructor(
     private readonly database: DatabaseSync,
     private readonly now: () => string = () => new Date().toISOString(),
   ) {
     this.eventService = new ThreadEventService(database, now)
     this.projectionService = new ThreadProjectionService(database)
+  }
+
+  setCoordinatorDispatchHandler(handler: CoordinatorDispatchHandler): void {
+    this.coordinatorDispatchHandler = handler
   }
 
   startThread(input: ChatsStartThreadInput): ThreadDetailResult {
@@ -269,6 +334,19 @@ export class ThreadService {
         creationSource: "start_thread",
       }),
     )
+    const thread = this.getThread(threadId)
+
+    if (this.coordinatorDispatchHandler) {
+      try {
+        this.coordinatorDispatchHandler.startThread({ input, thread })
+      } catch (error) {
+        this.recordDispatchFailure(
+          thread.thread.projectId,
+          thread.thread.id,
+          error instanceof Error ? error.message : String(error),
+        )
+      }
+    }
 
     return this.getThread(threadId)
   }
@@ -464,61 +542,272 @@ export class ThreadService {
   }
 
   getMessages(threadId: ThreadId): ThreadsGetMessagesResult {
-    // Validates thread exists (throws IpcProtocolError if not found)
     this.getThreadSnapshot(threadId)
 
-    const rows = this.database
-      .prepare(
-        "SELECT id, thread_id, role, provider, model, message_type, content_json, artifact_refs_json, created_at FROM thread_messages WHERE thread_id = ? ORDER BY created_at ASC",
-      )
-      .all(threadId) as ThreadMessageRow[]
+    return {
+      messages: (
+        this.database
+          .prepare(
+            `
+              SELECT
+                id,
+                thread_id,
+                role,
+                provider,
+                model,
+                message_type,
+                content_json,
+                artifact_refs_json,
+                created_at
+              FROM thread_messages
+              WHERE thread_id = ?
+              ORDER BY created_at ASC, rowid ASC
+            `,
+          )
+          .all(threadId) as ThreadMessageRow[]
+      ).map((row) => mapThreadMessageRow(row)),
+    }
+  }
 
-    return { messages: rows.map((row) => mapMessageRow(row)) }
+  subscribeToMessages(
+    threadId: ThreadId,
+    listener: (message: ThreadMessageSnapshot) => void,
+  ): () => void {
+    this.getThreadSnapshot(threadId)
+    const listeners = this.messageListenersByThreadId.get(threadId) ?? new Set()
+    listeners.add(listener)
+    this.messageListenersByThreadId.set(threadId, listeners)
+
+    return () => {
+      const active = this.messageListenersByThreadId.get(threadId)
+
+      if (!active) {
+        return
+      }
+
+      active.delete(listener)
+      if (active.size === 0) {
+        this.messageListenersByThreadId.delete(threadId)
+      }
+    }
   }
 
   sendMessage(input: ThreadsSendMessageInput): ThreadsSendMessageResult {
-    // Validates thread exists (throws IpcProtocolError if not found)
-    this.getThreadSnapshot(input.thread_id)
+    const thread = this.getThreadSnapshot(input.thread_id)
+    const projectId = input.project_id ?? thread.projectId
 
-    const id = randomUUID()
-    const now = this.now()
+    if (thread.projectId !== projectId) {
+      throw new IpcProtocolError(
+        "not_found",
+        `Thread ${input.thread_id} does not belong to project ${projectId}.`,
+      )
+    }
+
+    const messageId = `thread_msg_${randomUUID()}`
+    const snapshot = this.appendMessage({
+      attachments: input.attachments,
+      contentText: input.content,
+      messageId,
+      messageType: "text",
+      projectId,
+      role: "user",
+      threadId: input.thread_id,
+    })
+
+    if (this.coordinatorDispatchHandler) {
+      try {
+        this.coordinatorDispatchHandler.sendThreadMessage({
+          attachments: input.attachments,
+          contentMarkdown: input.content,
+          messageId,
+          projectId,
+          threadId: input.thread_id,
+        })
+      } catch (error) {
+        this.recordDispatchFailure(
+          projectId,
+          input.thread_id,
+          error instanceof Error ? error.message : String(error),
+        )
+        throw error
+      }
+    }
+
+    return { message: snapshot }
+  }
+
+  appendMessage(input: {
+    attachments?: ThreadMessageAttachment[]
+    artifactRefs?: string[]
+    contentText?: string | null
+    createdAt?: string
+    messageId?: string
+    messageType: ThreadMessageType
+    model?: string | null
+    projectId: ProjectId
+    provider?: string | null
+    role: ThreadMessageRole
+    threadId: ThreadId
+  }): ThreadMessageSnapshot {
+    const thread = this.getThreadSnapshot(input.threadId)
+
+    if (thread.projectId !== input.projectId) {
+      throw new IpcProtocolError(
+        "not_found",
+        `Thread ${input.threadId} does not belong to project ${input.projectId}.`,
+      )
+    }
+
+    if (input.messageId) {
+      const existing = readThreadMessageRow(
+        this.database
+          .prepare(
+            `
+              SELECT
+                id,
+                thread_id,
+                role,
+                provider,
+                model,
+                message_type,
+                content_json,
+                artifact_refs_json,
+                created_at
+              FROM thread_messages
+              WHERE id = ?
+            `,
+          )
+          .get(input.messageId),
+      )
+
+      if (existing) {
+        return mapThreadMessageRow(existing)
+      }
+    }
+
+    const messageId = input.messageId ?? `thread_msg_${randomUUID()}`
+    const timestamp = input.createdAt ?? this.now()
 
     this.database
       .prepare(
-        "INSERT INTO thread_messages (id, thread_id, role, provider, model, message_type, content_json, artifact_refs_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        `
+          INSERT INTO thread_messages (
+            id,
+            thread_id,
+            role,
+            provider,
+            model,
+            message_type,
+            content_json,
+            artifact_refs_json,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
       )
       .run(
-        id,
-        input.thread_id,
-        "user",
-        null,
-        null,
-        "text",
-        JSON.stringify({ text: input.content }),
-        null,
-        now,
+        messageId,
+        input.threadId,
+        input.role,
+        input.provider ?? null,
+        input.model ?? null,
+        input.messageType,
+        JSON.stringify({
+          attachments: input.attachments ?? [],
+          text: input.contentText ?? "",
+        }),
+        input.artifactRefs && input.artifactRefs.length > 0
+          ? JSON.stringify(input.artifactRefs)
+          : null,
+        timestamp,
       )
 
-    // Update thread last_activity_at
+    const row = readThreadMessageRow(
+      this.database
+        .prepare(
+          `
+            SELECT
+              id,
+              thread_id,
+              role,
+              provider,
+              model,
+              message_type,
+              content_json,
+              artifact_refs_json,
+              created_at
+            FROM thread_messages
+            WHERE id = ?
+          `,
+        )
+        .get(messageId),
+    )
+
+    if (!row) {
+      throw new IpcProtocolError(
+        "internal_error",
+        `Thread message ${messageId} could not be loaded after insert.`,
+      )
+    }
+
+    const snapshot = mapThreadMessageRow(row)
+    this.notifyMessageListeners(snapshot)
+    return snapshot
+  }
+
+  appendProjectedEvent(input: {
+    actorId?: string | null
+    actorType: string
+    eventType: string
+    occurredAt?: string
+    payload: Record<string, unknown>
+    projectId: ProjectId
+    source: string
+    threadId: ThreadId
+  }) {
+    const event = this.eventService.appendEvent(input)
+    this.projectionService.applyEvent(event)
+    return event
+  }
+
+  updateProjectCoordinatorHealth(projectId: ProjectId, health: string): void {
+    this.assertProjectExists(projectId)
     this.database
       .prepare(
-        "UPDATE threads SET last_activity_at = ?, updated_at = ? WHERE id = ?",
+        `
+          UPDATE threads
+          SET coordinator_health = ?
+          WHERE project_id = ?
+        `,
       )
-      .run(now, now, input.thread_id)
+      .run(health, projectId)
+  }
 
-    return {
-      message: {
-        id,
-        threadId: input.thread_id,
-        role: "user",
-        provider: null,
-        model: null,
-        messageType: "text",
-        content: { text: input.content },
-        artifactRefs: [],
-        createdAt: now,
-      },
+  private notifyMessageListeners(message: ThreadMessageSnapshot): void {
+    const listeners = this.messageListenersByThreadId.get(message.threadId)
+
+    if (!listeners) {
+      return
     }
+
+    for (const listener of listeners) {
+      listener(message)
+    }
+  }
+
+  private recordDispatchFailure(
+    projectId: ProjectId,
+    threadId: ThreadId,
+    reason: string,
+  ): void {
+    this.appendProjectedEvent({
+      actorType: "backend",
+      eventType: "thread.failed",
+      payload: { reason },
+      projectId,
+      source: "ultra.runtime",
+      threadId,
+    })
+    this.updateProjectCoordinatorHealth(projectId, "down")
   }
 
   private createThreadWithInitialEvent(

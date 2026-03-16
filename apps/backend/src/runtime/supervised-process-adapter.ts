@@ -26,12 +26,30 @@ export type SupervisedProcessExitListener = (
   event: SupervisedProcessExit,
 ) => void
 
+export type SupervisedProcessLineListener = (line: string) => void
+
 export interface SupervisedProcessHandle {
   readonly pid: number | null
   kill(signal?: NodeJS.Signals): void
   onExit(listener: SupervisedProcessExitListener): () => void
+  onStderrLine?(listener: SupervisedProcessLineListener): () => void
+  onStdoutLine?(listener: SupervisedProcessLineListener): () => void
+  writeLine?(line: string): void
 }
 
 export interface SupervisedProcessAdapter {
   spawn(spec: SupervisedProcessSpec): SupervisedProcessHandle
+}
+
+export function isInteractiveSupervisedProcessHandle(
+  handle: SupervisedProcessHandle,
+): handle is SupervisedProcessHandle &
+  Required<
+    Pick<SupervisedProcessHandle, "onStderrLine" | "onStdoutLine" | "writeLine">
+  > {
+  return (
+    typeof handle.onStdoutLine === "function" &&
+    typeof handle.onStderrLine === "function" &&
+    typeof handle.writeLine === "function"
+  )
 }

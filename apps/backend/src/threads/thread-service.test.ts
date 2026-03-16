@@ -586,7 +586,7 @@ describe("ThreadService", () => {
 
     const result = threadService.getMessages(thread.thread.id)
     expect(result.messages).toHaveLength(1)
-    expect(result.messages[0]!.id).toBe(sent.message.id)
+    expect(result.messages[0]?.id).toBe(sent.message.id)
 
     runtime.close()
   })
@@ -628,8 +628,8 @@ describe("ThreadService", () => {
 
     const result = threadService.getMessages(thread.thread.id)
     expect(result.messages).toHaveLength(2)
-    expect(result.messages[0]!.content.text).toBe("First message")
-    expect(result.messages[1]!.content.text).toBe("Second message")
+    expect(result.messages[0]?.content.text).toBe("First message")
+    expect(result.messages[1]?.content.text).toBe("Second message")
 
     runtime.close()
   })

@@ -7,6 +7,7 @@ import { ArtifactStorageService } from "./artifacts/artifact-storage-service.js"
 import { ChatService } from "./chats/chat-service.js"
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { ProjectService } from "./projects/project-service.js"
+import { CoordinatorService } from "./runtime/coordinator-service.js"
 import { NodeSupervisedProcessAdapter } from "./runtime/node-supervised-process-adapter.js"
 import { RuntimePersistenceService } from "./runtime/runtime-persistence-service.js"
 import { RuntimeRegistry } from "./runtime/runtime-registry.js"
@@ -72,11 +73,27 @@ export async function startBackendScaffold(options?: {
   )
 
   if (socketPath) {
+    const projectService = new ProjectService(databaseRuntime.database)
     const threadService = new ThreadService(databaseRuntime.database)
     const sandboxPersistenceService = new SandboxPersistenceService(
       databaseRuntime.database,
     )
     const sandboxService = new SandboxService(sandboxPersistenceService)
+    const coordinatorService = new CoordinatorService(
+      runtimeSupervisor,
+      runtimeRegistry,
+      projectService,
+      sandboxService,
+      threadService,
+    )
+    threadService.setCoordinatorDispatchHandler({
+      sendThreadMessage: (input) =>
+        coordinatorService.sendThreadMessage({
+          ...input,
+          threadId: input.threadId,
+        }),
+      startThread: (input) => coordinatorService.startThread(input),
+    })
     const runtimeProfileService = new RuntimeProfileService(
       databaseRuntime.database,
       sandboxPersistenceService,
@@ -104,7 +121,8 @@ export async function startBackendScaffold(options?: {
     socketRuntime = await startSocketServer(socketPath, {
       artifactCaptureService,
       chatService: new ChatService(databaseRuntime.database),
-      projectService: new ProjectService(databaseRuntime.database),
+      coordinatorService,
+      projectService,
       runtimeRegistry,
       watchService,
       sandboxService,

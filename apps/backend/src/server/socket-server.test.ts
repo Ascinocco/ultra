@@ -11,6 +11,8 @@ import {
   parseSubscriptionEventEnvelope,
   parseTerminalOutputEvent,
   parseTerminalSessionsEvent,
+  parseThreadsGetMessagesResult,
+  parseThreadsMessagesEvent,
 } from "@ultra/shared"
 import { describe, expect, it } from "vitest"
 import { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
@@ -19,6 +21,7 @@ import { ArtifactStorageService } from "../artifacts/artifact-storage-service.js
 import { ChatService } from "../chats/chat-service.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
+import { CoordinatorService } from "../runtime/coordinator-service.js"
 import { FakeSupervisedProcessAdapter } from "../runtime/fake-supervised-process-adapter.js"
 import { RuntimePersistenceService } from "../runtime/runtime-persistence-service.js"
 import { RuntimeRegistry } from "../runtime/runtime-registry.js"
@@ -53,10 +56,23 @@ async function createServerRuntime(directory: string, socketPath: string) {
     runtimeRegistry,
     databaseRuntime.databasePath,
   )
+  const projectService = new ProjectService(databaseRuntime.database)
   const sandboxPersistenceService = new SandboxPersistenceService(
     databaseRuntime.database,
   )
   const sandboxService = new SandboxService(sandboxPersistenceService)
+  const threadService = new ThreadService(databaseRuntime.database)
+  const coordinatorService = new CoordinatorService(
+    runtimeSupervisor,
+    runtimeRegistry,
+    projectService,
+    sandboxService,
+    threadService,
+  )
+  threadService.setCoordinatorDispatchHandler({
+    sendThreadMessage: (input) => coordinatorService.sendThreadMessage(input),
+    startThread: (input) => coordinatorService.startThread(input),
+  })
   const runtimeProfileService = new RuntimeProfileService(
     databaseRuntime.database,
     sandboxPersistenceService,
@@ -88,13 +104,14 @@ async function createServerRuntime(directory: string, socketPath: string) {
     {
       artifactCaptureService,
       chatService: new ChatService(databaseRuntime.database),
-      projectService: new ProjectService(databaseRuntime.database),
+      coordinatorService,
+      projectService,
       runtimeRegistry,
       watchService,
       sandboxService,
       terminalSessionService,
       terminalService,
-      threadService: new ThreadService(databaseRuntime.database),
+      threadService,
     },
     {
       info: () => undefined,
@@ -107,6 +124,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
     artifactCaptureService,
     databaseRuntime,
     processAdapter,
+    coordinatorService,
     runtimeRegistry,
     runtimeSupervisor,
     watchService,
@@ -655,6 +673,190 @@ describe("socket server", () => {
       ])
     }
 
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips thread message reads and live updates over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const { runtime, databaseRuntime, processAdapter } =
+      await createServerRuntime(directory, socketPath)
+    const chatService = new ChatService(databaseRuntime.database)
+    await mkdir(projectDirectory, { recursive: true })
+    await writeFile(join(projectDirectory, "package.json"), "{}")
+
+    const openProjectRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_open_project_thread_messages",
+      type: "command",
+      name: "projects.open",
+      payload: {
+        path: projectDirectory,
+      },
+    })
+    const openProjectResponse = parseIpcResponseEnvelope(openProjectRaw)
+    expect(openProjectResponse.ok).toBe(true)
+    if (!openProjectResponse.ok) {
+      throw new Error("Expected project open to succeed")
+    }
+
+    const createChatRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_for_thread_messages",
+      type: "command",
+      name: "chats.create",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const createChatResponse = parseIpcResponseEnvelope(createChatRaw)
+    expect(createChatResponse.ok).toBe(true)
+    if (!createChatResponse.ok) {
+      throw new Error("Expected chat create to succeed")
+    }
+
+    const planApproval = chatService.appendMessage({
+      chatId: createChatResponse.result.id,
+      role: "user",
+      messageType: "plan_approval",
+      contentMarkdown: "approve plan",
+    })
+    const specApproval = chatService.appendMessage({
+      chatId: createChatResponse.result.id,
+      role: "user",
+      messageType: "spec_approval",
+      contentMarkdown: "approve specs",
+    })
+    const startRequest = chatService.appendMessage({
+      chatId: createChatResponse.result.id,
+      role: "user",
+      messageType: "thread_start_request",
+      contentMarkdown: "start work",
+    })
+
+    const startThreadRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_start_thread_messages",
+      type: "command",
+      name: "chats.start_thread",
+      payload: {
+        chat_id: createChatResponse.result.id,
+        title: "Socket thread",
+        summary: "Created via socket",
+        plan_approval_message_id: planApproval.id,
+        spec_approval_message_id: specApproval.id,
+        start_request_message_id: startRequest.id,
+        spec_refs: [],
+        ticket_refs: [],
+      },
+    })
+    const startThreadResponse = parseIpcResponseEnvelope(startThreadRaw)
+    expect(startThreadResponse.ok).toBe(true)
+    if (!startThreadResponse.ok) {
+      throw new Error("Expected thread start to succeed")
+    }
+
+    const coordinatorSpawn = processAdapter.spawns.find(
+      ({ spec }) => spec.componentType === "coordinator",
+    )
+    expect(coordinatorSpawn).toBeDefined()
+    if (!coordinatorSpawn) {
+      throw new Error("Expected coordinator spawn")
+    }
+
+    const threadId = startThreadResponse.result.thread.id
+    const connection = await openPersistentConnection(socketPath)
+    connection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_messages_subscribe",
+      type: "subscribe",
+      name: "threads.messages",
+      payload: {
+        thread_id: threadId,
+      },
+    })
+
+    const subscribeResponse = parseIpcResponseEnvelope(
+      await connection.nextMessage(),
+    )
+    expect(subscribeResponse.ok).toBe(true)
+
+    const sendMessageRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_send_message",
+      type: "command",
+      name: "threads.send_message",
+      payload: {
+        project_id: openProjectResponse.result.id,
+        thread_id: threadId,
+        content: "Please rerun tests before review.",
+        attachments: [],
+      },
+    })
+    const sendMessageResponse = parseIpcResponseEnvelope(sendMessageRaw)
+    expect(sendMessageResponse.ok).toBe(true)
+
+    const userMessageEvent = parseThreadsMessagesEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    expect(userMessageEvent.payload.role).toBe("user")
+    expect(userMessageEvent.payload.content.text).toBe(
+      "Please rerun tests before review.",
+    )
+
+    coordinatorSpawn.handle.emitStdoutLine(
+      JSON.stringify({
+        kind: "event",
+        protocol_version: "1.0",
+        event_id: "coord_evt_thread_message",
+        sequence_number: 1,
+        event_type: "thread_message_emitted",
+        project_id: openProjectResponse.result.id,
+        coordinator_id: `coord_${openProjectResponse.result.id}`,
+        coordinator_instance_id: "coord_instance_1",
+        thread_id: threadId,
+        occurred_at: "2026-03-17T20:10:00.000Z",
+        payload: {
+          message_id: "thread_msg_assistant_1",
+          role: "assistant",
+          message_type: "assistant_text",
+          content_markdown: "Tests are rerunning now.",
+          attachments: [],
+        },
+      }),
+    )
+
+    const assistantMessageEvent = parseThreadsMessagesEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    expect(assistantMessageEvent.payload.role).toBe("coordinator")
+
+    const getMessagesRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_thread_get_messages",
+      type: "query",
+      name: "threads.get_messages",
+      payload: {
+        thread_id: threadId,
+      },
+    })
+    const getMessagesResponse = parseIpcResponseEnvelope(getMessagesRaw)
+    expect(getMessagesResponse.ok).toBe(true)
+    if (!getMessagesResponse.ok) {
+      throw new Error("Expected thread message read to succeed")
+    }
+
+    const messages = parseThreadsGetMessagesResult(getMessagesResponse.result)
+    expect(messages.messages).toHaveLength(2)
+    expect(messages.messages.map((message) => message.role)).toEqual([
+      "user",
+      "coordinator",
+    ])
+
+    await connection.close()
     await runtime.close()
     databaseRuntime.close()
     await rm(directory, { recursive: true, force: true })
