@@ -160,8 +160,9 @@ The default home of the product is a chat-first command center.
 #### Right Thread Pane
 
 - infinitely scrollable list of execution threads for the active chat or project scope
-- thread cards with status and health
-- expandable thread detail with coordinator interaction
+- collapsible thread cards with status, health, and attention state
+- one expanded thread detail at a time
+- expandable thread detail with one primary coordinator conversation
 
 There is no dedicated bottom-right runtime pane in the v1 direction.
 Runtime and execution detail should live inside the thread panel and terminal drawer instead.
@@ -191,7 +192,7 @@ This workflow lives inside the main chat workspace instead of a separate Editor 
 8. User chooses to start work.
 9. Ultra creates a thread and starts execution through the project coordinator.
 10. Overstory-backed workers execute behind that thread, but the user stays focused on the chat and thread surfaces.
-11. The thread appears in the right pane with live status and coordinator interaction.
+11. The thread appears in the right pane with live status and one coordinator conversation that represents the execution context.
 12. When review is ready, the user selects the relevant sandbox from thread UI or the top bar.
 13. Ultra syncs runtime files and opens or reuses a terminal in that sandbox.
 14. User tests, debugs, and either requests changes or approves.
@@ -207,6 +208,7 @@ This workflow lives inside the main chat workspace instead of a separate Editor 
 - the user should not need to recreate env files or remember the right cwd for a thread sandbox
 - Ultra should keep the user inside one shell for the core test-and-approve loop while staying pragmatic about external handoff
 - the UI should expose progress, state, and health without drowning the user in process noise
+- the user interacts with a thread coordinator, not directly with swarm members
 - advanced orchestration should be observable, not vocabulary the user has to learn
 - Ultra app chrome is dark-only
 
@@ -235,6 +237,7 @@ This customization boundary applies to the external tool, not the Ultra app shel
 - one project has one top-level coordinator
 - Overstory may fan out as many workers as it wants behind that coordinator
 - Ultra monitors coordinator and worker health through thread projections rather than exposing raw orchestration primitives as the main UX
+- the coordinator remains the stable conversational identity for the thread even if providers or workers change underneath
 
 ## Review Model
 

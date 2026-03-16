@@ -32,6 +32,9 @@ A thread is the execution home for:
 
 Threads remain available after completion so the user can inspect history and continue talking to the coordinator.
 
+In the user experience, a thread should feel like one durable execution conversation.
+The user talks to the thread coordinator, not directly to raw workers, Overstory internals, or provider-specific agents.
+
 ## Thread Creation Rules
 
 A thread is created only after all of the following are true:
@@ -250,7 +253,7 @@ Ultra should not assume the main checkout can directly switch to the same active
 
 ### Thread List
 
-The top-right pane is an infinitely scrollable list of thread cards.
+The top-right pane is a vertically scrollable list of collapsible thread cards.
 
 Each card should show:
 
@@ -263,12 +266,27 @@ Each card should show:
 - branch name
 - last activity time
 - health indicator
+- active sandbox label when available
+- attention badge when user input or review is needed
 
+Collapsed cards are status summaries only.
 Selecting a thread expands it into thread detail in the same pane.
+Only one thread should normally be expanded at a time in v1 so the right pane stays calm and easy to scan.
 
 ### Thread Detail
 
-Thread detail should have tabs:
+Thread detail should have these primary sections:
+
+- header
+- coordinator conversation
+- timeline
+- detail tabs
+- coordinator input dock
+
+The coordinator conversation is the main body of the thread.
+It is the primary interaction surface for execution follow-up, clarification, and review feedback.
+
+Thread detail should have these tabs:
 
 - `Overview`
 - `Timeline`
@@ -281,12 +299,30 @@ A persistent coordinator input sits at the bottom and remains available after co
 
 ### Default Detail Behavior
 
-- `Overview` shows high-level progress, latest summary, linked specs, branch, PR, and current next action
+- `Overview` shows high-level progress, latest summary, linked specs, branch, PR, current next action, and current sandbox
 - `Timeline` shows structured thread events in chronological order
-- `Agents` shows coordinator and worker activity scoped only to the selected thread
+- `Agents` shows coordinator and worker activity scoped only to the selected thread and should be treated as an advanced detail surface rather than the primary UX
 - `Files` shows changed files, diffs, and sandbox actions
 - `Approvals` shows pending and completed approval actions
 - `Logs` shows raw process output and diagnostics
+
+### Coordinator Conversation
+
+The coordinator conversation is the thread's primary conversational surface.
+
+It should display:
+
+- coordinator status messages
+- user replies
+- blocking questions
+- implementation summaries
+- review-ready announcements
+- explicit change-request follow-up
+
+The coordinator conversation should not feel like a raw terminal transcript or a multi-agent swarm dashboard.
+It should feel like one execution agent that owns the thread and can speak for the underlying execution system.
+
+Provider implementation details such as `Codex` or `Claude` may be shown as lightweight diagnostics, but they should not replace the coordinator as the stable user-facing identity.
 
 ## Event Model
 
@@ -332,6 +368,13 @@ The coordinator chat should retain context for the life of the thread, including
 
 Review and execution actions may also be initiated from the main chat, but thread-specific changes should resolve back into the thread as the primary control surface.
 
+The user should never need to address raw swarm members directly in v1.
+If Overstory or another backend fans work out to multiple workers, that detail should collapse back into:
+
+- coordinator messages in the main thread conversation
+- structured timeline events
+- optional `Agents` detail when the user wants to inspect deeper execution activity
+
 ## Health Model
 
 Thread health should expose a compact status for the project infrastructure required to keep work moving.
@@ -368,3 +411,4 @@ Health records should include:
 7. Local auto-commit is mandatory before `awaiting_review`
 8. Publish targets a draft PR in v1 when publish is requested
 9. Direct code-editing actions from the main chat remain chat-local until explicitly promoted into a thread
+10. The thread coordinator is the only primary conversational surface for execution; swarm and worker details stay secondary

@@ -139,6 +139,7 @@ In the current direction:
 - a thread is created from approved chat work
 - the project coordinator launches Overstory-backed execution for that thread
 - Ultra projects that execution back into the right-side thread panel
+- the user interacts with one coordinator conversation per thread rather than directly with raw workers
 - the terminal drawer attaches to the main project checkout or the active thread sandbox
 
 Overstory remains the default execution backend.
@@ -154,6 +155,7 @@ Recommended v1 flow:
 4. user opens or reuses a terminal in that sandbox
 5. user runs tests or local verification commands
 6. user requests changes or approves from thread-aware UI in the chat workspace
+7. if changes are requested, the same thread resumes execution instead of spawning a separate execution object
 
 This keeps the review loop centered on sandbox selection, terminal readiness, and thread state transitions rather than an embedded editor.
 

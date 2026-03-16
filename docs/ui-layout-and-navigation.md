@@ -161,17 +161,35 @@ Purpose:
 Default behavior:
 
 - shows thread cards for the active project or active chat scope
+- each thread row is collapsible
 - selecting a thread expands it into detail in the same pane
+- only one thread is expanded at a time by default
 
 Thread detail should include:
 
 - thread header
 - state pills
 - summary
+- active sandbox and branch context
+- coordinator conversation as the main body
 - tabs for `Overview`, `Timeline`, `Agents`, `Files`, `Approvals`, `Logs`
 - coordinator input dock at the bottom
 
 The coordinator input dock reuses the same voice-input component and file-attachment input pattern as the main chat input.
+
+### Thread Pane Interaction Model
+
+The thread pane should feel like a focused execution surface, not a raw orchestration dashboard.
+
+The user should primarily interact with:
+
+- one coordinator conversation per thread
+- thread status and timeline
+- thread review actions
+- thread sandbox and terminal actions
+
+Worker or swarm detail should remain secondary and live under `Agents` or `Logs`.
+The user should not need to talk to individual workers directly in v1.
 
 ### Bottom Drawer
 
@@ -238,6 +256,7 @@ Selecting a thread from the right pane should:
 - update the selected thread
 - load thread snapshot, events, agents, approvals, and logs as needed
 - offer sandbox and terminal actions without leaving the chat workspace
+- keep the coordinator conversation anchored to that thread's durable context even if the underlying execution backend restarts
 
 ### Terminal Launch
 

@@ -45,6 +45,7 @@ The product is not credible until a user can move from chat-driven planning into
 - the integrated terminal lives in the chat workspace
 - the user should not need to manually reopen a sandbox as a separate project
 - Overstory remains the default backend for thread execution, but it is not the primary user-facing concept
+- the user interacts with a thread coordinator conversation rather than raw swarm members
 - external handoff is acceptable for full file, diff, and browser work
 
 ## Exit Criteria

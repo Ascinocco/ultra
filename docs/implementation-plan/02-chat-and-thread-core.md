@@ -30,7 +30,7 @@ If this milestone is weak, the product is weak.
 - thread list
 - thread detail
 - thread timeline wired to event stream
-- coordinator message dock shell in thread detail
+- one coordinator conversation shell in thread detail
 
 ## Deliverables
 
@@ -45,7 +45,7 @@ If this milestone is weak, the product is weak.
 - explicit spec approval interaction
 - `start work` confirmation
 - thread record creation
-- thread detail UI with state badges and tabs
+- thread detail UI with state badges, one coordinator conversation, and tabs
 - thread event subscription and replay from checkpoint
 
 ## Out of Scope
