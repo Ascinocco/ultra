@@ -420,34 +420,19 @@ export function ChatPageShell({
         </section>
 
         <div className="chat-frame__side">
-          <section className="chat-frame__side-top">
-            <div className="surface__header">
-              <p className="surface__eyebrow">Threads</p>
-              <h2 className="surface__title">Execution pane</h2>
-            </div>
-            <ThreadPane
-              threads={projectThreads}
-              selectedThreadId={selectedThreadId}
-              messagesByThreadId={threads.messagesByThreadId}
-              fetchStatus={threadFetchStatus}
-              onSelectThread={handleSelectThread}
-              onFetchMessages={handleFetchMessages}
-              onSendMessage={handleSendMessage}
-            />
-          </section>
-          <section className="chat-frame__side-bottom">
-            <div className="surface__header">
-              <p className="surface__eyebrow">Status</p>
-              <h2 className="surface__title">Runtime summary</h2>
-            </div>
-            <div className="placeholder-card">
-              <strong>Runtime health stays visible</strong>
-              <p>
-                This region will hold coordinator, watchdog, and approval state
-                without turning the page into an ops console.
-              </p>
-            </div>
-          </section>
+          <div className="surface__header">
+            <p className="surface__eyebrow">Threads</p>
+            <h2 className="surface__title">Execution pane</h2>
+          </div>
+          <ThreadPane
+            threads={projectThreads}
+            selectedThreadId={selectedThreadId}
+            messagesByThreadId={threads.messagesByThreadId}
+            fetchStatus={threadFetchStatus}
+            onSelectThread={handleSelectThread}
+            onFetchMessages={handleFetchMessages}
+            onSendMessage={handleSendMessage}
+          />
         </div>
 
         {drawerOpen && (

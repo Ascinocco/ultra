@@ -522,19 +522,9 @@ button {
 }
 
 .chat-frame__side {
-  display: grid;
-  grid-template-rows: 1fr auto;
+  padding: 20px;
   grid-row: 1;
-}
-
-.chat-frame__side-top {
-  padding: 20px;
   overflow: auto;
-}
-
-.chat-frame__side-bottom {
-  padding: 20px;
-  border-top: 1px solid var(--panel-border);
 }
 
 /* ── Terminal Drawer (inside chat-frame grid) ─────────────── */
@@ -1761,7 +1751,7 @@ button {
   }
 
   .chat-frame__side {
-    grid-template-rows: auto auto;
+    overflow: auto;
   }
 
   .terminal-drawer__tabs {
