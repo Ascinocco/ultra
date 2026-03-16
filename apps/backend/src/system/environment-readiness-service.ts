@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process"
+import { execFile, execFileSync } from "node:child_process"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { promisify } from "node:util"
@@ -13,6 +13,29 @@ import type {
 
 const execFileAsync = promisify(execFile)
 const TOOL_TIMEOUT_MS = 2_500
+
+/**
+ * Resolve the user's login shell PATH so that tools installed via .zshrc/.bashrc
+ * (e.g. in ~/.local/bin, nvm paths, cargo, etc.) are discoverable by execFile.
+ * Falls back to process.env.PATH if the shell probe fails.
+ */
+function resolveLoginShellPath(): string {
+  const fallback = process.env.PATH ?? ""
+  try {
+    const shell = process.env.SHELL || "/bin/zsh"
+    const result = execFileSync(shell, ["-ilc", "echo __PATH__=$PATH"], {
+      timeout: 3_000,
+      maxBuffer: 64 * 1024,
+      env: { ...process.env },
+    }).toString()
+    const match = result.match(/__PATH__=(.+)/)
+    return match?.[1]?.trim() ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
+const loginShellPath = resolveLoginShellPath()
 
 type ToolDefinition = {
   tool: DependencyTool
@@ -184,6 +207,7 @@ async function defaultRunToolCommand(
   return execFileAsync(command, args, {
     timeout: timeoutMs,
     maxBuffer: 64 * 1024,
+    env: { ...process.env, PATH: loginShellPath },
   })
 }
 
