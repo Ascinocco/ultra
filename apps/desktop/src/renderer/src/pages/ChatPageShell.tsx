@@ -199,7 +199,9 @@ export function ChatPageShell({
 
   function handleCloseSession(sessionId: string) {
     if (!activeProjectId) return
-    void closeTerminalSession(activeProjectId, sessionId, actions)
+    closeTerminalSession(activeProjectId, sessionId, actions).catch((err) => {
+      console.error("[terminal] failed to close session:", err)
+    })
   }
 
   function handleTerminalInput(sessionId: string, data: string) {
