@@ -824,6 +824,28 @@ export class ThreadService {
     ).map((row) => row.id)
   }
 
+  listProjectsWithNonTerminalThreads(): ProjectId[] {
+    return (
+      this.database
+        .prepare(
+          `
+            SELECT DISTINCT project_id
+            FROM threads
+            WHERE execution_state IN (
+              'queued',
+              'starting',
+              'running',
+              'blocked',
+              'awaiting_review',
+              'finishing'
+            )
+            ORDER BY project_id ASC
+          `,
+        )
+        .all() as Array<{ project_id: ProjectId }>
+    ).map((row) => row.project_id)
+  }
+
   private notifyMessageListeners(message: ThreadMessageSnapshot): void {
     const listeners = this.messageListenersByThreadId.get(message.threadId)
 

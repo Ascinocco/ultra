@@ -65,6 +65,14 @@ type CoordinatorSessionState = {
         >)
     | null
   helloRequestId: string | null
+  helloReadyPid: number | null
+  helloWaiter: {
+    promise: Promise<void>
+    reject: (error: Error) => void
+    requestId: string
+    resolve: () => void
+    timeout: ReturnType<typeof setTimeout>
+  } | null
   lastHelloPid: number | null
   latestSequenceByInstanceId: Map<string, number>
 }
@@ -146,6 +154,7 @@ export class CoordinatorService {
     private readonly sandboxService: SandboxService,
     private readonly threadService: ThreadService,
     private readonly now: () => string = () => new Date().toISOString(),
+    private readonly helloTimeoutMs = 2_000,
     private readonly watchdogService?: WatchdogService,
   ) {
     this.runtimeSupervisor.subscribeToHandleLaunches(
@@ -180,6 +189,36 @@ export class CoordinatorService {
     this.attachHandle(projectId, component.componentId, handle)
     this.sendHello(projectId, handle.pid ?? null)
     return component
+  }
+
+  async ensureReady(projectId: ProjectId): Promise<RuntimeComponentSnapshot> {
+    const component = this.ensureRunning(projectId)
+    const state = this.getOrCreateSession(projectId)
+
+    if (!state.handle) {
+      throw new IpcProtocolError(
+        "runtime_unavailable",
+        "Project coordinator is not available.",
+      )
+    }
+
+    if (state.helloReadyPid === state.handle.pid) {
+      return (
+        this.runtimeRegistry.getProjectRuntimeComponent(
+          projectId,
+          "coordinator",
+        ) ?? component
+      )
+    }
+
+    await this.sendHello(projectId, state.handle.pid ?? null)
+
+    return (
+      this.runtimeRegistry.getProjectRuntimeComponent(
+        projectId,
+        "coordinator",
+      ) ?? component
+    )
   }
 
   startThread(input: {
@@ -286,6 +325,39 @@ export class CoordinatorService {
     }
   }
 
+  replayThread(thread: ThreadDetailResult): void {
+    const { thread: snapshot } = thread
+
+    this.dispatchCommand(
+      snapshot.projectId,
+      "start_thread",
+      {
+        attachments: [],
+        chat_refs: [
+          {
+            chat_id: snapshot.sourceChatId,
+            message_ids: [],
+          },
+        ],
+        checkout_context: this.buildCheckoutContext(
+          snapshot.projectId,
+          snapshot.id,
+        ),
+        execution_summary: snapshot.summary ?? snapshot.title,
+        spec_markdown: this.buildSpecMarkdown(thread),
+        thread_title: snapshot.title,
+        ticket_refs: thread.ticketRefs.map((ticketRef) => ({
+          display_label: ticketRef.displayLabel,
+          metadata: ticketRef.metadata,
+          provider: ticketRef.provider,
+          ticket_id: ticketRef.externalId,
+          url: ticketRef.url,
+        })),
+      },
+      snapshot.id,
+    )
+  }
+
   private attachHandle(
     projectId: ProjectId,
     componentId: string,
@@ -306,8 +378,13 @@ export class CoordinatorService {
     state.detachExit?.()
     state.componentId = componentId
     state.handle = rawHandle
+    state.helloReadyPid = null
     state.lastHelloPid = null
     state.helloRequestId = null
+    this.rejectHelloWaiter(
+      state,
+      "Coordinator handle was replaced before hello completed.",
+    )
 
     state.detachStdout = rawHandle.onStdoutLine((line) => {
       this.processStdoutLine(projectId, componentId, line)
@@ -317,8 +394,13 @@ export class CoordinatorService {
     })
     state.detachExit = rawHandle.onExit(() => {
       state.handle = null
+      state.helloReadyPid = null
       state.lastHelloPid = null
       state.helloRequestId = null
+      this.rejectHelloWaiter(
+        state,
+        "Project coordinator exited before hello completed.",
+      )
     })
   }
 
@@ -411,15 +493,66 @@ export class CoordinatorService {
     }
   }
 
-  private sendHello(projectId: ProjectId, pid: number | null): void {
+  private sendHello(projectId: ProjectId, pid: number | null): Promise<void> {
     const state = this.getOrCreateSession(projectId)
 
-    if (!state.handle || state.lastHelloPid === pid) {
-      return
+    if (!state.handle) {
+      return Promise.reject(
+        new IpcProtocolError(
+          "runtime_unavailable",
+          "Project coordinator is not available.",
+        ),
+      )
     }
 
+    if (state.helloReadyPid === pid) {
+      return Promise.resolve()
+    }
+
+    if (
+      state.helloWaiter &&
+      state.lastHelloPid === pid &&
+      state.helloRequestId === state.helloWaiter.requestId
+    ) {
+      return state.helloWaiter.promise
+    }
+
+    this.rejectHelloWaiter(
+      state,
+      "Project coordinator hello was replaced before completing.",
+    )
+
+    const requestId = `coord_req_hello_${randomUUID()}`
+    let resolveWaiter!: () => void
+    let rejectWaiter!: (error: Error) => void
+    const promise = new Promise<void>((resolve, reject) => {
+      resolveWaiter = resolve
+      rejectWaiter = reject
+    })
+    const timeout = setTimeout(() => {
+      state.helloWaiter = null
+      state.helloReadyPid = null
+      this.markCoordinatorUnavailable(
+        projectId,
+        "Project coordinator hello handshake timed out.",
+      )
+      rejectWaiter(
+        new IpcProtocolError(
+          "runtime_unavailable",
+          "Project coordinator hello handshake timed out.",
+        ),
+      )
+    }, this.helloTimeoutMs)
+
     state.lastHelloPid = pid
-    state.helloRequestId = `coord_req_hello_${randomUUID()}`
+    state.helloRequestId = requestId
+    state.helloWaiter = {
+      promise,
+      reject: rejectWaiter,
+      requestId,
+      resolve: resolveWaiter,
+      timeout,
+    }
     state.handle.writeLine(
       JSON.stringify({
         command: "hello",
@@ -431,9 +564,11 @@ export class CoordinatorService {
         },
         project_id: projectId,
         protocol_version: "1.0",
-        request_id: state.helloRequestId,
+        request_id: requestId,
       }),
     )
+
+    return promise
   }
 
   private processStdoutLine(
@@ -503,6 +638,7 @@ export class CoordinatorService {
       typeof response.result.coordinator_instance_id === "string"
         ? response.result.coordinator_instance_id
         : null
+    const currentPid = state.handle?.pid ?? state.lastHelloPid
 
     this.runtimeRegistry.upsertRuntimeComponent({
       componentId,
@@ -533,6 +669,8 @@ export class CoordinatorService {
       status: "running",
     })
     this.threadService.updateProjectCoordinatorHealth(projectId, "healthy")
+    state.helloReadyPid = currentPid ?? null
+    this.resolveHelloWaiter(state)
     this.watchdogService?.ensureRunning(projectId)
     this.watchdogService?.updateCoordinatorSnapshot(
       this.buildWatchdogSnapshot(projectId, {
@@ -897,7 +1035,9 @@ export class CoordinatorService {
       detachStderr: null,
       detachStdout: null,
       handle: null,
+      helloReadyPid: null,
       helloRequestId: null,
+      helloWaiter: null,
       lastHelloPid: null,
       latestSequenceByInstanceId: new Map(),
     }
@@ -909,6 +1049,9 @@ export class CoordinatorService {
     projectId: ProjectId,
     reason: string,
   ): void {
+    const state = this.getOrCreateSession(projectId)
+    state.helloReadyPid = null
+    this.rejectHelloWaiter(state, reason)
     const currentComponent = this.runtimeRegistry.getProjectRuntimeComponent(
       projectId,
       "coordinator",
@@ -957,6 +1100,31 @@ export class CoordinatorService {
     })
     this.threadService.updateProjectCoordinatorHealth(projectId, "down")
     this.watchdogService?.handleCoordinatorUnavailable(projectId, reason)
+  }
+
+  private rejectHelloWaiter(
+    state: CoordinatorSessionState,
+    message: string,
+  ): void {
+    if (!state.helloWaiter) {
+      return
+    }
+
+    clearTimeout(state.helloWaiter.timeout)
+    const waiter = state.helloWaiter
+    state.helloWaiter = null
+    waiter.reject(new IpcProtocolError("runtime_unavailable", message))
+  }
+
+  private resolveHelloWaiter(state: CoordinatorSessionState): void {
+    if (!state.helloWaiter) {
+      return
+    }
+
+    clearTimeout(state.helloWaiter.timeout)
+    const waiter = state.helloWaiter
+    state.helloWaiter = null
+    waiter.resolve()
   }
 
   private buildWatchdogSnapshot(

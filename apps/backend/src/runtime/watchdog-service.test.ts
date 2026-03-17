@@ -104,6 +104,7 @@ function createRuntimeFixture(): RuntimeFixture {
     sandboxService,
     threadService,
     () => "2026-03-16T22:00:00.000Z",
+    undefined,
     watchdogService,
   )
 

@@ -36,6 +36,15 @@ export class ThreadProjectionService {
       case "thread.health_changed":
         this.applyHealthChanged(event)
         return
+      case "thread.coordinator_restarted":
+        this.applyCoordinatorRestarted(event)
+        return
+      case "thread.recovered":
+        this.applyRecovered(event)
+        return
+      case "thread.recovery_failed":
+        this.applyRecoveryFailed(event)
+        return
       default:
         this.database
           .prepare(
@@ -333,6 +342,84 @@ export class ThreadProjectionService {
           ? payload.coordinator_health
           : null,
         typeof payload.watch_health === "string" ? payload.watch_health : null,
+        typeof payload.reason === "string" ? payload.reason : null,
+        event.sequenceNumber,
+        event.recordedAt,
+        event.occurredAt,
+        event.threadId,
+      )
+  }
+
+  private applyCoordinatorRestarted(event: ThreadEventSnapshot): void {
+    const payload = event.payload as {
+      restart_count?: unknown
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE threads
+          SET
+            restart_count = COALESCE(?, restart_count),
+            failure_reason = NULL,
+            last_event_sequence = ?,
+            updated_at = ?,
+            last_activity_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
+        typeof payload.restart_count === "number"
+          ? payload.restart_count
+          : null,
+        event.sequenceNumber,
+        event.recordedAt,
+        event.occurredAt,
+        event.threadId,
+      )
+  }
+
+  private applyRecovered(event: ThreadEventSnapshot): void {
+    this.database
+      .prepare(
+        `
+          UPDATE threads
+          SET
+            backend_health = 'healthy',
+            failure_reason = NULL,
+            last_event_sequence = ?,
+            updated_at = ?,
+            last_activity_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
+        event.sequenceNumber,
+        event.recordedAt,
+        event.occurredAt,
+        event.threadId,
+      )
+  }
+
+  private applyRecoveryFailed(event: ThreadEventSnapshot): void {
+    const payload = event.payload as {
+      reason?: unknown
+    }
+
+    this.database
+      .prepare(
+        `
+          UPDATE threads
+          SET
+            backend_health = 'degraded',
+            failure_reason = COALESCE(?, failure_reason),
+            last_event_sequence = ?,
+            updated_at = ?,
+            last_activity_at = ?
+          WHERE id = ?
+        `,
+      )
+      .run(
         typeof payload.reason === "string" ? payload.reason : null,
         event.sequenceNumber,
         event.recordedAt,

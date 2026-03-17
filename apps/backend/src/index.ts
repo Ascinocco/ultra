@@ -9,6 +9,7 @@ import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { ProjectService } from "./projects/project-service.js"
 import { CoordinatorService } from "./runtime/coordinator-service.js"
 import { NodeSupervisedProcessAdapter } from "./runtime/node-supervised-process-adapter.js"
+import { RecoveryService } from "./runtime/recovery-service.js"
 import { RuntimePersistenceService } from "./runtime/runtime-persistence-service.js"
 import { RuntimeRegistry } from "./runtime/runtime-registry.js"
 import { RuntimeSupervisor } from "./runtime/runtime-supervisor.js"
@@ -65,36 +66,46 @@ export async function startBackendScaffold(options?: {
     runtimeRegistry,
     databaseRuntime.databasePath,
   )
+  const projectService = new ProjectService(databaseRuntime.database)
+  const threadService = new ThreadService(databaseRuntime.database)
+  const sandboxPersistenceService = new SandboxPersistenceService(
+    databaseRuntime.database,
+  )
+  const sandboxService = new SandboxService(sandboxPersistenceService)
+  const watchdogService = new WatchdogService(
+    runtimeSupervisor,
+    runtimeRegistry,
+    projectService,
+    threadService,
+  )
+  const coordinatorService = new CoordinatorService(
+    runtimeSupervisor,
+    runtimeRegistry,
+    projectService,
+    sandboxService,
+    threadService,
+    undefined,
+    undefined,
+    watchdogService,
+  )
+  const recoveryService = new RecoveryService(
+    projectService,
+    threadService,
+    runtimeRegistry,
+    coordinatorService,
+    watchdogService,
+    watchService,
+  )
 
   runtimeSupervisor.hydrate()
   watchService.ensureRunning()
+  await recoveryService.recover()
 
   console.log(
     `[backend] database ready at ${databaseRuntime.databasePath} (${databaseRuntime.migrationResult.appliedMigrationIds.length} migrations applied)`,
   )
 
   if (socketPath) {
-    const projectService = new ProjectService(databaseRuntime.database)
-    const threadService = new ThreadService(databaseRuntime.database)
-    const sandboxPersistenceService = new SandboxPersistenceService(
-      databaseRuntime.database,
-    )
-    const sandboxService = new SandboxService(sandboxPersistenceService)
-    const watchdogService = new WatchdogService(
-      runtimeSupervisor,
-      runtimeRegistry,
-      projectService,
-      threadService,
-    )
-    const coordinatorService = new CoordinatorService(
-      runtimeSupervisor,
-      runtimeRegistry,
-      projectService,
-      sandboxService,
-      threadService,
-      undefined,
-      watchdogService,
-    )
     threadService.setCoordinatorDispatchHandler({
       sendThreadMessage: (input) =>
         coordinatorService.sendThreadMessage({
