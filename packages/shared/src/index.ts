@@ -550,3 +550,19 @@ export {
   approvalTypeSchema,
   parseApprovalSnapshot,
 } from "./contracts/approvals.js"
+export type {
+  TerminalCommandGenEvent,
+  TerminalCommandGenInput,
+} from "./contracts/terminal-command-gen.js"
+export {
+  parseTerminalCommandGenEvent,
+  parseTerminalCommandGenInput,
+  terminalCommandGenCompleteEventSchema,
+  terminalCommandGenDeltaEventSchema,
+  terminalCommandGenErrorEventSchema,
+  terminalCommandGenEventSchema,
+  terminalCommandGenInputSchema,
+  terminalCommandGenProviderSchema,
+  terminalCommandGenSubscribeInputSchema,
+  terminalCommandGenSubscribeRequestSchema,
+} from "./contracts/terminal-command-gen.js"
