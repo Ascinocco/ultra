@@ -132,7 +132,7 @@ describe("migration runner", () => {
     database.close()
   })
 
-  it("applies 0005_thread_core through 0009_thread_agents_events_and_approvals on a fresh database", () => {
+  it("applies 0005_thread_core through 0010_thread_agents_events_and_approvals on a fresh database", () => {
     const database = createDatabase()
     const result = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
@@ -712,7 +712,7 @@ describe("thread core FK constraints", () => {
     database.close()
   })
 
-  it("incremental apply on DB with 0001-0007 applies 0008 and 0009", () => {
+  it("incremental apply on DB with 0001-0007 applies 0008, 0009, and 0010", () => {
     const database = createDatabase()
 
     // Apply only 0001-0007 first
@@ -722,7 +722,7 @@ describe("thread core FK constraints", () => {
     })
     expect(firstResult.appliedMigrationIds).toHaveLength(7)
 
-    // Now run full migrations — only 0008 and 0009 should apply
+    // Now run full migrations — only 0008, 0009, and 0010 should apply
     const secondResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
     })
