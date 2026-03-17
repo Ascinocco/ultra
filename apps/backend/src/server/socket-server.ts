@@ -16,6 +16,7 @@ import {
   runtimeComponentUpdatedSubscribeInputSchema,
   runtimeHealthUpdatedSubscribeRequestSchema,
   runtimeProjectRuntimeUpdatedSubscribeRequestSchema,
+  terminalCommandGenInputSchema,
   terminalOutputSubscribeInputSchema,
   terminalSessionsSubscribeInputSchema,
   threadsMessagesSubscribeInputSchema,
@@ -32,6 +33,7 @@ import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import { SystemService } from "../system/system-service.js"
 import type { TerminalService } from "../terminal/terminal-service.js"
+import type { TerminalCommandGenService } from "../terminal/terminal-command-gen-service.js"
 import type { TerminalSessionService } from "../terminal/terminal-session-service.js"
 import type { ThreadService } from "../threads/thread-service.js"
 
@@ -73,6 +75,7 @@ export async function startSocketServer(
     watchService: WatchService
     threadService: ThreadService
     sandboxService: SandboxService
+    terminalCommandGenService: TerminalCommandGenService
     terminalSessionService: TerminalSessionService
     terminalService: TerminalService
   },
@@ -119,6 +122,7 @@ export async function startSocketServer(
             watchService: services.watchService,
             threadService: services.threadService,
             sandboxService: services.sandboxService,
+            terminalCommandGenService: services.terminalCommandGenService,
             terminalSessionService: services.terminalSessionService,
             terminalService: services.terminalService,
           },
@@ -158,6 +162,7 @@ async function handleLine(
     watchService: WatchService
     threadService: ThreadService
     sandboxService: SandboxService
+    terminalCommandGenService: TerminalCommandGenService
     terminalSessionService: TerminalSessionService
     terminalService: TerminalService
   },
@@ -299,6 +304,7 @@ function handleSubscribeRequest(
     watchService: WatchService
     threadService: ThreadService
     sandboxService: SandboxService
+    terminalCommandGenService: TerminalCommandGenService
     terminalSessionService: TerminalSessionService
     terminalService: TerminalService
   },
@@ -469,6 +475,31 @@ function handleSubscribeRequest(
                 subscriptionId,
                 "threads.messages",
                 message,
+              ),
+            )}\n`,
+          )
+        },
+      )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "terminal.generate_command": {
+      const input = terminalCommandGenInputSchema.parse(request.payload)
+      const cleanup = services.terminalCommandGenService.generate(
+        input,
+        (event) => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(
+                subscriptionId,
+                "terminal.generate_command",
+                event,
               ),
             )}\n`,
           )
