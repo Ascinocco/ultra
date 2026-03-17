@@ -24,6 +24,7 @@ import {
 import { SystemService } from "./system/system-service.js"
 import { RuntimeProfileService } from "./terminal/runtime-profile-service.js"
 import { RuntimeSyncService } from "./terminal/runtime-sync-service.js"
+import { TerminalCommandGenService } from "./terminal/terminal-command-gen-service.js"
 import { TerminalService } from "./terminal/terminal-service.js"
 import { TerminalSessionService } from "./terminal/terminal-session-service.js"
 import { ThreadService } from "./threads/thread-service.js"
@@ -116,6 +117,7 @@ export async function startBackendScaffold(options?: {
       terminalService,
       runtimeProfileService,
     )
+    const terminalCommandGenService = new TerminalCommandGenService()
     const artifactCaptureService = new ArtifactCaptureService(
       new ArtifactStorageService(
         new ArtifactPersistenceService(databaseRuntime.database),
@@ -136,6 +138,7 @@ export async function startBackendScaffold(options?: {
       watchService,
       sandboxService,
       systemService: new SystemService(),
+      terminalCommandGenService,
       terminalSessionService,
       terminalService,
       threadService,

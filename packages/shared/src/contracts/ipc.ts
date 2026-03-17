@@ -70,6 +70,7 @@ export const subscriptionMethodSchema = z.enum([
   "threads.messages",
   "terminal.sessions",
   "terminal.output",
+  "terminal.generate_command",
 ])
 
 export const queryRequestEnvelopeSchema = z.object({

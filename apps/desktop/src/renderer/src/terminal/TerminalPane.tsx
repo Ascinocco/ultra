@@ -1,8 +1,16 @@
 import { FitAddon } from "@xterm/addon-fit"
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Terminal } from "xterm"
 import "xterm/css/xterm.css"
 
+import type { TerminalCommandGenEvent } from "@ultra/shared"
+
+import { useAppStore } from "../state/app-store.js"
+import { TerminalCommandBar } from "./TerminalCommandBar.js"
+import {
+  generateCommand,
+  injectCommand,
+} from "./terminal-command-gen-workflows.js"
 import { terminalOutputEmitter } from "./terminal-output-emitter.js"
 import { subscribeToTerminalOutput } from "./terminal-subscriptions.js"
 
@@ -20,7 +28,113 @@ export function TerminalPane({
   onResize: (sessionId: string, cols: number, rows: number) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
+  const unsubRef = useRef<(() => Promise<void>) | null>(null)
+
+  const [commandBarVisible, setCommandBarVisible] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [streamingText, setStreamingText] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  const sessionCwd = useAppStore((s) => {
+    const sessions = s.terminal.sessionsByProjectId[projectId] ?? []
+    const session = sessions.find((sess) => sess.sessionId === sessionId)
+    return session?.cwd ?? ""
+  })
+  const provider = useAppStore((s) => s.terminal.commandBarProvider)
+  const model = useAppStore((s) => s.terminal.commandBarModel)
+  const setProvider = useAppStore((s) => s.actions.setCommandBarProvider)
+  const setModel = useAppStore((s) => s.actions.setCommandBarModel)
+  const hasClaude = useAppStore(
+    (s) =>
+      s.readiness.snapshot?.checks?.some(
+        (c) => c.tool === "claude" && c.status === "ready",
+      ) ?? false,
+  )
+  const hasCodex = useAppStore(
+    (s) =>
+      s.readiness.snapshot?.checks?.some(
+        (c) => c.tool === "codex" && c.status === "ready",
+      ) ?? false,
+  )
+  const availableProviders = useMemo(() => {
+    const p: Array<"claude" | "codex"> = []
+    if (hasClaude) p.push("claude")
+    if (hasCodex) p.push("codex")
+    return p.length > 0 ? p : (["claude"] as Array<"claude" | "codex">)
+  }, [hasClaude, hasCodex])
+
+  const handleCmdK = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === "k") {
+        e.preventDefault()
+        if (!commandBarVisible && !generating) {
+          setCommandBarVisible(true)
+        }
+      }
+    },
+    [commandBarVisible, generating],
+  )
+
+  const handleSubmit = useCallback(
+    async (prompt: string) => {
+      setGenerating(true)
+      setStreamingText("")
+      setError(null)
+
+      try {
+        const unsub = await generateCommand(
+          {
+            projectId,
+            prompt,
+            cwd: sessionCwd,
+            recentOutput: recentOutput ?? "",
+            provider,
+            model,
+            sessionId,
+          },
+          (event: TerminalCommandGenEvent) => {
+            if (event.type === "delta") {
+              setStreamingText((prev) => prev + event.text)
+            } else if (event.type === "complete") {
+              setGenerating(false)
+              setCommandBarVisible(false)
+              void injectCommand(projectId, sessionId, event.command)
+            } else if (event.type === "error") {
+              setGenerating(false)
+              setError(event.message)
+            }
+          },
+        )
+        unsubRef.current = unsub
+      } catch (err) {
+        setGenerating(false)
+        setError(
+          err instanceof Error ? err.message : "Failed to start generation",
+        )
+      }
+    },
+    [projectId, sessionId, sessionCwd, recentOutput, provider, model],
+  )
+
+  const handleCancel = useCallback(() => {
+    if (unsubRef.current) {
+      void unsubRef.current()
+      unsubRef.current = null
+    }
+    setCommandBarVisible(false)
+    setGenerating(false)
+    setStreamingText("")
+    setError(null)
+  }, [])
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    wrapper.addEventListener("keydown", handleCmdK)
+    return () => wrapper.removeEventListener("keydown", handleCmdK)
+  }, [handleCmdK])
 
   useEffect(() => {
     const container = containerRef.current
@@ -129,8 +243,21 @@ export function TerminalPane({
   // the effect runs once per session mount and captures initial values.
 
   return (
-    <div className="terminal-pane">
+    <div className="terminal-pane" ref={wrapperRef}>
       <div className="terminal-pane__xterm" ref={containerRef} />
+      <TerminalCommandBar
+        visible={commandBarVisible}
+        provider={provider}
+        model={model}
+        generating={generating}
+        streamingText={streamingText}
+        error={error}
+        onSubmit={handleSubmit}
+        onCancel={handleCancel}
+        onProviderChange={setProvider}
+        onModelChange={setModel}
+        availableProviders={availableProviders}
+      />
     </div>
   )
 }
