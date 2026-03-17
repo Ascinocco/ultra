@@ -14,6 +14,7 @@ import {
   IPC_PROTOCOL_VERSION,
   parseIpcRequestEnvelope,
   runtimeComponentUpdatedSubscribeInputSchema,
+  terminalCommandGenInputSchema,
   terminalOutputSubscribeInputSchema,
   terminalSessionsSubscribeInputSchema,
   threadsMessagesSubscribeInputSchema,
@@ -29,6 +30,7 @@ import type { RuntimeRegistry } from "../runtime/runtime-registry.js"
 import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import { SystemService } from "../system/system-service.js"
+import { TerminalCommandGenService } from "../terminal/terminal-command-gen-service.js"
 import type { TerminalService } from "../terminal/terminal-service.js"
 import type { TerminalSessionService } from "../terminal/terminal-session-service.js"
 import type { ThreadService } from "../threads/thread-service.js"
@@ -418,6 +420,29 @@ function handleSubscribeRequest(
       )
 
       subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "terminal.generate_command": {
+      const input = terminalCommandGenInputSchema.parse(request.payload)
+      const commandGenService = new TerminalCommandGenService()
+      const cancel = commandGenService.generate(input, (event) => {
+        socket.write(
+          `${JSON.stringify(
+            createSubscriptionEvent(
+              subscriptionId,
+              "terminal.generate_command",
+              event,
+            ),
+          )}\n`,
+        )
+      })
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cancel)
 
       return {
         response: createSuccessResponse(request.request_id, {

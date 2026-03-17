@@ -75,6 +75,8 @@ type TerminalSlice = {
   sessionsByProjectId: Record<string, TerminalSessionSnapshot[]>
   focusedSessionIdByProjectId: Record<string, string | null>
   savedCommandsByProjectId: Record<string, SavedCommandSnapshot[]>
+  commandBarProvider: "claude" | "codex"
+  commandBarModel: string
 }
 
 type ThreadsSlice = {
@@ -137,6 +139,8 @@ type AppActions = {
     commands: SavedCommandSnapshot[],
   ) => void
   setTerminalDrawerOpen: (projectId: string, open: boolean) => void
+  setCommandBarProvider: (provider: "claude" | "codex") => void
+  setCommandBarModel: (model: string) => void
   setReadinessChecking: () => void
   setReadinessSnapshot: (snapshot: EnvironmentReadinessSnapshot) => void
   setReadinessError: (error: string) => void
@@ -212,6 +216,8 @@ const defaultTerminalState: TerminalSlice = {
   sessionsByProjectId: {},
   focusedSessionIdByProjectId: {},
   savedCommandsByProjectId: {},
+  commandBarProvider: "claude",
+  commandBarModel: "sonnet-4-6",
 }
 
 const defaultThreadsState: ThreadsSlice = {
@@ -310,6 +316,8 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       setFocusedTerminalSession: () => undefined,
       setSavedCommandsForProject: () => undefined,
       setTerminalDrawerOpen: () => undefined,
+      setCommandBarProvider: () => undefined,
+      setCommandBarModel: () => undefined,
       setReadinessChecking: () => undefined,
       setReadinessSnapshot: () => undefined,
       setReadinessError: () => undefined,
@@ -624,6 +632,22 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
               ...state.terminal.drawerOpenByProjectId,
               [projectId]: open,
             },
+          },
+        })),
+      setCommandBarProvider: (cmdBarProvider) =>
+        set((state) => ({
+          ...state,
+          terminal: {
+            ...state.terminal,
+            commandBarProvider: cmdBarProvider,
+          },
+        })),
+      setCommandBarModel: (cmdBarModel) =>
+        set((state) => ({
+          ...state,
+          terminal: {
+            ...state.terminal,
+            commandBarModel: cmdBarModel,
           },
         })),
       setReadinessChecking: () =>
