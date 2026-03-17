@@ -782,6 +782,48 @@ export class ThreadService {
       .run(health, projectId)
   }
 
+  listActiveCoordinatorThreadIds(projectId: ProjectId): ThreadId[] {
+    this.assertProjectExists(projectId)
+
+    return (
+      this.database
+        .prepare(
+          `
+            SELECT id
+            FROM threads
+            WHERE project_id = ?
+              AND execution_state IN (
+                'queued',
+                'starting',
+                'running',
+                'blocked',
+                'finishing'
+              )
+            ORDER BY last_activity_at DESC, created_at DESC
+          `,
+        )
+        .all(projectId) as Array<{ id: ThreadId }>
+    ).map((row) => row.id)
+  }
+
+  listNonTerminalThreadIds(projectId: ProjectId): ThreadId[] {
+    this.assertProjectExists(projectId)
+
+    return (
+      this.database
+        .prepare(
+          `
+            SELECT id
+            FROM threads
+            WHERE project_id = ?
+              AND execution_state NOT IN ('completed', 'failed', 'canceled')
+            ORDER BY last_activity_at DESC, created_at DESC
+          `,
+        )
+        .all(projectId) as Array<{ id: ThreadId }>
+    ).map((row) => row.id)
+  }
+
   private notifyMessageListeners(message: ThreadMessageSnapshot): void {
     const listeners = this.messageListenersByThreadId.get(message.threadId)
 
