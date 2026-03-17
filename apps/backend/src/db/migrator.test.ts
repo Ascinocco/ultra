@@ -49,6 +49,7 @@ describe("migration runner", () => {
       "0007_thread_events_foundation",
       "0008_artifacts_and_sharing",
       "0009_layout_sidebar_and_split_ratio",
+      "0010_thread_agents_events_and_approvals",
     ])
     expect(rows).toEqual([
       {
@@ -85,6 +86,10 @@ describe("migration runner", () => {
       },
       {
         id: "0009_layout_sidebar_and_split_ratio",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
+      {
+        id: "0010_thread_agents_events_and_approvals",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
@@ -127,7 +132,7 @@ describe("migration runner", () => {
     database.close()
   })
 
-  it("applies 0005_thread_core through 0008_artifacts_and_sharing on a fresh database", () => {
+  it("applies 0005_thread_core through 0010_thread_agents_events_and_approvals on a fresh database", () => {
     const database = createDatabase()
     const result = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
@@ -144,7 +149,8 @@ describe("migration runner", () => {
     expect(result.appliedMigrationIds).toContain(
       "0009_layout_sidebar_and_split_ratio",
     )
-    expect(result.totalMigrationCount).toBe(9)
+    expect(result.appliedMigrationIds).toContain("0010_thread_agents_events_and_approvals")
+    expect(result.totalMigrationCount).toBe(10)
 
     // Verify threads table exists with correct columns
     const threadColumns = database
@@ -250,6 +256,101 @@ describe("migration runner", () => {
     expect(artifactIndexes).toEqual([
       { name: "idx_artifact_shares_destination" },
       { name: "idx_artifacts_thread_created" },
+    ])
+
+    // Verify thread_event_logs table
+    const eventLogColumns = database
+      .prepare("PRAGMA table_info(thread_event_logs)")
+      .all() as Array<{ name: string }>
+    expect(eventLogColumns.map((c) => c.name)).toEqual([
+      "log_id",
+      "project_id",
+      "thread_id",
+      "event_id",
+      "agent_id",
+      "agent_type",
+      "stream",
+      "chunk_index",
+      "chunk_text",
+      "created_at",
+    ])
+
+    // Verify thread_agents table
+    const agentColumns = database
+      .prepare("PRAGMA table_info(thread_agents)")
+      .all() as Array<{ name: string }>
+    expect(agentColumns.map((c) => c.name)).toEqual([
+      "agent_id",
+      "thread_id",
+      "parent_agent_id",
+      "agent_type",
+      "display_name",
+      "status",
+      "summary",
+      "work_item_ref",
+      "started_at",
+      "updated_at",
+      "finished_at",
+    ])
+
+    // Verify thread_file_changes table
+    const fileChangeColumns = database
+      .prepare("PRAGMA table_info(thread_file_changes)")
+      .all() as Array<{ name: string }>
+    expect(fileChangeColumns.map((c) => c.name)).toEqual([
+      "thread_id",
+      "path",
+      "change_type",
+      "old_path",
+      "additions",
+      "deletions",
+      "updated_at",
+    ])
+
+    // Verify approvals table
+    const approvalColumns = database
+      .prepare("PRAGMA table_info(approvals)")
+      .all() as Array<{ name: string }>
+    expect(approvalColumns.map((c) => c.name)).toEqual([
+      "approval_id",
+      "project_id",
+      "thread_id",
+      "approval_type",
+      "status",
+      "title",
+      "description",
+      "payload_json",
+      "requested_at",
+      "resolved_at",
+      "resolved_by",
+    ])
+
+    // Verify all new indexes exist
+    const newIndexes = database
+      .prepare(
+        `
+          SELECT name
+          FROM sqlite_master
+          WHERE type = 'index'
+            AND name IN (
+              'idx_thread_event_logs_thread_created',
+              'idx_thread_event_logs_thread_agent',
+              'idx_thread_agents_thread_status',
+              'idx_thread_file_changes_thread',
+              'idx_approvals_thread_status',
+              'idx_approvals_project_status'
+            )
+          ORDER BY name ASC
+        `,
+      )
+      .all() as Array<{ name: string }>
+    expect(newIndexes).toEqual([
+      { name: "idx_approvals_project_status" },
+      { name: "idx_approvals_thread_status" },
+      { name: "idx_thread_agents_thread_status" },
+      { name: "idx_thread_event_logs_thread_agent" },
+      { name: "idx_thread_event_logs_thread_created" },
+      { name: "idx_thread_file_changes_thread" },
     ])
 
     database.close()
@@ -611,7 +712,7 @@ describe("thread core FK constraints", () => {
     database.close()
   })
 
-  it("incremental apply on DB with 0001-0007 applies only 0008", () => {
+  it("incremental apply on DB with 0001-0007 applies 0008, 0009, and 0010", () => {
     const database = createDatabase()
 
     // Apply only 0001-0007 first
@@ -621,7 +722,7 @@ describe("thread core FK constraints", () => {
     })
     expect(firstResult.appliedMigrationIds).toHaveLength(7)
 
-    // Now run full migrations — only 0008 should apply
+    // Now run full migrations — only 0008, 0009, and 0010 should apply
     const secondResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
     })
@@ -629,8 +730,9 @@ describe("thread core FK constraints", () => {
     expect(secondResult.appliedMigrationIds).toEqual([
       "0008_artifacts_and_sharing",
       "0009_layout_sidebar_and_split_ratio",
+      "0010_thread_agents_events_and_approvals",
     ])
-    expect(secondResult.totalMigrationCount).toBe(9)
+    expect(secondResult.totalMigrationCount).toBe(10)
 
     database.close()
   })
@@ -780,7 +882,256 @@ describe("thread core FK constraints", () => {
     })
 
     expect(result.appliedMigrationIds).toEqual([])
-    expect(result.totalMigrationCount).toBe(9)
+    expect(result.totalMigrationCount).toBe(10)
+
+    database.close()
+  })
+
+  function insertThreadEvent(
+    database: DatabaseSync,
+    eventId = "event_1",
+    projectId = "proj_1",
+    threadId = "thread_1",
+  ): void {
+    database
+      .prepare(
+        "INSERT INTO thread_events (event_id, project_id, thread_id, sequence_number, event_type, actor_type, source, payload_json, occurred_at, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        eventId,
+        projectId,
+        threadId,
+        1,
+        "thread.created",
+        "system",
+        "ultra.backend",
+        '{"type":"created"}',
+        "2026-03-17T00:00:00Z",
+        "2026-03-17T00:00:00Z",
+      )
+  }
+
+  it("rejects a thread_event_log with nonexistent thread_id", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+
+    expect(() =>
+      database
+        .prepare(
+          "INSERT INTO thread_event_logs (log_id, project_id, thread_id, event_id, stream, chunk_index, chunk_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .run("log_1", "proj_1", "nonexistent", null, "stdout", 0, "hello", "2026-03-17T00:00:00Z"),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("sets event_id to null when referenced thread_event is deleted", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+    insertThreadEvent(database)
+
+    database
+      .prepare(
+        "INSERT INTO thread_event_logs (log_id, project_id, thread_id, event_id, stream, chunk_index, chunk_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run("log_1", "proj_1", "thread_1", "event_1", "stdout", 0, "output", "2026-03-17T00:00:00Z")
+
+    database.prepare("DELETE FROM thread_events WHERE event_id = ?").run("event_1")
+
+    const log = database
+      .prepare("SELECT log_id, event_id FROM thread_event_logs WHERE log_id = ?")
+      .get("log_1") as { log_id: string; event_id: string | null }
+    expect(log.event_id).toBeNull()
+
+    database.close()
+  })
+
+  it("cascades thread deletion to thread_agents", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    database
+      .prepare(
+        "INSERT INTO thread_agents (agent_id, thread_id, agent_type, display_name, status, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run("agent_1", "thread_1", "coordinator", "Main Agent", "running", "2026-03-17T00:00:00Z")
+
+    database.prepare("DELETE FROM threads WHERE id = ?").run("thread_1")
+
+    const agents = database
+      .prepare("SELECT agent_id FROM thread_agents")
+      .all() as Array<{ agent_id: string }>
+    expect(agents).toEqual([])
+
+    database.close()
+  })
+
+  it("sets parent_agent_id to null when parent agent is deleted", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    database
+      .prepare(
+        "INSERT INTO thread_agents (agent_id, thread_id, agent_type, display_name, status, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run("parent_1", "thread_1", "coordinator", "Parent", "completed", "2026-03-17T00:00:00Z")
+
+    database
+      .prepare(
+        "INSERT INTO thread_agents (agent_id, thread_id, parent_agent_id, agent_type, display_name, status, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run("child_1", "thread_1", "parent_1", "worker", "Child", "running", "2026-03-17T00:00:00Z")
+
+    database.prepare("DELETE FROM thread_agents WHERE agent_id = ?").run("parent_1")
+
+    const child = database
+      .prepare("SELECT agent_id, parent_agent_id FROM thread_agents WHERE agent_id = ?")
+      .get("child_1") as { agent_id: string; parent_agent_id: string | null }
+    expect(child.parent_agent_id).toBeNull()
+
+    database.close()
+  })
+
+  it("cascades thread deletion to thread_file_changes", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    database
+      .prepare(
+        "INSERT INTO thread_file_changes (thread_id, path, change_type, updated_at) VALUES (?, ?, ?, ?)",
+      )
+      .run("thread_1", "src/main.ts", "modified", "2026-03-17T00:00:00Z")
+
+    database.prepare("DELETE FROM threads WHERE id = ?").run("thread_1")
+
+    const changes = database
+      .prepare("SELECT * FROM thread_file_changes")
+      .all() as Array<{ thread_id: string }>
+    expect(changes).toEqual([])
+
+    database.close()
+  })
+
+  it("rejects duplicate thread_file_changes for same thread and path", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    database
+      .prepare(
+        "INSERT INTO thread_file_changes (thread_id, path, change_type, updated_at) VALUES (?, ?, ?, ?)",
+      )
+      .run("thread_1", "src/main.ts", "modified", "2026-03-17T00:00:00Z")
+
+    expect(() =>
+      database
+        .prepare(
+          "INSERT INTO thread_file_changes (thread_id, path, change_type, updated_at) VALUES (?, ?, ?, ?)",
+        )
+        .run("thread_1", "src/main.ts", "deleted", "2026-03-17T00:01:00Z"),
+    ).toThrow()
+
+    database.close()
+  })
+
+  it("allows same path for different threads in thread_file_changes", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database, "thread_1")
+    insertThread(database, "thread_2", "proj_1", "chat_1")
+
+    database
+      .prepare(
+        "INSERT INTO thread_file_changes (thread_id, path, change_type, updated_at) VALUES (?, ?, ?, ?)",
+      )
+      .run("thread_1", "src/main.ts", "modified", "2026-03-17T00:00:00Z")
+
+    database
+      .prepare(
+        "INSERT INTO thread_file_changes (thread_id, path, change_type, updated_at) VALUES (?, ?, ?, ?)",
+      )
+      .run("thread_2", "src/main.ts", "added", "2026-03-17T00:00:00Z")
+
+    const changes = database
+      .prepare("SELECT thread_id, path FROM thread_file_changes ORDER BY thread_id")
+      .all() as Array<{ thread_id: string; path: string }>
+    expect(changes).toHaveLength(2)
+
+    database.close()
+  })
+
+  it("cascades thread deletion to approvals", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+
+    database
+      .prepare(
+        "INSERT INTO approvals (approval_id, project_id, thread_id, approval_type, status, title, payload_json, requested_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run("approval_1", "proj_1", "thread_1", "review", "pending", "Review thread work", '{}', "2026-03-17T00:00:00Z")
+
+    database.prepare("DELETE FROM threads WHERE id = ?").run("thread_1")
+
+    const approvals = database
+      .prepare("SELECT approval_id FROM approvals")
+      .all() as Array<{ approval_id: string }>
+    expect(approvals).toEqual([])
+
+    database.close()
+  })
+
+  it("cascades project deletion through threads to all child tables", () => {
+    const database = createMigratedDatabase()
+    insertProject(database)
+    insertChat(database)
+    insertThread(database)
+    insertThreadEvent(database)
+
+    // Insert data into all four new tables
+    database
+      .prepare(
+        "INSERT INTO thread_event_logs (log_id, project_id, thread_id, event_id, stream, chunk_index, chunk_text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run("log_1", "proj_1", "thread_1", "event_1", "stdout", 0, "output", "2026-03-17T00:00:00Z")
+
+    database
+      .prepare(
+        "INSERT INTO thread_agents (agent_id, thread_id, agent_type, display_name, status, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .run("agent_1", "thread_1", "coordinator", "Main", "running", "2026-03-17T00:00:00Z")
+
+    database
+      .prepare(
+        "INSERT INTO thread_file_changes (thread_id, path, change_type, updated_at) VALUES (?, ?, ?, ?)",
+      )
+      .run("thread_1", "src/main.ts", "modified", "2026-03-17T00:00:00Z")
+
+    database
+      .prepare(
+        "INSERT INTO approvals (approval_id, project_id, thread_id, approval_type, status, title, payload_json, requested_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run("approval_1", "proj_1", "thread_1", "review", "pending", "Review", '{}', "2026-03-17T00:00:00Z")
+
+    // Delete the project — everything should cascade
+    database.prepare("DELETE FROM projects WHERE id = ?").run("proj_1")
+
+    expect(database.prepare("SELECT * FROM thread_event_logs").all()).toEqual([])
+    expect(database.prepare("SELECT * FROM thread_agents").all()).toEqual([])
+    expect(database.prepare("SELECT * FROM thread_file_changes").all()).toEqual([])
+    expect(database.prepare("SELECT * FROM approvals").all()).toEqual([])
 
     database.close()
   })

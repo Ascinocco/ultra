@@ -4,6 +4,7 @@ import {
   APP_NAME,
   buildPlaceholderProjectLabel,
   IPC_PROTOCOL_VERSION,
+  parseApprovalSnapshot,
   parseArtifactBundle,
   parseArtifactLoadResult,
   parseArtifactSnapshot,
@@ -36,8 +37,11 @@ import {
   parseTerminalRuntimeProfileResult,
   parseTerminalSessionSnapshot,
   parseTerminalSessionsEvent,
+  parseThreadAgentSnapshot,
   parseThreadDetailResult,
+  parseThreadEventLogSnapshot,
   parseThreadEventSnapshot,
+  parseThreadFileChangeSnapshot,
   parseThreadMessageSnapshot,
   parseThreadsGetMessagesResult,
   parseThreadsListResult,
@@ -1199,5 +1203,189 @@ describe("shared contracts", () => {
     })
 
     expect(response.ok).toBe(false)
+  })
+
+  it("parses thread event log snapshots", () => {
+    const log = parseThreadEventLogSnapshot({
+      logId: "log_1",
+      projectId: "proj_1",
+      threadId: "thread_1",
+      eventId: "event_1",
+      agentId: "agent_1",
+      agentType: "coordinator",
+      stream: "stdout",
+      chunkIndex: 0,
+      chunkText: "Building project...",
+      createdAt: "2026-03-17T00:00:00Z",
+    })
+    expect(log.stream).toBe("stdout")
+    expect(log.chunkIndex).toBe(0)
+  })
+
+  it("parses thread event log snapshots with null optional fields", () => {
+    const log = parseThreadEventLogSnapshot({
+      logId: "log_2",
+      projectId: "proj_1",
+      threadId: "thread_1",
+      eventId: null,
+      agentId: null,
+      agentType: null,
+      stream: "stderr",
+      chunkIndex: 5,
+      chunkText: "Warning: unused variable",
+      createdAt: "2026-03-17T00:00:00Z",
+    })
+    expect(log.eventId).toBeNull()
+    expect(log.agentId).toBeNull()
+  })
+
+  it("parses thread agent snapshots", () => {
+    const agent = parseThreadAgentSnapshot({
+      agentId: "agent_1",
+      threadId: "thread_1",
+      parentAgentId: null,
+      agentType: "coordinator",
+      displayName: "Main Coordinator",
+      status: "running",
+      summary: null,
+      workItemRef: null,
+      startedAt: "2026-03-17T00:00:00Z",
+      updatedAt: "2026-03-17T00:00:00Z",
+      finishedAt: null,
+    })
+    expect(agent.status).toBe("running")
+    expect(agent.displayName).toBe("Main Coordinator")
+  })
+
+  it("rejects invalid thread agent status", () => {
+    expect(() =>
+      parseThreadAgentSnapshot({
+        agentId: "agent_1",
+        threadId: "thread_1",
+        parentAgentId: null,
+        agentType: "coordinator",
+        displayName: "Agent",
+        status: "unknown_status",
+        summary: null,
+        workItemRef: null,
+        startedAt: null,
+        updatedAt: "2026-03-17T00:00:00Z",
+        finishedAt: null,
+      }),
+    ).toThrow()
+  })
+
+  it("parses thread file change snapshots", () => {
+    const change = parseThreadFileChangeSnapshot({
+      threadId: "thread_1",
+      path: "src/main.ts",
+      changeType: "modified",
+      oldPath: null,
+      additions: 15,
+      deletions: 3,
+      updatedAt: "2026-03-17T00:00:00Z",
+    })
+    expect(change.changeType).toBe("modified")
+    expect(change.additions).toBe(15)
+  })
+
+  it("parses thread file change with rename", () => {
+    const change = parseThreadFileChangeSnapshot({
+      threadId: "thread_1",
+      path: "src/utils/new-name.ts",
+      changeType: "renamed",
+      oldPath: "src/utils/old-name.ts",
+      additions: null,
+      deletions: null,
+      updatedAt: "2026-03-17T00:00:00Z",
+    })
+    expect(change.changeType).toBe("renamed")
+    expect(change.oldPath).toBe("src/utils/old-name.ts")
+  })
+
+  it("rejects invalid file change type", () => {
+    expect(() =>
+      parseThreadFileChangeSnapshot({
+        threadId: "thread_1",
+        path: "src/main.ts",
+        changeType: "moved",
+        oldPath: null,
+        additions: null,
+        deletions: null,
+        updatedAt: "2026-03-17T00:00:00Z",
+      }),
+    ).toThrow()
+  })
+
+  it("parses approval snapshots", () => {
+    const approval = parseApprovalSnapshot({
+      approvalId: "approval_1",
+      projectId: "proj_1",
+      threadId: "thread_1",
+      approvalType: "review",
+      status: "pending",
+      title: "Review thread implementation",
+      description: "Please review the changes made by the coordinator.",
+      payload: { diffUrl: "https://example.com/diff" },
+      requestedAt: "2026-03-17T00:00:00Z",
+      resolvedAt: null,
+      resolvedBy: null,
+    })
+    expect(approval.approvalType).toBe("review")
+    expect(approval.status).toBe("pending")
+  })
+
+  it("parses resolved approval snapshots", () => {
+    const approval = parseApprovalSnapshot({
+      approvalId: "approval_2",
+      projectId: "proj_1",
+      threadId: "thread_1",
+      approvalType: "spec",
+      status: "approved",
+      title: "Approve spec",
+      description: null,
+      payload: {},
+      requestedAt: "2026-03-17T00:00:00Z",
+      resolvedAt: "2026-03-17T01:00:00Z",
+      resolvedBy: "user_1",
+    })
+    expect(approval.status).toBe("approved")
+    expect(approval.resolvedBy).toBe("user_1")
+  })
+
+  it("rejects invalid approval type", () => {
+    expect(() =>
+      parseApprovalSnapshot({
+        approvalId: "approval_3",
+        projectId: "proj_1",
+        threadId: "thread_1",
+        approvalType: "deployment",
+        status: "pending",
+        title: "Deploy",
+        description: null,
+        payload: {},
+        requestedAt: "2026-03-17T00:00:00Z",
+        resolvedAt: null,
+        resolvedBy: null,
+      }),
+    ).toThrow()
+  })
+
+  it("rejects invalid approval status", () => {
+    expect(() =>
+      parseApprovalSnapshot({
+        approvalId: "approval_4",
+        projectId: "proj_1",
+        threadId: "thread_1",
+        approvalType: "review",
+        status: "in_progress",
+        title: "Review",
+        description: null,
+        payload: {},
+        requestedAt: "2026-03-17T00:00:00Z",
+        resolvedAt: null,
+        resolvedBy: null,
+      }),
+    ).toThrow()
   })
 })

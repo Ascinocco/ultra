@@ -504,4 +504,78 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ADD COLUMN chat_thread_split_ratio REAL NOT NULL DEFAULT 0.55;
     `,
   },
+  {
+    id: "0010_thread_agents_events_and_approvals",
+    sql: `
+      CREATE TABLE IF NOT EXISTS thread_event_logs (
+        log_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        event_id TEXT REFERENCES thread_events(event_id) ON DELETE SET NULL,
+        agent_id TEXT,
+        agent_type TEXT,
+        stream TEXT NOT NULL,
+        chunk_index INTEGER NOT NULL,
+        chunk_text TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_thread_event_logs_thread_created
+        ON thread_event_logs(thread_id, created_at);
+
+      CREATE INDEX IF NOT EXISTS idx_thread_event_logs_thread_agent
+        ON thread_event_logs(thread_id, agent_id, chunk_index);
+
+      CREATE TABLE IF NOT EXISTS thread_agents (
+        agent_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        parent_agent_id TEXT REFERENCES thread_agents(agent_id) ON DELETE SET NULL,
+        agent_type TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL,
+        summary TEXT,
+        work_item_ref TEXT,
+        started_at TEXT,
+        updated_at TEXT NOT NULL,
+        finished_at TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_thread_agents_thread_status
+        ON thread_agents(thread_id, status);
+
+      CREATE TABLE IF NOT EXISTS thread_file_changes (
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        path TEXT NOT NULL,
+        change_type TEXT NOT NULL,
+        old_path TEXT,
+        additions INTEGER,
+        deletions INTEGER,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (thread_id, path)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_thread_file_changes_thread
+        ON thread_file_changes(thread_id, updated_at DESC);
+
+      CREATE TABLE IF NOT EXISTS approvals (
+        approval_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+        approval_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        payload_json TEXT NOT NULL,
+        requested_at TEXT NOT NULL,
+        resolved_at TEXT,
+        resolved_by TEXT
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_approvals_thread_status
+        ON approvals(thread_id, status);
+
+      CREATE INDEX IF NOT EXISTS idx_approvals_project_status
+        ON approvals(project_id, status);
+    `,
+  },
 ]

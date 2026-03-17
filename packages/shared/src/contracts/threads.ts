@@ -109,6 +109,64 @@ export const threadEventSnapshotSchema = z.object({
   recordedAt: isoUtcTimestampSchema,
 })
 
+// ── Thread Event Logs ────────────────────────────────────────────────
+
+export const threadEventLogSnapshotSchema = z.object({
+  logId: z.string(),
+  projectId: opaqueIdSchema,
+  threadId: opaqueIdSchema,
+  eventId: z.string().nullable(),
+  agentId: z.string().nullable(),
+  agentType: z.string().nullable(),
+  stream: z.string(),
+  chunkIndex: z.number().int(),
+  chunkText: z.string(),
+  createdAt: isoUtcTimestampSchema,
+})
+
+// ── Thread Agents ────────────────────────────────────────────────────
+
+export const threadAgentStatusSchema = z.enum([
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+])
+
+export const threadAgentSnapshotSchema = z.object({
+  agentId: z.string(),
+  threadId: opaqueIdSchema,
+  parentAgentId: z.string().nullable(),
+  agentType: z.string(),
+  displayName: z.string(),
+  status: threadAgentStatusSchema,
+  summary: z.string().nullable(),
+  workItemRef: z.string().nullable(),
+  startedAt: isoUtcTimestampSchema.nullable(),
+  updatedAt: isoUtcTimestampSchema,
+  finishedAt: isoUtcTimestampSchema.nullable(),
+})
+
+// ── Thread File Changes ──────────────────────────────────────────────
+
+export const fileChangeTypeSchema = z.enum([
+  "added",
+  "modified",
+  "deleted",
+  "renamed",
+])
+
+export const threadFileChangeSnapshotSchema = z.object({
+  threadId: opaqueIdSchema,
+  path: z.string(),
+  changeType: fileChangeTypeSchema,
+  oldPath: z.string().nullable(),
+  additions: z.number().int().nullable(),
+  deletions: z.number().int().nullable(),
+  updatedAt: isoUtcTimestampSchema,
+})
+
 export const threadCreatedEventPayloadSchema = z.object({
   sourceChatId: chatIdSchema,
   title: z.string().min(1),
@@ -365,6 +423,13 @@ export type ThreadTicketRefSnapshot = z.infer<
 export type ThreadSummary = z.infer<typeof threadSummarySchema>
 export type ThreadSnapshot = z.infer<typeof threadSnapshotSchema>
 export type ThreadEventSnapshot = z.infer<typeof threadEventSnapshotSchema>
+export type ThreadEventLogSnapshot = z.infer<typeof threadEventLogSnapshotSchema>
+export type ThreadAgentStatus = z.infer<typeof threadAgentStatusSchema>
+export type ThreadAgentSnapshot = z.infer<typeof threadAgentSnapshotSchema>
+export type FileChangeType = z.infer<typeof fileChangeTypeSchema>
+export type ThreadFileChangeSnapshot = z.infer<
+  typeof threadFileChangeSnapshotSchema
+>
 export type ThreadMessageAttachment = z.infer<
   typeof threadMessageAttachmentSchema
 >
@@ -461,4 +526,22 @@ export function parseThreadsGetEventsResult(
   input: unknown,
 ): ThreadsGetEventsResult {
   return threadsGetEventsResultSchema.parse(input)
+}
+
+export function parseThreadEventLogSnapshot(
+  input: unknown,
+): ThreadEventLogSnapshot {
+  return threadEventLogSnapshotSchema.parse(input)
+}
+
+export function parseThreadAgentSnapshot(
+  input: unknown,
+): ThreadAgentSnapshot {
+  return threadAgentSnapshotSchema.parse(input)
+}
+
+export function parseThreadFileChangeSnapshot(
+  input: unknown,
+): ThreadFileChangeSnapshot {
+  return threadFileChangeSnapshotSchema.parse(input)
 }
