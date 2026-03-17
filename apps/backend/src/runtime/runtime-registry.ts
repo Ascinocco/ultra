@@ -19,11 +19,23 @@ export class RuntimeRegistry {
     ProjectId,
     ProjectRuntimeSnapshot
   >()
+  private readonly projectHealthByProjectId = new Map<
+    ProjectId,
+    ProjectRuntimeHealthSummary
+  >()
   private readonly componentsById = new Map<string, RuntimeComponentSnapshot>()
   private readonly componentIdsByProjectId = new Map<ProjectId, Set<string>>()
   private readonly globalComponentIds = new Set<string>()
   private readonly componentUpdateListeners = new Set<
     (component: RuntimeComponentSnapshot) => void
+  >()
+  private readonly projectRuntimeUpdateListenersByProjectId = new Map<
+    ProjectId,
+    Set<(runtime: ProjectRuntimeSnapshot) => void>
+  >()
+  private readonly projectHealthUpdateListenersByProjectId = new Map<
+    ProjectId,
+    Set<(summary: ProjectRuntimeHealthSummary) => void>
   >()
 
   constructor(
@@ -32,6 +44,7 @@ export class RuntimeRegistry {
 
   hydrate(): void {
     this.projectRuntimesByProjectId.clear()
+    this.projectHealthByProjectId.clear()
     this.componentsById.clear()
     this.componentIdsByProjectId.clear()
     this.globalComponentIds.clear()
@@ -48,6 +61,13 @@ export class RuntimeRegistry {
     for (const component of this.runtimePersistenceService.listGlobalRuntimeComponents()) {
       this.patchComponent(component, false)
     }
+
+    for (const runtime of this.projectRuntimesByProjectId.values()) {
+      this.projectHealthByProjectId.set(
+        runtime.projectId,
+        this.computeProjectRuntimeHealthSummary(runtime.projectId),
+      )
+    }
   }
 
   subscribeToComponentUpdates(
@@ -60,18 +80,62 @@ export class RuntimeRegistry {
     }
   }
 
+  subscribeToProjectRuntimeUpdates(
+    projectId: ProjectId,
+    listener: (runtime: ProjectRuntimeSnapshot) => void,
+  ): () => void {
+    const listeners =
+      this.projectRuntimeUpdateListenersByProjectId.get(projectId) ??
+      new Set<(runtime: ProjectRuntimeSnapshot) => void>()
+
+    listeners.add(listener)
+    this.projectRuntimeUpdateListenersByProjectId.set(projectId, listeners)
+
+    return () => {
+      listeners.delete(listener)
+      if (listeners.size === 0) {
+        this.projectRuntimeUpdateListenersByProjectId.delete(projectId)
+      }
+    }
+  }
+
+  subscribeToProjectHealthUpdates(
+    projectId: ProjectId,
+    listener: (summary: ProjectRuntimeHealthSummary) => void,
+  ): () => void {
+    const listeners =
+      this.projectHealthUpdateListenersByProjectId.get(projectId) ??
+      new Set<(summary: ProjectRuntimeHealthSummary) => void>()
+
+    listeners.add(listener)
+    this.projectHealthUpdateListenersByProjectId.set(projectId, listeners)
+
+    return () => {
+      listeners.delete(listener)
+      if (listeners.size === 0) {
+        this.projectHealthUpdateListenersByProjectId.delete(projectId)
+      }
+    }
+  }
+
   ensureProjectRuntime(projectId: ProjectId): ProjectRuntimeSnapshot {
+    const previous = this.projectRuntimesByProjectId.get(projectId)
     const snapshot =
       this.runtimePersistenceService.ensureProjectRuntime(projectId)
     this.projectRuntimesByProjectId.set(projectId, snapshot)
+    this.emitProjectRuntimeIfChanged(projectId, previous, snapshot)
+    this.emitProjectHealthIfChanged(projectId)
     return snapshot
   }
 
   upsertProjectRuntime(
     input: UpsertProjectRuntimeInput,
   ): ProjectRuntimeSnapshot {
+    const previous = this.projectRuntimesByProjectId.get(input.projectId)
     const snapshot = this.runtimePersistenceService.upsertProjectRuntime(input)
     this.projectRuntimesByProjectId.set(snapshot.projectId, snapshot)
+    this.emitProjectRuntimeIfChanged(input.projectId, previous, snapshot)
+    this.emitProjectHealthIfChanged(input.projectId)
     return snapshot
   }
 
@@ -205,11 +269,67 @@ export class RuntimeRegistry {
   getProjectRuntimeHealthSummary(
     projectId: ProjectId,
   ): ProjectRuntimeHealthSummary {
+    const summary = this.computeProjectRuntimeHealthSummary(projectId)
+    this.projectHealthByProjectId.set(projectId, summary)
+    return summary
+  }
+
+  private computeProjectRuntimeHealthSummary(
+    projectId: ProjectId,
+  ): ProjectRuntimeHealthSummary {
     return {
       ...this.runtimePersistenceService.getProjectRuntimeHealthSummary(
         projectId,
       ),
       components: this.listProjectRuntimeComponents(projectId),
+    }
+  }
+
+  private emitProjectRuntimeIfChanged(
+    projectId: ProjectId,
+    previous: ProjectRuntimeSnapshot | undefined,
+    next: ProjectRuntimeSnapshot,
+  ): void {
+    if (
+      previous !== undefined &&
+      JSON.stringify(previous) === JSON.stringify(next)
+    ) {
+      return
+    }
+
+    const listeners =
+      this.projectRuntimeUpdateListenersByProjectId.get(projectId)
+
+    if (!listeners) {
+      return
+    }
+
+    for (const listener of listeners) {
+      listener(next)
+    }
+  }
+
+  private emitProjectHealthIfChanged(projectId: ProjectId): void {
+    const next = this.computeProjectRuntimeHealthSummary(projectId)
+    const previous = this.projectHealthByProjectId.get(projectId)
+    this.projectHealthByProjectId.set(projectId, next)
+
+    if (
+      previous !== undefined &&
+      JSON.stringify(previous) === JSON.stringify(next)
+    ) {
+      return
+    }
+
+    const listeners =
+      this.projectHealthUpdateListenersByProjectId.get(projectId)
+
+    if (!listeners) {
+      return
+    }
+
+    for (const listener of listeners) {
+      listener(next)
     }
   }
 
@@ -248,6 +368,10 @@ export class RuntimeRegistry {
       for (const listener of this.componentUpdateListeners) {
         listener(component)
       }
+    }
+
+    if (emitUpdate && component.projectId) {
+      this.emitProjectHealthIfChanged(component.projectId)
     }
   }
 }

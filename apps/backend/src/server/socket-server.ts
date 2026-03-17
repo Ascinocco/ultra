@@ -14,6 +14,8 @@ import {
   IPC_PROTOCOL_VERSION,
   parseIpcRequestEnvelope,
   runtimeComponentUpdatedSubscribeInputSchema,
+  runtimeHealthUpdatedSubscribeRequestSchema,
+  runtimeProjectRuntimeUpdatedSubscribeRequestSchema,
   terminalOutputSubscribeInputSchema,
   terminalSessionsSubscribeInputSchema,
   threadsMessagesSubscribeInputSchema,
@@ -384,6 +386,62 @@ function handleSubscribeRequest(
                 subscriptionId,
                 "runtime.component_updated",
                 component,
+              ),
+            )}\n`,
+          )
+        },
+      )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "runtime.project_runtime_updated": {
+      const { project_id } =
+        runtimeProjectRuntimeUpdatedSubscribeRequestSchema.shape.payload.parse(
+          request.payload,
+        )
+      const cleanup = services.runtimeRegistry.subscribeToProjectRuntimeUpdates(
+        project_id,
+        (runtime) => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(
+                subscriptionId,
+                "runtime.project_runtime_updated",
+                runtime,
+              ),
+            )}\n`,
+          )
+        },
+      )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "runtime.health_updated": {
+      const { project_id } =
+        runtimeHealthUpdatedSubscribeRequestSchema.shape.payload.parse(
+          request.payload,
+        )
+      const cleanup = services.runtimeRegistry.subscribeToProjectHealthUpdates(
+        project_id,
+        (summary) => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(
+                subscriptionId,
+                "runtime.health_updated",
+                summary,
               ),
             )}\n`,
           )

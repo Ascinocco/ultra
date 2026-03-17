@@ -6,8 +6,13 @@ import {
   IPC_PROTOCOL_VERSION,
   parseArtifactSnapshot,
   parseIpcResponseEnvelope,
+  parseProjectRuntimeHealthSummary,
+  parseProjectRuntimeSnapshot,
   parseRuntimeComponentUpdatedEvent,
+  parseRuntimeGetComponentsResult,
+  parseRuntimeHealthUpdatedEvent,
   parseRuntimeListGlobalComponentsResult,
+  parseRuntimeProjectRuntimeUpdatedEvent,
   parseSubscriptionEventEnvelope,
   parseTerminalOutputEvent,
   parseTerminalSessionsEvent,
@@ -123,6 +128,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
     runtime,
     artifactCaptureService,
     databaseRuntime,
+    projectService,
     processAdapter,
     coordinatorService,
     runtimeRegistry,
@@ -1188,6 +1194,239 @@ describe("socket server", () => {
     expect(result.components[0]?.componentType).toBe("ov_watch")
 
     await connection.close()
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips project runtime queries and project-scoped runtime subscriptions over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const secondProjectDirectory = join(directory, "repo-b")
+    const { runtime, databaseRuntime, projectService, runtimeRegistry } =
+      await createServerRuntime(directory, socketPath)
+
+    await mkdir(projectDirectory, { recursive: true })
+    await mkdir(secondProjectDirectory, { recursive: true })
+    const project = projectService.open({ path: projectDirectory })
+    const secondProject = projectService.open({ path: secondProjectDirectory })
+
+    runtimeRegistry.ensureProjectRuntime(project.id)
+    runtimeRegistry.upsertRuntimeComponent({
+      componentType: "coordinator",
+      details: {
+        coordinatorId: "coord_proj_a",
+      },
+      lastHeartbeatAt: "2026-03-17T15:00:00Z",
+      processId: 101,
+      projectId: project.id,
+      restartCount: 1,
+      scope: "project",
+      startedAt: "2026-03-17T14:59:00Z",
+      status: "healthy",
+    })
+    runtimeRegistry.upsertProjectRuntime({
+      coordinatorId: "coord_proj_a",
+      coordinatorInstanceId: "coord_instance_a",
+      lastHeartbeatAt: "2026-03-17T15:00:00Z",
+      projectId: project.id,
+      restartCount: 1,
+      startedAt: "2026-03-17T14:59:00Z",
+      status: "running",
+    })
+
+    const healthRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_project_health",
+      type: "query",
+      name: "runtime.get_project_health",
+      payload: {
+        project_id: project.id,
+      },
+    })
+    const runtimeRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_project_runtime",
+      type: "query",
+      name: "runtime.get_project_runtime",
+      payload: {
+        project_id: project.id,
+      },
+    })
+    const componentsRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_project_components",
+      type: "query",
+      name: "runtime.get_components",
+      payload: {
+        project_id: project.id,
+      },
+    })
+    const missingRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_project_missing",
+      type: "query",
+      name: "runtime.get_project_health",
+      payload: {
+        project_id: "proj_missing",
+      },
+    })
+
+    const healthResponse = parseIpcResponseEnvelope(healthRaw)
+    const runtimeResponse = parseIpcResponseEnvelope(runtimeRaw)
+    const componentsResponse = parseIpcResponseEnvelope(componentsRaw)
+    const missingResponse = parseIpcResponseEnvelope(missingRaw)
+
+    expect(healthResponse.ok).toBe(true)
+    expect(runtimeResponse.ok).toBe(true)
+    expect(componentsResponse.ok).toBe(true)
+    expect(missingResponse.ok).toBe(false)
+
+    if (!healthResponse.ok || !runtimeResponse.ok || !componentsResponse.ok) {
+      throw new Error("Expected project runtime queries to succeed")
+    }
+
+    expect(parseProjectRuntimeHealthSummary(healthResponse.result)).toEqual(
+      expect.objectContaining({
+        projectId: project.id,
+        status: "healthy",
+      }),
+    )
+    expect(parseProjectRuntimeSnapshot(runtimeResponse.result)).toEqual(
+      expect.objectContaining({
+        projectId: project.id,
+        status: "running",
+      }),
+    )
+    expect(parseRuntimeGetComponentsResult(componentsResponse.result)).toEqual(
+      expect.objectContaining({
+        components: [
+          expect.objectContaining({
+            componentType: "coordinator",
+            projectId: project.id,
+          }),
+        ],
+      }),
+    )
+
+    const runtimeConnection = await openPersistentConnection(socketPath)
+    const healthConnection = await openPersistentConnection(socketPath)
+    const unrelatedRuntimeConnection =
+      await openPersistentConnection(socketPath)
+    const unrelatedHealthConnection = await openPersistentConnection(socketPath)
+
+    runtimeConnection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_project_subscribe",
+      type: "subscribe",
+      name: "runtime.project_runtime_updated",
+      payload: {
+        project_id: project.id,
+      },
+    })
+    healthConnection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_health_subscribe",
+      type: "subscribe",
+      name: "runtime.health_updated",
+      payload: {
+        project_id: project.id,
+      },
+    })
+    unrelatedRuntimeConnection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_project_subscribe_other",
+      type: "subscribe",
+      name: "runtime.project_runtime_updated",
+      payload: {
+        project_id: secondProject.id,
+      },
+    })
+    unrelatedHealthConnection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_health_subscribe_other",
+      type: "subscribe",
+      name: "runtime.health_updated",
+      payload: {
+        project_id: secondProject.id,
+      },
+    })
+
+    expect(
+      parseIpcResponseEnvelope(await runtimeConnection.nextMessage()).ok,
+    ).toBe(true)
+    expect(
+      parseIpcResponseEnvelope(await healthConnection.nextMessage()).ok,
+    ).toBe(true)
+
+    expect(
+      parseIpcResponseEnvelope(await unrelatedRuntimeConnection.nextMessage())
+        .ok,
+    ).toBe(true)
+    expect(
+      parseIpcResponseEnvelope(await unrelatedHealthConnection.nextMessage())
+        .ok,
+    ).toBe(true)
+
+    const unrelatedRuntimeEvent = await Promise.race([
+      unrelatedRuntimeConnection.nextMessage().then(() => true),
+      new Promise<boolean>((resolve) => {
+        setTimeout(() => resolve(false), 50)
+      }),
+    ])
+    const unrelatedHealthEvent = await Promise.race([
+      unrelatedHealthConnection.nextMessage().then(() => true),
+      new Promise<boolean>((resolve) => {
+        setTimeout(() => resolve(false), 50)
+      }),
+    ])
+
+    expect(unrelatedRuntimeEvent).toBe(false)
+    expect(unrelatedHealthEvent).toBe(false)
+
+    runtimeRegistry.upsertProjectRuntime({
+      coordinatorId: "coord_proj_a",
+      coordinatorInstanceId: "coord_instance_a_2",
+      lastHeartbeatAt: "2026-03-17T15:03:00Z",
+      projectId: project.id,
+      restartCount: 2,
+      startedAt: "2026-03-17T14:59:00Z",
+      status: "running",
+    })
+    runtimeRegistry.upsertRuntimeComponent({
+      componentType: "watchdog",
+      details: {
+        probeState: "suspect",
+      },
+      lastHeartbeatAt: "2026-03-17T15:03:30Z",
+      processId: 202,
+      projectId: project.id,
+      reason: "Heartbeat missed.",
+      restartCount: 0,
+      scope: "project",
+      startedAt: "2026-03-17T15:03:00Z",
+      status: "degraded",
+    })
+
+    const projectRuntimeEvent = parseRuntimeProjectRuntimeUpdatedEvent(
+      parseSubscriptionEventEnvelope(await runtimeConnection.nextMessage()),
+    )
+    const healthEvent = parseRuntimeHealthUpdatedEvent(
+      parseSubscriptionEventEnvelope(await healthConnection.nextMessage()),
+    )
+
+    expect(projectRuntimeEvent.payload.projectId).toBe(project.id)
+    expect(projectRuntimeEvent.payload.coordinatorInstanceId).toBe(
+      "coord_instance_a_2",
+    )
+    expect(healthEvent.payload.projectId).toBe(project.id)
+    expect(healthEvent.payload.status).toBe("degraded")
+
+    await runtimeConnection.close()
+    await healthConnection.close()
+    await unrelatedRuntimeConnection.close()
+    await unrelatedHealthConnection.close()
     await runtime.close()
     databaseRuntime.close()
     await rm(directory, { recursive: true, force: true })
