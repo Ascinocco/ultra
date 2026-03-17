@@ -13,11 +13,21 @@ export const projectLayoutStateSchema = z.object({
   chatThreadSplitRatio: z.number(),
 })
 
-// Lenient schema that strips unknown fields from persisted rows.
-// Old rows may still contain removed fields (e.g. rightBottomCollapsed,
-// selectedBottomPaneTab) — passthrough lets them through and the transform
-// drops them by picking only the known keys.
-export const projectLayoutStateLenientSchema = projectLayoutStateSchema
+// Lenient schema for parsing persisted rows. Old rows may lack new fields
+// (sidebarCollapsed, chatThreadSplitRatio) or contain removed fields
+// (rightBottomCollapsed, selectedBottomPaneTab). Defaults fill missing fields;
+// passthrough + transform strips unknown ones.
+export const projectLayoutStateLenientSchema = z
+  .object({
+    currentPage: appPageSchema,
+    rightTopCollapsed: z.boolean(),
+    selectedRightPaneTab: z.string().min(1).nullable(),
+    activeChatId: opaqueIdSchema.nullable(),
+    selectedThreadId: opaqueIdSchema.nullable(),
+    lastEditorTargetId: opaqueIdSchema.nullable(),
+    sidebarCollapsed: z.boolean().default(false),
+    chatThreadSplitRatio: z.number().default(0.55),
+  })
   .passthrough()
   .transform((val): ProjectLayoutState => {
     return {
