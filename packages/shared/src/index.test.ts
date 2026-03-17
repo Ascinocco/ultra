@@ -24,8 +24,11 @@ import {
   parseRuntimeComponentSnapshot,
   parseRuntimeComponentUpdatedEvent,
   parseRuntimeCoordinatorCommandResult,
+  parseRuntimeGetComponentsResult,
   parseRuntimeHealthCheckSnapshot,
+  parseRuntimeHealthUpdatedEvent,
   parseRuntimeListGlobalComponentsResult,
+  parseRuntimeProjectRuntimeUpdatedEvent,
   parseSandboxesListResult,
   parseSavedCommandSnapshot,
   parseSubscribeRequest,
@@ -248,7 +251,34 @@ describe("shared contracts", () => {
     expect(query.name).toBe("threads.get_events")
   })
 
-  it("parses runtime global component query and subscription envelopes", () => {
+  it("parses runtime query and subscription envelopes", () => {
+    const projectHealthQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_health",
+      type: "query",
+      name: "runtime.get_project_health",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+    const projectRuntimeQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_project",
+      type: "query",
+      name: "runtime.get_project_runtime",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+    const projectComponentsQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_components",
+      type: "query",
+      name: "runtime.get_components",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
     const listQuery = parseQueryRequest({
       protocol_version: IPC_PROTOCOL_VERSION,
       request_id: "req_runtime_globals",
@@ -263,9 +293,34 @@ describe("shared contracts", () => {
       name: "runtime.component_updated",
       payload: {},
     })
+    const projectRuntimeSubscribeRequest = parseSubscribeRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_project_subscribe",
+      type: "subscribe",
+      name: "runtime.project_runtime_updated",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
+    const healthSubscribeRequest = parseSubscribeRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_runtime_health_subscribe",
+      type: "subscribe",
+      name: "runtime.health_updated",
+      payload: {
+        project_id: "proj_123",
+      },
+    })
 
+    expect(projectHealthQuery.name).toBe("runtime.get_project_health")
+    expect(projectRuntimeQuery.name).toBe("runtime.get_project_runtime")
+    expect(projectComponentsQuery.name).toBe("runtime.get_components")
     expect(listQuery.name).toBe("runtime.list_global_components")
     expect(subscribeRequest.name).toBe("runtime.component_updated")
+    expect(projectRuntimeSubscribeRequest.name).toBe(
+      "runtime.project_runtime_updated",
+    )
+    expect(healthSubscribeRequest.name).toBe("runtime.health_updated")
   })
 
   it("parses thread message and runtime control envelopes", () => {
@@ -995,6 +1050,63 @@ describe("shared contracts", () => {
     expect(result.components).toHaveLength(1)
     expect(event.payload.componentType).toBe("ov_watch")
     expect(commandResult.accepted).toBe(true)
+  })
+
+  it("parses runtime project-scoped results and update events", () => {
+    const component = {
+      componentId: "component_coordinator",
+      projectId: "proj_123",
+      componentType: "coordinator",
+      scope: "project",
+      processId: 4242,
+      status: "degraded",
+      startedAt: "2026-03-17T14:00:00Z",
+      lastHeartbeatAt: "2026-03-17T14:01:00Z",
+      restartCount: 2,
+      reason: "Heartbeat missed.",
+      details: {
+        coordinatorId: "coord_123",
+      },
+      createdAt: "2026-03-17T14:00:00Z",
+      updatedAt: "2026-03-17T14:01:00Z",
+    }
+    const componentsResult = parseRuntimeGetComponentsResult({
+      components: [component],
+    })
+    const projectRuntimeEvent = parseRuntimeProjectRuntimeUpdatedEvent({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      type: "event",
+      subscription_id: "sub_runtime_project_123",
+      event_name: "runtime.project_runtime_updated",
+      payload: {
+        projectRuntimeId: "project_runtime_123",
+        projectId: "proj_123",
+        coordinatorId: "coord_123",
+        coordinatorInstanceId: "coord_inst_123",
+        status: "running",
+        startedAt: "2026-03-17T14:00:00Z",
+        lastHeartbeatAt: "2026-03-17T14:01:00Z",
+        restartCount: 2,
+        createdAt: "2026-03-17T14:00:00Z",
+        updatedAt: "2026-03-17T14:01:00Z",
+      },
+    })
+    const healthEvent = parseRuntimeHealthUpdatedEvent({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      type: "event",
+      subscription_id: "sub_runtime_health_123",
+      event_name: "runtime.health_updated",
+      payload: {
+        projectId: "proj_123",
+        status: "degraded",
+        latestReason: "Heartbeat missed.",
+        components: [component],
+      },
+    })
+
+    expect(componentsResult.components).toHaveLength(1)
+    expect(projectRuntimeEvent.payload.projectId).toBe("proj_123")
+    expect(healthEvent.payload.status).toBe("degraded")
   })
 
   it("parses sandbox list results", () => {

@@ -24,6 +24,9 @@ import {
   projectsGetLayoutInputSchema,
   projectsListQuerySchema,
   projectsSetLayoutInputSchema,
+  runtimeGetComponentsQuerySchema,
+  runtimeGetProjectHealthQuerySchema,
+  runtimeGetProjectRuntimeQuerySchema,
   runtimeListGlobalComponentsInputSchema,
   runtimePauseProjectRuntimeInputSchema,
   runtimeResumeProjectRuntimeInputSchema,
@@ -57,6 +60,7 @@ import type { ArtifactCaptureService } from "../artifacts/artifact-capture-servi
 import type { ChatService } from "../chats/chat-service.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { CoordinatorService } from "../runtime/coordinator-service.js"
+import type { RuntimeRegistry } from "../runtime/runtime-registry.js"
 import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import type { SystemService } from "../system/system-service.js"
@@ -169,6 +173,7 @@ export async function routeIpcRequest(
     coordinatorService: CoordinatorService
     systemService: SystemService
     projectService: ProjectService
+    runtimeRegistry: RuntimeRegistry
     watchService: WatchService
     sandboxService: SandboxService
     terminalService: TerminalService
@@ -264,6 +269,48 @@ export async function routeIpcRequest(
         runtimeListGlobalComponentsInputSchema.parse(listQuery.payload)
         return createSuccessResponse(listQuery.request_id, {
           components: services.watchService.listGlobalComponents(),
+        })
+      }
+      case "runtime.get_project_health": {
+        const healthQuery = assertQueryRequest(request)
+        const { project_id } =
+          runtimeGetProjectHealthQuerySchema.shape.payload.parse(
+            healthQuery.payload,
+          )
+
+        services.projectService.get(project_id)
+
+        return createSuccessResponse(
+          healthQuery.request_id,
+          services.runtimeRegistry.getProjectRuntimeHealthSummary(project_id),
+        )
+      }
+      case "runtime.get_project_runtime": {
+        const runtimeQuery = assertQueryRequest(request)
+        const { project_id } =
+          runtimeGetProjectRuntimeQuerySchema.shape.payload.parse(
+            runtimeQuery.payload,
+          )
+
+        services.projectService.get(project_id)
+
+        return createSuccessResponse(
+          runtimeQuery.request_id,
+          services.runtimeRegistry.ensureProjectRuntime(project_id),
+        )
+      }
+      case "runtime.get_components": {
+        const componentsQuery = assertQueryRequest(request)
+        const { project_id } =
+          runtimeGetComponentsQuerySchema.shape.payload.parse(
+            componentsQuery.payload,
+          )
+
+        services.projectService.get(project_id)
+
+        return createSuccessResponse(componentsQuery.request_id, {
+          components:
+            services.runtimeRegistry.listProjectRuntimeComponents(project_id),
         })
       }
       case "runtime.retry_thread": {

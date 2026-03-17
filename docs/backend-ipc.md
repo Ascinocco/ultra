@@ -230,6 +230,30 @@ Recommended methods:
 - `handoff.open_in_github`
 - `handoff.open_in_browser`
 
+## `runtime.*`
+
+Purpose:
+
+- expose project-scoped runtime health and component state
+- expose global runtime infrastructure health
+- support live runtime status updates for the frontend shell
+
+Recommended methods:
+
+- `runtime.get_project_health`
+- `runtime.get_project_runtime`
+- `runtime.get_components`
+- `runtime.list_global_components`
+- `runtime.retry_thread`
+- `runtime.pause_project_runtime`
+- `runtime.resume_project_runtime`
+
+Recommended subscriptions:
+
+- `runtime.health_updated`
+- `runtime.project_runtime_updated`
+- `runtime.component_updated`
+
 ## Subscription Model
 
 Subscriptions should focus on durable user-facing domains:

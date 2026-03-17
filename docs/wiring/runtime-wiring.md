@@ -65,9 +65,14 @@ Trigger:
 
 IPC:
 
-- `runtime.health_updated`
-- `runtime.component_updated`
-- `runtime.project_runtime_updated`
+- queries:
+  - `runtime.get_project_health`
+  - `runtime.get_project_runtime`
+  - `runtime.get_components`
+- subscriptions:
+  - `runtime.health_updated`
+  - `runtime.component_updated`
+  - `runtime.project_runtime_updated`
 
 Backend:
 
@@ -84,7 +89,7 @@ DB:
 Store updates:
 
 - patch runtime slice for active project
-- refresh bottom-right status pane
+- refresh runtime summaries or later status-pane consumers
 
 ## Flow: Main Chat Runtime Request
 

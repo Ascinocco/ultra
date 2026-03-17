@@ -71,6 +71,9 @@ export const projectRuntimeHealthSummarySchema = z.object({
   components: z.array(runtimeComponentSnapshotSchema),
 })
 
+export const runtimeProjectScopedInputSchema = z.object({
+  project_id: projectIdSchema,
+})
 export const runtimeListGlobalComponentsInputSchema = z.object({}).strict()
 export const runtimeComponentUpdatedSubscribeInputSchema = z.object({}).strict()
 export const runtimeRetryThreadInputSchema = z.object({
@@ -91,6 +94,42 @@ export const runtimeCoordinatorCommandResultSchema = z.object({
 export const runtimeListGlobalComponentsResultSchema = z.object({
   components: z.array(runtimeComponentSnapshotSchema),
 })
+export const runtimeGetComponentsResultSchema = z.object({
+  components: z.array(runtimeComponentSnapshotSchema),
+})
+
+export const runtimeGetProjectHealthQuerySchema =
+  queryRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.get_project_health"),
+    payload: runtimeProjectScopedInputSchema,
+  })
+
+export const runtimeGetProjectHealthSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: projectRuntimeHealthSummarySchema,
+  })
+
+export const runtimeGetProjectRuntimeQuerySchema =
+  queryRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.get_project_runtime"),
+    payload: runtimeProjectScopedInputSchema,
+  })
+
+export const runtimeGetProjectRuntimeSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: projectRuntimeSnapshotSchema,
+  })
+
+export const runtimeGetComponentsQuerySchema =
+  queryRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.get_components"),
+    payload: runtimeProjectScopedInputSchema,
+  })
+
+export const runtimeGetComponentsSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: runtimeGetComponentsResultSchema,
+  })
 
 export const runtimeListGlobalComponentsQuerySchema =
   queryRequestEnvelopeSchema.extend({
@@ -113,6 +152,30 @@ export const runtimeComponentUpdatedEventSchema =
   subscriptionEventEnvelopeSchema.extend({
     event_name: z.literal("runtime.component_updated"),
     payload: runtimeComponentSnapshotSchema,
+  })
+
+export const runtimeHealthUpdatedSubscribeRequestSchema =
+  subscribeRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.health_updated"),
+    payload: runtimeProjectScopedInputSchema,
+  })
+
+export const runtimeHealthUpdatedEventSchema =
+  subscriptionEventEnvelopeSchema.extend({
+    event_name: z.literal("runtime.health_updated"),
+    payload: projectRuntimeHealthSummarySchema,
+  })
+
+export const runtimeProjectRuntimeUpdatedSubscribeRequestSchema =
+  subscribeRequestEnvelopeSchema.extend({
+    name: z.literal("runtime.project_runtime_updated"),
+    payload: runtimeProjectScopedInputSchema,
+  })
+
+export const runtimeProjectRuntimeUpdatedEventSchema =
+  subscriptionEventEnvelopeSchema.extend({
+    event_name: z.literal("runtime.project_runtime_updated"),
+    payload: projectRuntimeSnapshotSchema,
   })
 
 export const runtimeRetryThreadCommandSchema =
@@ -166,6 +229,9 @@ export type RuntimeHealthCheckSnapshot = z.infer<
 export type ProjectRuntimeHealthSummary = z.infer<
   typeof projectRuntimeHealthSummarySchema
 >
+export type RuntimeProjectScopedInput = z.infer<
+  typeof runtimeProjectScopedInputSchema
+>
 export type RuntimeListGlobalComponentsInput = z.infer<
   typeof runtimeListGlobalComponentsInputSchema
 >
@@ -184,11 +250,20 @@ export type RuntimeComponentUpdatedSubscribeInput = z.infer<
 export type RuntimeListGlobalComponentsResult = z.infer<
   typeof runtimeListGlobalComponentsResultSchema
 >
+export type RuntimeGetComponentsResult = z.infer<
+  typeof runtimeGetComponentsResultSchema
+>
 export type RuntimeCoordinatorCommandResult = z.infer<
   typeof runtimeCoordinatorCommandResultSchema
 >
 export type RuntimeComponentUpdatedEvent = z.infer<
   typeof runtimeComponentUpdatedEventSchema
+>
+export type RuntimeHealthUpdatedEvent = z.infer<
+  typeof runtimeHealthUpdatedEventSchema
+>
+export type RuntimeProjectRuntimeUpdatedEvent = z.infer<
+  typeof runtimeProjectRuntimeUpdatedEventSchema
 >
 
 export function parseRuntimeComponentSnapshot(
@@ -215,6 +290,12 @@ export function parseProjectRuntimeHealthSummary(
   return projectRuntimeHealthSummarySchema.parse(input)
 }
 
+export function parseRuntimeGetComponentsResult(
+  input: unknown,
+): RuntimeGetComponentsResult {
+  return runtimeGetComponentsResultSchema.parse(input)
+}
+
 export function parseRuntimeListGlobalComponentsResult(
   input: unknown,
 ): RuntimeListGlobalComponentsResult {
@@ -231,4 +312,16 @@ export function parseRuntimeComponentUpdatedEvent(
   input: unknown,
 ): RuntimeComponentUpdatedEvent {
   return runtimeComponentUpdatedEventSchema.parse(input)
+}
+
+export function parseRuntimeHealthUpdatedEvent(
+  input: unknown,
+): RuntimeHealthUpdatedEvent {
+  return runtimeHealthUpdatedEventSchema.parse(input)
+}
+
+export function parseRuntimeProjectRuntimeUpdatedEvent(
+  input: unknown,
+): RuntimeProjectRuntimeUpdatedEvent {
+  return runtimeProjectRuntimeUpdatedEventSchema.parse(input)
 }
