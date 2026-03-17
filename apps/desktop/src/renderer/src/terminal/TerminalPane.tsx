@@ -1,5 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Terminal } from "xterm"
 import "xterm/css/xterm.css"
 
@@ -46,19 +46,24 @@ export function TerminalPane({
   const model = useAppStore((s) => s.terminal.commandBarModel)
   const setProvider = useAppStore((s) => s.actions.setCommandBarProvider)
   const setModel = useAppStore((s) => s.actions.setCommandBarModel)
-  const availableProviders = useAppStore((s) => {
-    const checks = s.readiness.snapshot?.checks ?? []
-    const providers: Array<"claude" | "codex"> = []
-    for (const check of checks) {
-      if (check.tool === "claude" && check.status === "ready")
-        providers.push("claude")
-      if (check.tool === "codex" && check.status === "ready")
-        providers.push("codex")
-    }
-    return providers.length > 0
-      ? providers
-      : (["claude"] as Array<"claude" | "codex">)
-  })
+  const hasClaude = useAppStore(
+    (s) =>
+      s.readiness.snapshot?.checks?.some(
+        (c) => c.tool === "claude" && c.status === "ready",
+      ) ?? false,
+  )
+  const hasCodex = useAppStore(
+    (s) =>
+      s.readiness.snapshot?.checks?.some(
+        (c) => c.tool === "codex" && c.status === "ready",
+      ) ?? false,
+  )
+  const availableProviders = useMemo(() => {
+    const p: Array<"claude" | "codex"> = []
+    if (hasClaude) p.push("claude")
+    if (hasCodex) p.push("codex")
+    return p.length > 0 ? p : (["claude"] as Array<"claude" | "codex">)
+  }, [hasClaude, hasCodex])
 
   const handleCmdK = useCallback(
     (e: KeyboardEvent) => {
@@ -238,11 +243,7 @@ export function TerminalPane({
   // the effect runs once per session mount and captures initial values.
 
   return (
-    <div
-      className="terminal-pane"
-      ref={wrapperRef}
-      style={{ position: "relative" }}
-    >
+    <div className="terminal-pane" ref={wrapperRef}>
       <div className="terminal-pane__xterm" ref={containerRef} />
       <TerminalCommandBar
         visible={commandBarVisible}
