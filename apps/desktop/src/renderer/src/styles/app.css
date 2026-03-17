@@ -1943,3 +1943,211 @@ button {
     display: none;
   }
 }
+
+/* ── Terminal Command Bar (Cmd+K) ────────────────────────────── */
+
+.terminal-command-bar {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  background: #252836;
+  border: 1px solid #3a3f52;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  font-family: Menlo, Monaco, "Courier New", monospace;
+  font-size: 13px;
+}
+
+.terminal-command-bar--generating {
+  flex-wrap: wrap;
+}
+
+.terminal-command-bar--error {
+  border-color: var(--color-red-500, #fb7185);
+}
+
+.terminal-command-bar__badge {
+  color: #7c83ff;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.terminal-command-bar__input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #eef1f8;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.terminal-command-bar__input::placeholder {
+  color: #555;
+}
+
+.terminal-command-bar__spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #7c83ff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: terminal-command-bar-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes terminal-command-bar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.terminal-command-bar__generating-label {
+  color: #888;
+  font-size: 12px;
+}
+
+.terminal-command-bar__streaming-text {
+  color: #c8ccff;
+  font-size: 13px;
+  padding: 6px 8px;
+  background: #1e2130;
+  border-radius: 4px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.terminal-command-bar__error-text {
+  color: #fb7185;
+  font-size: 12px;
+  flex: 1;
+}
+
+.terminal-command-bar__retry {
+  color: #eef1f8;
+  font-size: 11px;
+  padding: 4px 8px;
+  background: #7c83ff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.terminal-command-bar__kbd {
+  color: #555;
+  font-size: 11px;
+  padding: 3px 7px;
+  border: 1px solid #3a3f52;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Model picker */
+
+.terminal-command-bar__model-picker {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.terminal-command-bar__model-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: #1e2130;
+  border: 1px solid #3a3f52;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #bbb;
+  font-size: 11px;
+  font-family: inherit;
+}
+
+.terminal-command-bar__model-trigger:hover {
+  border-color: #555;
+}
+
+.terminal-command-bar__provider-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  color: white;
+  font-weight: 700;
+}
+
+.terminal-command-bar__provider-icon--claude {
+  background: linear-gradient(135deg, #7c83ff, #b07cff);
+}
+
+.terminal-command-bar__model-name {
+  white-space: nowrap;
+}
+
+.terminal-command-bar__chevron {
+  color: #555;
+  font-size: 9px;
+}
+
+.terminal-command-bar__dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: #252836;
+  border: 1px solid #3a3f52;
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+.terminal-command-bar__dropdown-header {
+  padding: 4px 6px;
+  margin-bottom: 2px;
+  color: #666;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.terminal-command-bar__dropdown-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #bbb;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.terminal-command-bar__dropdown-item:hover {
+  background: rgba(124, 131, 255, 0.08);
+}
+
+.terminal-command-bar__dropdown-item--selected {
+  background: rgba(124, 131, 255, 0.12);
+  color: #eef1f8;
+}
+
+.terminal-command-bar__check {
+  color: #7c83ff;
+  font-size: 10px;
+  margin-left: auto;
+}
