@@ -13,7 +13,7 @@ export function TitleBar({
 }) {
   return (
     <div className="title-bar">
-      <div className="title-bar__actions">
+      <div className="title-bar__left">
         <button
           className={`title-bar__sidebar-toggle ${sidebarCollapsed ? "title-bar__sidebar-toggle--collapsed" : ""}`}
           type="button"
@@ -26,6 +26,8 @@ export function TitleBar({
             <line x1="5.5" y1="2" x2="5.5" y2="14" stroke="currentColor" strokeWidth="1.2" />
           </svg>
         </button>
+      </div>
+      <div className="title-bar__actions">
         <button
           className={`title-bar__terminal-toggle ${terminalOpen ? "title-bar__terminal-toggle--active" : ""}`}
           type="button"

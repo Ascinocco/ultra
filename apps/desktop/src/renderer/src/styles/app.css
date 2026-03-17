@@ -229,6 +229,16 @@ button {
   box-sizing: border-box;
 }
 
+.title-bar__left {
+  position: absolute;
+  left: 78px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
 .title-bar__actions {
   position: absolute;
   right: 12px;
