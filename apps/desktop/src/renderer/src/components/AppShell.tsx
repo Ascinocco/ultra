@@ -70,11 +70,10 @@ export function AppShell() {
 
   const handleToggleSidebar = useCallback(() => {
     if (!activeProjectId) return
-    const currentLayout = useAppStore.getState().layout.byProjectId[activeProjectId]
     actions.setLayoutField(activeProjectId, {
-      sidebarCollapsed: !(currentLayout?.sidebarCollapsed ?? false),
+      sidebarCollapsed: !sidebarCollapsed,
     })
-  }, [activeProjectId, actions])
+  }, [activeProjectId, actions, sidebarCollapsed])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
