@@ -8,6 +8,7 @@ import {
   terminalCommandGenCompleteEventSchema,
   terminalCommandGenErrorEventSchema,
 } from "./terminal-command-gen.js"
+import { subscriptionMethodSchema } from "./ipc.js"
 
 describe("terminalCommandGenInputSchema", () => {
   it("parses a valid input payload", () => {
@@ -113,5 +114,12 @@ describe("parseTerminalCommandGenInput", () => {
 
     const result = parseTerminalCommandGenInput(input)
     expect(result.provider).toBe("codex")
+  })
+})
+
+describe("ipc subscription method includes terminal.generate_command", () => {
+  it("accepts terminal.generate_command as a subscription method", () => {
+    const result = subscriptionMethodSchema.parse("terminal.generate_command")
+    expect(result).toBe("terminal.generate_command")
   })
 })
