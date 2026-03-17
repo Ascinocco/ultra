@@ -169,12 +169,12 @@ describe("project workflows", () => {
     const layout: ProjectLayoutState = {
       currentPage: "editor",
       rightTopCollapsed: false,
-      rightBottomCollapsed: true,
       selectedRightPaneTab: "timeline",
-      selectedBottomPaneTab: null,
       activeChatId: null,
       selectedThreadId: null,
       lastEditorTargetId: null,
+      sidebarCollapsed: false,
+      chatThreadSplitRatio: 0.55,
     }
     const client = {
       command: vi.fn(async () => project),
@@ -205,12 +205,12 @@ describe("project workflows", () => {
     const layout: ProjectLayoutState = {
       currentPage: "browser",
       rightTopCollapsed: true,
-      rightBottomCollapsed: false,
       selectedRightPaneTab: null,
-      selectedBottomPaneTab: null,
       activeChatId: "chat_1",
       selectedThreadId: null,
       lastEditorTargetId: null,
+      sidebarCollapsed: false,
+      chatThreadSplitRatio: 0.55,
     }
 
     const client = {

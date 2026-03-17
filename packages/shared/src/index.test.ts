@@ -1099,7 +1099,24 @@ describe("shared contracts", () => {
     ).toThrow()
   })
 
-  it("accepts the milestone one project layout state", () => {
+  it("accepts the current project layout state", () => {
+    const layout = parseProjectLayoutState({
+      currentPage: "chat",
+      rightTopCollapsed: false,
+      selectedRightPaneTab: "threads",
+      activeChatId: "chat_123",
+      selectedThreadId: "thread_123",
+      lastEditorTargetId: "target_123",
+      sidebarCollapsed: true,
+      chatThreadSplitRatio: 0.6,
+    })
+
+    expect(layout.currentPage).toBe("chat")
+    expect(layout.sidebarCollapsed).toBe(true)
+    expect(layout.chatThreadSplitRatio).toBe(0.6)
+  })
+
+  it("accepts old layout data with removed fields and missing new fields", () => {
     const layout = parseProjectLayoutState({
       currentPage: "chat",
       rightTopCollapsed: false,
@@ -1112,6 +1129,10 @@ describe("shared contracts", () => {
     })
 
     expect(layout.currentPage).toBe("chat")
+    expect(layout.sidebarCollapsed).toBe(false)
+    expect(layout.chatThreadSplitRatio).toBe(0.55)
+    expect("rightBottomCollapsed" in layout).toBe(false)
+    expect("selectedBottomPaneTab" in layout).toBe(false)
   })
 
   it("rejects malformed layout state", () => {
@@ -1119,12 +1140,12 @@ describe("shared contracts", () => {
       projectLayoutStateSchema.parse({
         currentPage: "terminal",
         rightTopCollapsed: false,
-        rightBottomCollapsed: true,
         selectedRightPaneTab: "threads",
-        selectedBottomPaneTab: "runtime",
         activeChatId: null,
         selectedThreadId: null,
         lastEditorTargetId: null,
+        sidebarCollapsed: false,
+        chatThreadSplitRatio: 0.55,
       }),
     ).toThrow()
   })

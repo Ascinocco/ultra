@@ -493,4 +493,15 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON artifact_shares(destination_type, destination_id, shared_at DESC);
     `,
   },
+  {
+    id: "0009_layout_sidebar_and_split_ratio",
+    sql: `
+      ALTER TABLE project_layout_state
+        ADD COLUMN sidebar_collapsed INTEGER NOT NULL DEFAULT 0
+        CHECK (sidebar_collapsed IN (0, 1));
+
+      ALTER TABLE project_layout_state
+        ADD COLUMN chat_thread_split_ratio REAL NOT NULL DEFAULT 0.55;
+    `,
+  },
 ]

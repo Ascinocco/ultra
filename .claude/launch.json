@@ -4,8 +4,8 @@
     {
       "name": "desktop",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@ultra/desktop", "dev"],
-      "port": 5173
+      "runtimeArgs": ["--filter", "@ultra/desktop", "exec", "vite", "--config", "vite.renderer.config.ts"],
+      "port": 5174
     },
     {
       "name": "backend",

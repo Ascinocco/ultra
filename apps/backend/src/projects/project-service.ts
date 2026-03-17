@@ -264,12 +264,12 @@ export class ProjectService {
         `SELECT
           current_page,
           right_top_collapsed,
-          right_bottom_collapsed,
           selected_right_pane_tab,
-          selected_bottom_pane_tab,
           active_chat_id,
           selected_thread_id,
-          last_editor_target_id
+          last_editor_target_id,
+          sidebar_collapsed,
+          chat_thread_split_ratio
         FROM project_layout_state
         WHERE project_id = ?`,
       )
@@ -277,12 +277,12 @@ export class ProjectService {
       | {
           current_page: string
           right_top_collapsed: number
-          right_bottom_collapsed: number
           selected_right_pane_tab: string | null
-          selected_bottom_pane_tab: string | null
           active_chat_id: string | null
           selected_thread_id: string | null
           last_editor_target_id: string | null
+          sidebar_collapsed: number
+          chat_thread_split_ratio: number | null
         }
       | undefined
 
@@ -290,24 +290,24 @@ export class ProjectService {
       return {
         currentPage: "chat",
         rightTopCollapsed: false,
-        rightBottomCollapsed: false,
         selectedRightPaneTab: null,
-        selectedBottomPaneTab: null,
         activeChatId: null,
         selectedThreadId: null,
         lastEditorTargetId: null,
+        sidebarCollapsed: false,
+        chatThreadSplitRatio: 0.55,
       }
     }
 
     return {
       currentPage: row.current_page as ProjectLayoutState["currentPage"],
       rightTopCollapsed: row.right_top_collapsed === 1,
-      rightBottomCollapsed: row.right_bottom_collapsed === 1,
       selectedRightPaneTab: row.selected_right_pane_tab,
-      selectedBottomPaneTab: row.selected_bottom_pane_tab,
       activeChatId: row.active_chat_id,
       selectedThreadId: row.selected_thread_id,
       lastEditorTargetId: row.last_editor_target_id,
+      sidebarCollapsed: row.sidebar_collapsed === 1,
+      chatThreadSplitRatio: row.chat_thread_split_ratio ?? 0.55,
     }
   }
 
@@ -318,35 +318,35 @@ export class ProjectService {
           project_id,
           current_page,
           right_top_collapsed,
-          right_bottom_collapsed,
           selected_right_pane_tab,
-          selected_bottom_pane_tab,
           active_chat_id,
           selected_thread_id,
           last_editor_target_id,
+          sidebar_collapsed,
+          chat_thread_split_ratio,
           updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(project_id) DO UPDATE SET
           current_page = excluded.current_page,
           right_top_collapsed = excluded.right_top_collapsed,
-          right_bottom_collapsed = excluded.right_bottom_collapsed,
           selected_right_pane_tab = excluded.selected_right_pane_tab,
-          selected_bottom_pane_tab = excluded.selected_bottom_pane_tab,
           active_chat_id = excluded.active_chat_id,
           selected_thread_id = excluded.selected_thread_id,
           last_editor_target_id = excluded.last_editor_target_id,
+          sidebar_collapsed = excluded.sidebar_collapsed,
+          chat_thread_split_ratio = excluded.chat_thread_split_ratio,
           updated_at = excluded.updated_at`,
       )
       .run(
         projectId,
         layout.currentPage,
         layout.rightTopCollapsed ? 1 : 0,
-        layout.rightBottomCollapsed ? 1 : 0,
         layout.selectedRightPaneTab,
-        layout.selectedBottomPaneTab,
         layout.activeChatId,
         layout.selectedThreadId,
         layout.lastEditorTargetId,
+        layout.sidebarCollapsed ? 1 : 0,
+        layout.chatThreadSplitRatio,
         this.now(),
       )
   }

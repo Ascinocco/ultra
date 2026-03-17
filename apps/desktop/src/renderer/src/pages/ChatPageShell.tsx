@@ -264,8 +264,10 @@ function TerminalDrawer({
 
 export function ChatPageShell({
   onOpenProject,
+  onOpenSettings,
 }: {
   onOpenProject: () => void
+  onOpenSettings: () => void
 }) {
   const activeProjectId = useAppStore((state) => state.app.activeProjectId)
   const terminal = useAppStore((state) => state.terminal)
@@ -275,7 +277,9 @@ export function ChatPageShell({
   const threads = useAppStore((state) => state.threads)
 
   const chatFrameRef = useRef<HTMLDivElement>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
+  const [isDragging, setIsDragging] = useState(false)
 
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
@@ -311,6 +315,64 @@ export function ChatPageShell({
   const threadFetchStatus = activeProjectId
     ? (threads.threadFetchStatus[activeProjectId] ?? "idle")
     : "idle"
+
+  const projectLayout = activeProjectId
+    ? layout.byProjectId[activeProjectId]
+    : null
+  const sidebarCollapsed = projectLayout?.sidebarCollapsed ?? false
+  const splitRatio = projectLayout?.chatThreadSplitRatio ?? 0.55
+
+  const [containerWidth, setContainerWidth] = useState(0)
+
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width)
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const SIDEBAR_WIDTH = 280
+  const MIN_PANE_WIDTH = 200
+  const DRAG_HANDLE_WIDTH = 5
+
+  const sidebarW = sidebarCollapsed ? 0 : SIDEBAR_WIDTH
+  const availableWidth = containerWidth - sidebarW - DRAG_HANDLE_WIDTH
+  const chatWidth = Math.max(MIN_PANE_WIDTH, Math.round(availableWidth * splitRatio))
+  const threadWidth = Math.max(MIN_PANE_WIDTH, availableWidth - chatWidth)
+
+  const gridStyle: React.CSSProperties = containerWidth > 0
+    ? { gridTemplateColumns: `${sidebarW}px ${chatWidth}px ${DRAG_HANDLE_WIDTH}px ${threadWidth}px` }
+    : {}
+
+  function handleDragStart(e: React.PointerEvent) {
+    e.preventDefault()
+    const el = gridRef.current
+    if (!el) return
+    setIsDragging(true)
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  function handleDragMove(e: React.PointerEvent) {
+    if (!isDragging || !gridRef.current || !activeProjectId) return
+    const rect = gridRef.current.getBoundingClientRect()
+    const x = e.clientX - rect.left - sidebarW
+    const available = rect.width - sidebarW - DRAG_HANDLE_WIDTH
+    if (available <= 0) return
+    const ratio = Math.max(
+      MIN_PANE_WIDTH / available,
+      Math.min((available - MIN_PANE_WIDTH) / available, x / available),
+    )
+    actions.setLayoutField(activeProjectId, { chatThreadSplitRatio: ratio })
+  }
+
+  function handleDragEnd() {
+    setIsDragging(false)
+  }
 
   function handleResize(height: number) {
     const maxHeight = chatFrameRef.current
@@ -394,9 +456,11 @@ export function ChatPageShell({
     <div className="chat-frame" ref={chatFrameRef} data-page="chat">
       <div
         className={`chat-frame__grid ${drawerOpen ? "chat-frame__grid--drawer-open" : ""}`}
+        ref={gridRef}
+        style={gridStyle}
       >
-        <aside className="chat-frame__rail">
-          <Sidebar onOpenProject={onOpenProject} />
+        <aside className={`chat-frame__rail ${sidebarCollapsed ? "chat-frame__rail--collapsed" : ""}`}>
+          <Sidebar onOpenProject={onOpenProject} onOpenSettings={onOpenSettings} />
         </aside>
 
         <section className="chat-frame__main">
@@ -419,35 +483,28 @@ export function ChatPageShell({
           </div>
         </section>
 
+        <div
+          className={`chat-frame__drag-handle ${isDragging ? "chat-frame__drag-handle--active" : ""}`}
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
+        />
+
         <div className="chat-frame__side">
-          <section className="chat-frame__side-top">
-            <div className="surface__header">
-              <p className="surface__eyebrow">Threads</p>
-              <h2 className="surface__title">Execution pane</h2>
-            </div>
-            <ThreadPane
-              threads={projectThreads}
-              selectedThreadId={selectedThreadId}
-              messagesByThreadId={threads.messagesByThreadId}
-              fetchStatus={threadFetchStatus}
-              onSelectThread={handleSelectThread}
-              onFetchMessages={handleFetchMessages}
-              onSendMessage={handleSendMessage}
-            />
-          </section>
-          <section className="chat-frame__side-bottom">
-            <div className="surface__header">
-              <p className="surface__eyebrow">Status</p>
-              <h2 className="surface__title">Runtime summary</h2>
-            </div>
-            <div className="placeholder-card">
-              <strong>Runtime health stays visible</strong>
-              <p>
-                This region will hold coordinator, watchdog, and approval state
-                without turning the page into an ops console.
-              </p>
-            </div>
-          </section>
+          <div className="surface__header">
+            <p className="surface__eyebrow">Threads</p>
+            <h2 className="surface__title">Execution pane</h2>
+          </div>
+          <ThreadPane
+            threads={projectThreads}
+            selectedThreadId={selectedThreadId}
+            messagesByThreadId={threads.messagesByThreadId}
+            fetchStatus={threadFetchStatus}
+            onSelectThread={handleSelectThread}
+            onFetchMessages={handleFetchMessages}
+            onSendMessage={handleSendMessage}
+          />
         </div>
 
         {drawerOpen && (
