@@ -34,14 +34,18 @@ describe("TerminalCommandGenService", () => {
 
   describe("buildCliArgs", () => {
     it("builds Claude CLI args with correct flags", () => {
-      const args = service.buildCliArgs("claude", "sonnet-4-6", "test prompt")
+      const args = service.buildCliArgs(
+        "claude",
+        "claude-sonnet-4-6",
+        "test prompt",
+      )
 
       expect(args.command).toBe("claude")
       expect(args.args).toContain("-p")
       expect(args.args).toContain("--output-format")
-      expect(args.args).toContain("stream-json")
+      expect(args.args).toContain("text")
       expect(args.args).toContain("--model")
-      expect(args.args).toContain("sonnet-4-6")
+      expect(args.args).toContain("claude-sonnet-4-6")
       expect(args.args).toContain("--permission-mode")
       expect(args.args).toContain("bypassPermissions")
       expect(args.args).toContain("--effort")

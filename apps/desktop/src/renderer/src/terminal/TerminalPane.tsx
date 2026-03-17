@@ -136,6 +136,7 @@ export function TerminalPane({
     return () => wrapper.removeEventListener("keydown", handleCmdK)
   }, [handleCmdK])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: effect runs once per session mount; recentOutput/onInput/onResize are intentionally captured at mount time
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -238,9 +239,7 @@ export function TerminalPane({
         void unsubscribeOutput()
       }
     }
-  }, [sessionId, projectId]) // eslint-disable-line react-hooks/exhaustive-deps
-  // recentOutput, onInput, onResize are intentionally excluded —
-  // the effect runs once per session mount and captures initial values.
+  }, [sessionId, projectId])
 
   return (
     <div className="terminal-pane" ref={wrapperRef}>
