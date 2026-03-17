@@ -66,7 +66,7 @@ export class TerminalCommandGenService {
   }
 
   parseCommandFromOutput(output: string): string | null {
-    const jsonPattern = /\{[^{}]*"command"\s*:\s*"[^"]*"[^{}]*\}/
+    const jsonPattern = /\{[^{}]*"command"\s*:\s*"(?:[^"\\]|\\.)*"[^{}]*\}/
     const match = output.match(jsonPattern)
 
     if (!match) return null
@@ -91,12 +91,14 @@ export class TerminalCommandGenService {
       stdio: ["pipe", "pipe", "pipe"],
     })
 
-    const subscriptionKey = `${input.session_id}:${Date.now()}`
+    const subscriptionKey = `${input.session_id}:${crypto.randomUUID()}`
     this.activeProcesses.set(subscriptionKey, proc)
 
     let accumulatedOutput = ""
+    let terminated = false
 
     const timeout = setTimeout(() => {
+      terminated = true
       proc.kill("SIGTERM")
       listener({ type: "error", message: "Command generation timed out (30s)" })
     }, TIMEOUT_MS)
@@ -115,14 +117,14 @@ export class TerminalCommandGenService {
       clearTimeout(timeout)
       this.activeProcesses.delete(subscriptionKey)
 
-      if (code === null) {
+      if (terminated || code === null) {
         return
       }
 
-      const command = this.parseCommandFromOutput(accumulatedOutput)
+      const parsedCommand = this.parseCommandFromOutput(accumulatedOutput)
 
-      if (command !== null) {
-        listener({ type: "complete", command })
+      if (parsedCommand !== null) {
+        listener({ type: "complete", command: parsedCommand })
       } else if (code !== 0) {
         listener({
           type: "error",
@@ -143,6 +145,7 @@ export class TerminalCommandGenService {
     })
 
     return () => {
+      terminated = true
       clearTimeout(timeout)
       this.activeProcesses.delete(subscriptionKey)
       proc.kill("SIGTERM")

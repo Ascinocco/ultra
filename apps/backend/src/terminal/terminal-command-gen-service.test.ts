@@ -83,6 +83,13 @@ describe("TerminalCommandGenService", () => {
       expect(result).toBeNull()
     })
 
+    it("handles escaped quotes in command value", () => {
+      const result = service.parseCommandFromOutput(
+        '{"command": "echo \\"hello world\\""}',
+      )
+      expect(result).toBe('echo "hello world"')
+    })
+
     it("returns null for JSON without command field", () => {
       const result = service.parseCommandFromOutput('{"result": "ls -la"}')
       expect(result).toBeNull()
