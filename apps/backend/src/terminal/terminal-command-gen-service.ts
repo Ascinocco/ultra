@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process"
+import { type ChildProcess, spawn } from "node:child_process"
 
 import type { TerminalCommandGenInput } from "@ultra/shared"
 
@@ -53,15 +53,7 @@ export class TerminalCommandGenService {
 
     return {
       command: "codex",
-      args: [
-        "exec",
-        "--json",
-        "-m",
-        model,
-        "-s",
-        "danger-full-access",
-        prompt,
-      ],
+      args: ["exec", "--json", "-m", model, "-s", "danger-full-access", prompt],
     }
   }
 
@@ -83,8 +75,16 @@ export class TerminalCommandGenService {
     input: TerminalCommandGenInput,
     listener: CommandGenEventListener,
   ): () => void {
-    const prompt = this.buildPrompt(input.prompt, input.cwd, input.recent_output)
-    const { command, args } = this.buildCliArgs(input.provider, input.model, prompt)
+    const prompt = this.buildPrompt(
+      input.prompt,
+      input.cwd,
+      input.recent_output,
+    )
+    const { command, args } = this.buildCliArgs(
+      input.provider,
+      input.model,
+      prompt,
+    )
 
     const proc = spawn(command, args, {
       cwd: input.cwd,

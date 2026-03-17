@@ -24,8 +24,8 @@ import {
 import { SystemService } from "./system/system-service.js"
 import { RuntimeProfileService } from "./terminal/runtime-profile-service.js"
 import { RuntimeSyncService } from "./terminal/runtime-sync-service.js"
-import { TerminalService } from "./terminal/terminal-service.js"
 import { TerminalCommandGenService } from "./terminal/terminal-command-gen-service.js"
+import { TerminalService } from "./terminal/terminal-service.js"
 import { TerminalSessionService } from "./terminal/terminal-session-service.js"
 import { ThreadService } from "./threads/thread-service.js"
 

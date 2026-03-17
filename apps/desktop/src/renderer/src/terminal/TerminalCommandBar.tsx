@@ -72,14 +72,19 @@ export function TerminalCommandBar({
       <div className="terminal-command-bar terminal-command-bar--error">
         <span className="terminal-command-bar__error-text">{error}</span>
         <button
+          type="button"
           className="terminal-command-bar__retry"
           onClick={() => onSubmit(inputValue.trim())}
         >
           Retry
         </button>
-        <kbd className="terminal-command-bar__kbd" onClick={onCancel}>
+        <button
+          type="button"
+          className="terminal-command-bar__kbd"
+          onClick={onCancel}
+        >
           Esc
-        </kbd>
+        </button>
       </div>
     )
   }
@@ -96,9 +101,13 @@ export function TerminalCommandBar({
             {streamingText}
           </code>
         )}
-        <kbd className="terminal-command-bar__kbd" onClick={onCancel}>
+        <button
+          type="button"
+          className="terminal-command-bar__kbd"
+          onClick={onCancel}
+        >
           Esc
-        </kbd>
+        </button>
       </div>
     )
   }
@@ -117,6 +126,7 @@ export function TerminalCommandBar({
       />
       <div className="terminal-command-bar__model-picker">
         <button
+          type="button"
           className="terminal-command-bar__model-trigger"
           onClick={() => setDropdownOpen(!dropdownOpen)}
           disabled={generating}
@@ -140,6 +150,7 @@ export function TerminalCommandBar({
                 </div>
                 {CLAUDE_MODELS.map((m) => (
                   <button
+                    type="button"
                     key={m}
                     className={`terminal-command-bar__dropdown-item ${
                       provider === "claude" && model === m
@@ -163,6 +174,7 @@ export function TerminalCommandBar({
                 </div>
                 {CODEX_MODELS.map((m) => (
                   <button
+                    type="button"
                     key={m}
                     className={`terminal-command-bar__dropdown-item ${
                       provider === "codex" && model === m

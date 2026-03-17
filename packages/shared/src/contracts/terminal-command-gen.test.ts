@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest"
-
-import {
-  parseTerminalCommandGenInput,
-  parseTerminalCommandGenEvent,
-  terminalCommandGenInputSchema,
-  terminalCommandGenDeltaEventSchema,
-  terminalCommandGenCompleteEventSchema,
-  terminalCommandGenErrorEventSchema,
-} from "./terminal-command-gen.js"
 import { subscriptionMethodSchema } from "./ipc.js"
+import {
+  parseTerminalCommandGenEvent,
+  parseTerminalCommandGenInput,
+  terminalCommandGenCompleteEventSchema,
+  terminalCommandGenDeltaEventSchema,
+  terminalCommandGenErrorEventSchema,
+  terminalCommandGenInputSchema,
+} from "./terminal-command-gen.js"
 
 describe("terminalCommandGenInputSchema", () => {
   it("parses a valid input payload", () => {
@@ -87,10 +86,12 @@ describe("terminalCommandGenErrorEventSchema", () => {
 
 describe("parseTerminalCommandGenEvent", () => {
   it("parses any valid event type", () => {
-    expect(parseTerminalCommandGenEvent({ type: "delta", text: "ls" })).toEqual({
-      type: "delta",
-      text: "ls",
-    })
+    expect(parseTerminalCommandGenEvent({ type: "delta", text: "ls" })).toEqual(
+      {
+        type: "delta",
+        text: "ls",
+      },
+    )
     expect(
       parseTerminalCommandGenEvent({ type: "complete", command: "ls -la" }),
     ).toEqual({ type: "complete", command: "ls -la" })
