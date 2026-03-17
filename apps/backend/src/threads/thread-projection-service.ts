@@ -311,6 +311,7 @@ export class ThreadProjectionService {
     const payload = event.payload as {
       coordinator_health?: unknown
       reason?: unknown
+      watch_health?: unknown
     }
 
     this.database
@@ -319,6 +320,7 @@ export class ThreadProjectionService {
           UPDATE threads
           SET
             coordinator_health = COALESCE(?, coordinator_health),
+            watch_health = COALESCE(?, watch_health),
             failure_reason = COALESCE(?, failure_reason),
             last_event_sequence = ?,
             updated_at = ?,
@@ -330,6 +332,7 @@ export class ThreadProjectionService {
         typeof payload.coordinator_health === "string"
           ? payload.coordinator_health
           : null,
+        typeof payload.watch_health === "string" ? payload.watch_health : null,
         typeof payload.reason === "string" ? payload.reason : null,
         event.sequenceNumber,
         event.recordedAt,

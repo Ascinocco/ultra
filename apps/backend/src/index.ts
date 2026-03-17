@@ -14,6 +14,7 @@ import { RuntimeRegistry } from "./runtime/runtime-registry.js"
 import { RuntimeSupervisor } from "./runtime/runtime-supervisor.js"
 import type { SupervisedProcessAdapter } from "./runtime/supervised-process-adapter.js"
 import { WatchService } from "./runtime/watch-service.js"
+import { WatchdogService } from "./runtime/watchdog-service.js"
 import { SandboxPersistenceService } from "./sandboxes/sandbox-persistence-service.js"
 import { SandboxService } from "./sandboxes/sandbox-service.js"
 import {
@@ -79,12 +80,20 @@ export async function startBackendScaffold(options?: {
       databaseRuntime.database,
     )
     const sandboxService = new SandboxService(sandboxPersistenceService)
+    const watchdogService = new WatchdogService(
+      runtimeSupervisor,
+      runtimeRegistry,
+      projectService,
+      threadService,
+    )
     const coordinatorService = new CoordinatorService(
       runtimeSupervisor,
       runtimeRegistry,
       projectService,
       sandboxService,
       threadService,
+      undefined,
+      watchdogService,
     )
     threadService.setCoordinatorDispatchHandler({
       sendThreadMessage: (input) =>

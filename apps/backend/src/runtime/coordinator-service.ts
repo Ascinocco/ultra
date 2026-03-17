@@ -24,6 +24,7 @@ import {
   type SupervisedProcessHandle,
   type SupervisedProcessSpec,
 } from "./supervised-process-adapter.js"
+import type { WatchdogService } from "./watchdog-service.js"
 
 type CoordinatorResponseEnvelope = {
   error?: {
@@ -145,6 +146,7 @@ export class CoordinatorService {
     private readonly sandboxService: SandboxService,
     private readonly threadService: ThreadService,
     private readonly now: () => string = () => new Date().toISOString(),
+    private readonly watchdogService?: WatchdogService,
   ) {
     this.runtimeSupervisor.subscribeToHandleLaunches(
       (componentId, handle, spec) => {
@@ -531,6 +533,14 @@ export class CoordinatorService {
       status: "running",
     })
     this.threadService.updateProjectCoordinatorHealth(projectId, "healthy")
+    this.watchdogService?.ensureRunning(projectId)
+    this.watchdogService?.updateCoordinatorSnapshot(
+      this.buildWatchdogSnapshot(projectId, {
+        coordinatorInstanceId,
+        lastHeartbeatAt: now,
+        status: "running",
+      }),
+    )
   }
 
   private processEvent(
@@ -680,6 +690,24 @@ export class CoordinatorService {
       projectId,
       normalizeComponentHealth(status),
     )
+    this.watchdogService?.updateCoordinatorSnapshot(
+      this.buildWatchdogSnapshot(projectId, {
+        activeAgentCount:
+          typeof payload.active_agent_count === "number"
+            ? payload.active_agent_count
+            : 0,
+        coordinatorInstanceId: event.coordinator_instance_id ?? null,
+        lastHeartbeatAt,
+        status,
+        ...(Array.isArray(payload.active_thread_ids)
+          ? {
+              activeThreadIds: payload.active_thread_ids.filter(
+                (entry): entry is string => typeof entry === "string",
+              ),
+            }
+          : {}),
+      }),
+    )
   }
 
   private applyRuntimeStatusChanged(
@@ -735,6 +763,24 @@ export class CoordinatorService {
     this.threadService.updateProjectCoordinatorHealth(
       projectId,
       normalizeComponentHealth(toStatus),
+    )
+    this.watchdogService?.updateCoordinatorSnapshot(
+      this.buildWatchdogSnapshot(projectId, {
+        activeAgentCount:
+          typeof payload.active_agent_count === "number"
+            ? payload.active_agent_count
+            : 0,
+        coordinatorInstanceId: event.coordinator_instance_id ?? null,
+        lastHeartbeatAt,
+        status: toStatus,
+        ...(Array.isArray(payload.active_thread_ids)
+          ? {
+              activeThreadIds: payload.active_thread_ids.filter(
+                (entry): entry is string => typeof entry === "string",
+              ),
+            }
+          : {}),
+      }),
     )
   }
 
@@ -910,5 +956,28 @@ export class CoordinatorService {
       status: "degraded",
     })
     this.threadService.updateProjectCoordinatorHealth(projectId, "down")
+    this.watchdogService?.handleCoordinatorUnavailable(projectId, reason)
+  }
+
+  private buildWatchdogSnapshot(
+    projectId: ProjectId,
+    input: {
+      activeAgentCount?: number
+      activeThreadIds?: string[]
+      coordinatorInstanceId: string | null
+      lastHeartbeatAt: string | null
+      status: string
+    },
+  ) {
+    return {
+      active_agent_count: input.activeAgentCount ?? 0,
+      active_thread_ids:
+        input.activeThreadIds ??
+        this.threadService.listActiveCoordinatorThreadIds(projectId),
+      coordinator_instance_id: input.coordinatorInstanceId,
+      last_heartbeat_at: input.lastHeartbeatAt,
+      project_id: projectId,
+      status: input.status,
+    }
   }
 }
