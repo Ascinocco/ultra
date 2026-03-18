@@ -34,7 +34,6 @@ export function TerminalPane({
 
   const [commandBarVisible, setCommandBarVisible] = useState(false)
   const [generating, setGenerating] = useState(false)
-  const [streamingText, setStreamingText] = useState("")
   const [error, setError] = useState<string | null>(null)
 
   const sessionCwd = useAppStore((s) => {
@@ -80,7 +79,6 @@ export function TerminalPane({
   const handleSubmit = useCallback(
     async (prompt: string) => {
       setGenerating(true)
-      setStreamingText("")
       setError(null)
 
       try {
@@ -96,7 +94,8 @@ export function TerminalPane({
           },
           (event: TerminalCommandGenEvent) => {
             if (event.type === "delta") {
-              setStreamingText((prev) => prev + event.text)
+              // Command-generation deltas are raw JSON payload fragments.
+              // Keep generating UI text-only to avoid JSON flicker before inject.
             } else if (event.type === "complete") {
               setGenerating(false)
               setCommandBarVisible(false)
@@ -125,7 +124,6 @@ export function TerminalPane({
     }
     setCommandBarVisible(false)
     setGenerating(false)
-    setStreamingText("")
     setError(null)
   }, [])
 
@@ -249,7 +247,6 @@ export function TerminalPane({
         provider={provider}
         model={model}
         generating={generating}
-        streamingText={streamingText}
         error={error}
         onSubmit={handleSubmit}
         onCancel={handleCancel}

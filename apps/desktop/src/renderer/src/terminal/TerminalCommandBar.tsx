@@ -14,7 +14,6 @@ export function TerminalCommandBar({
   provider,
   model,
   generating = false,
-  streamingText = "",
   error = null,
   onSubmit,
   onCancel,
@@ -26,7 +25,6 @@ export function TerminalCommandBar({
   provider: Provider
   model: string
   generating?: boolean
-  streamingText?: string
   error?: string | null
   onSubmit: (prompt: string) => void
   onCancel: () => void
@@ -100,11 +98,6 @@ export function TerminalCommandBar({
         <span className="terminal-command-bar__generating-label">
           Generating command...
         </span>
-        {streamingText && (
-          <code className="terminal-command-bar__streaming-text">
-            {streamingText}
-          </code>
-        )}
         <button
           type="button"
           className="terminal-command-bar__kbd"
