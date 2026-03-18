@@ -1,7 +1,12 @@
-import type { TerminalSessionSnapshot } from "@ultra/shared"
+import type { ChatMessageSnapshot, TerminalSessionSnapshot } from "@ultra/shared"
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
+import {
+  fetchChatMessages,
+  sendChatMessage,
+  subscribeToChatMessages,
+} from "../chats/chat-message-workflows.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
 import { TerminalPane } from "../terminal/TerminalPane.js"
@@ -25,18 +30,19 @@ const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
 const MAX_DRAWER_HEIGHT_RATIO = 0.8
 
-const ACTIVE_CHAT_PANE_SHELL_MESSAGES = [
-  {
-    id: "assistant-ready",
-    role: "assistant",
-    text: "Active chat shell is ready. Live message streaming lands in ULR-19.",
-  },
-  {
-    id: "system-next-step",
-    role: "system",
-    text: "Use the input dock below once chat message workflows are wired.",
-  },
-] as const
+function resolveChatMessageVariant(
+  message: ChatMessageSnapshot,
+): "assistant" | "user" | "system" {
+  if (message.role === "assistant") {
+    return "assistant"
+  }
+
+  if (message.role === "user") {
+    return "user"
+  }
+
+  return "system"
+}
 
 function TerminalDrawer({
   height,
@@ -283,16 +289,21 @@ export function ChatPageShell({
   onOpenSettings: () => void
 }) {
   const activeProjectId = useAppStore((state) => state.app.activeProjectId)
+  const capabilities = useAppStore((state) => state.app.capabilities)
   const terminal = useAppStore((state) => state.terminal)
   const sidebar = useAppStore((state) => state.sidebar)
+  const chatMessages = useAppStore((state) => state.chatMessages)
   const layout = useAppStore((state) => state.layout)
   const actions = useAppStore((state) => state.actions)
   const threads = useAppStore((state) => state.threads)
 
   const chatFrameRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const transcriptScrollRef = useRef<HTMLDivElement>(null)
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
   const [isDragging, setIsDragging] = useState(false)
+  const [chatInputValue, setChatInputValue] = useState("")
+  const [isSendingChatMessage, setIsSendingChatMessage] = useState(false)
 
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
@@ -303,6 +314,12 @@ export function ChatPageShell({
           (chat) => chat.id === activeChatId,
         ) ?? null)
       : null
+  const activeChatMessages = activeChatId
+    ? (chatMessages.messagesByChatId[activeChatId] ?? [])
+    : []
+  const activeChatMessagesFetchStatus = activeChatId
+    ? (chatMessages.fetchStatusByChatId[activeChatId] ?? "idle")
+    : "idle"
   const terminalSessions = activeProjectId
     ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
         .filter((s) => s.status === "running")
@@ -448,6 +465,85 @@ export function ChatPageShell({
     })
   }, [activeProjectId, actions])
 
+  useEffect(() => {
+    if (!activeChatId) {
+      return
+    }
+
+    fetchChatMessages(activeChatId, actions).catch((err) => {
+      console.error("[chats] failed to fetch messages:", err)
+    })
+  }, [activeChatId, actions])
+
+  useEffect(() => {
+    if (!activeChatId || !capabilities?.supportsSubscriptions) {
+      return
+    }
+
+    let cancelled = false
+    let cleanup: (() => Promise<void>) | null = null
+
+    subscribeToChatMessages(activeChatId, actions)
+      .then((unsubscribe) => {
+        if (cancelled) {
+          void unsubscribe()
+          return
+        }
+        cleanup = unsubscribe
+      })
+      .catch((err) => {
+        console.error("[chats] failed to subscribe to messages:", err)
+      })
+
+    return () => {
+      cancelled = true
+      if (cleanup) {
+        void cleanup()
+      }
+    }
+  }, [activeChatId, capabilities?.supportsSubscriptions, actions])
+
+  useEffect(() => {
+    setChatInputValue("")
+    setIsSendingChatMessage(false)
+  }, [activeChatId])
+
+  useEffect(() => {
+    const container = transcriptScrollRef.current
+
+    if (!container) {
+      return
+    }
+
+    container.scrollTop = container.scrollHeight
+  }, [activeChatId, activeChatMessages.length])
+
+  function handleSendChatMessage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!activeChat || isSendingChatMessage) {
+      return
+    }
+
+    const prompt = chatInputValue.trim()
+
+    if (!prompt) {
+      return
+    }
+
+    setIsSendingChatMessage(true)
+    sendChatMessage(activeChat.id, prompt, actions)
+      .then(() => {
+        setChatInputValue("")
+      })
+      .catch((err) => {
+        console.error("[chats] failed to send message:", err)
+      })
+      .finally(() => {
+        setIsSendingChatMessage(false)
+      })
+  }
+
   function handleSelectThread(threadId: string | null) {
     if (!activeProjectId) return
     actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
@@ -498,17 +594,39 @@ export function ChatPageShell({
                       {activeChat.provider} · {activeChat.model}
                     </span>
                   </div>
-                  <div className="active-chat-pane__transcript-scroll">
-                    {ACTIVE_CHAT_PANE_SHELL_MESSAGES.map((message) => (
+                  <div
+                    className="active-chat-pane__transcript-scroll"
+                    ref={transcriptScrollRef}
+                  >
+                    {activeChatMessagesFetchStatus === "loading" &&
+                    activeChatMessages.length === 0 ? (
+                      <p className="active-chat-pane__transcript-empty">
+                        Loading transcript…
+                      </p>
+                    ) : null}
+                    {activeChatMessagesFetchStatus === "error" &&
+                    activeChatMessages.length === 0 ? (
+                      <p className="active-chat-pane__transcript-empty">
+                        Unable to load transcript. Try reselecting this chat.
+                      </p>
+                    ) : null}
+                    {activeChatMessagesFetchStatus === "idle" &&
+                    activeChatMessages.length === 0 ? (
+                      <p className="active-chat-pane__transcript-empty">
+                        No messages yet. Send one to start this transcript.
+                      </p>
+                    ) : null}
+                    {activeChatMessages.map((message) => (
                       <article
                         key={message.id}
-                        className={`active-chat-pane__message active-chat-pane__message--${message.role}`}
+                        className={`active-chat-pane__message active-chat-pane__message--${resolveChatMessageVariant(message)}`}
                       >
                         <span className="active-chat-pane__message-role">
                           {message.role}
                         </span>
                         <p className="active-chat-pane__message-text">
-                          {message.text}
+                          {message.contentMarkdown ??
+                            "(Structured message payload)"}
                         </p>
                       </article>
                     ))}
@@ -534,6 +652,10 @@ export function ChatPageShell({
                       <dd>{activeChat.status}</dd>
                     </div>
                     <div className="active-chat-pane__reference-item">
+                      <dt>Messages</dt>
+                      <dd>{activeChatMessages.length}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
                       <dt>Updated</dt>
                       <dd>{activeChat.updatedAt}</dd>
                     </div>
@@ -543,7 +665,7 @@ export function ChatPageShell({
 
               <form
                 className="active-chat-pane__input-dock"
-                onSubmit={(event) => event.preventDefault()}
+                onSubmit={handleSendChatMessage}
               >
                 <label className="active-chat-pane__input-label" htmlFor="chat-input">
                   Message
@@ -553,15 +675,17 @@ export function ChatPageShell({
                     id="chat-input"
                     className="active-chat-pane__input"
                     rows={3}
-                    placeholder="Message send workflow lands in ULR-19."
-                    disabled
+                    placeholder="Ask the active chat to plan, code, or explain."
+                    value={chatInputValue}
+                    onChange={(event) => setChatInputValue(event.target.value)}
+                    disabled={isSendingChatMessage}
                   />
                   <button
                     className="active-chat-pane__send"
                     type="submit"
-                    disabled
+                    disabled={isSendingChatMessage || chatInputValue.trim().length === 0}
                   >
-                    Send
+                    {isSendingChatMessage ? "Sending…" : "Send"}
                   </button>
                 </div>
               </form>

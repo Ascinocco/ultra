@@ -13,7 +13,7 @@ import {
   type ConnectionStatus,
   createAppStore,
 } from "./state/app-store.js"
-import { makeChat, makeProject } from "./test-utils/factories.js"
+import { makeChat, makeChatMessage, makeProject } from "./test-utils/factories.js"
 
 function renderShell(options?: {
   currentPage?: "chat" | "editor" | "browser"
@@ -418,6 +418,37 @@ describe("sidebar slice", () => {
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe(
       "c2",
+    )
+  })
+})
+
+describe("chat message slice", () => {
+  it("setMessagesForChat stores transcript history and marks fetch idle", () => {
+    const store = createAppStore()
+    const messages = [
+      makeChatMessage("chat_msg_1", "chat_1", { role: "user" }),
+      makeChatMessage("chat_msg_2", "chat_1", { role: "assistant" }),
+    ]
+
+    store.getState().actions.setMessagesForChat("chat_1", messages)
+
+    expect(store.getState().chatMessages.messagesByChatId["chat_1"]).toEqual(
+      messages,
+    )
+    expect(store.getState().chatMessages.fetchStatusByChatId["chat_1"]).toBe(
+      "idle",
+    )
+  })
+
+  it("upsertChatMessage de-duplicates by message id", () => {
+    const store = createAppStore()
+    const message = makeChatMessage("chat_msg_1", "chat_1")
+
+    store.getState().actions.upsertChatMessage("chat_1", message)
+    store.getState().actions.upsertChatMessage("chat_1", message)
+
+    expect(store.getState().chatMessages.messagesByChatId["chat_1"]).toHaveLength(
+      1,
     )
   })
 })

@@ -8,11 +8,13 @@ import {
   chatsArchiveInputSchema,
   chatsCreateInputSchema,
   chatsGetInputSchema,
+  chatsGetMessagesInputSchema,
   chatsListInputSchema,
   chatsPinInputSchema,
   chatsPromoteWorkToThreadInputSchema,
   chatsRenameInputSchema,
   chatsRestoreInputSchema,
+  chatsSendMessageInputSchema,
   chatsStartThreadInputSchema,
   chatsUnpinInputSchema,
   IPC_PROTOCOL_VERSION,
@@ -58,6 +60,7 @@ import {
 } from "@ultra/shared"
 import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
 import type { ChatService } from "../chats/chat-service.js"
+import type { ChatTurnService } from "../chats/chat-turn-service.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { CoordinatorService } from "../runtime/coordinator-service.js"
 import type { RuntimeRegistry } from "../runtime/runtime-registry.js"
@@ -170,6 +173,7 @@ export async function routeIpcRequest(
   services: {
     artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
+    chatTurnService: ChatTurnService
     coordinatorService: CoordinatorService
     systemService: SystemService
     projectService: ProjectService
@@ -367,6 +371,14 @@ export async function routeIpcRequest(
           ),
         )
       }
+      case "chats.get_messages": {
+        const getMessagesQuery = assertQueryRequest(request)
+        return createSuccessResponse(getMessagesQuery.request_id, {
+          messages: services.chatService.listMessages(
+            chatsGetMessagesInputSchema.parse(getMessagesQuery.payload).chat_id,
+          ),
+        })
+      }
       case "chats.rename": {
         const renameCommand = assertCommandRequest(request)
         const { chat_id, title } = chatsRenameInputSchema.parse(
@@ -411,6 +423,16 @@ export async function routeIpcRequest(
           services.chatService.restore(
             chatsRestoreInputSchema.parse(restoreCommand.payload).chat_id,
           ),
+        )
+      }
+      case "chats.send_message": {
+        const sendMessageCommand = assertCommandRequest(request)
+        const { chat_id, prompt } = chatsSendMessageInputSchema.parse(
+          sendMessageCommand.payload,
+        )
+        return createSuccessResponse(
+          sendMessageCommand.request_id,
+          await services.chatTurnService.sendMessage(chat_id, prompt),
         )
       }
       case "terminal.get_runtime_profile": {

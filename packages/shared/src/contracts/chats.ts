@@ -4,6 +4,8 @@ import { isoUtcTimestampSchema, opaqueIdSchema } from "./constants.js"
 import {
   commandRequestEnvelopeSchema,
   queryRequestEnvelopeSchema,
+  subscribeRequestEnvelopeSchema,
+  subscriptionEventEnvelopeSchema,
   successResponseEnvelopeSchema,
 } from "./ipc.js"
 import { projectIdSchema } from "./projects.js"
@@ -45,8 +47,30 @@ export const chatSessionSnapshotSchema = z.object({
   continuationPrompt: z.string().nullable(),
 })
 
+export const chatMessageSnapshotSchema = z.object({
+  id: opaqueIdSchema,
+  chatId: chatIdSchema,
+  sessionId: opaqueIdSchema,
+  role: z.string().min(1),
+  messageType: z.string().min(1),
+  contentMarkdown: z.string().nullable(),
+  structuredPayloadJson: z.string().nullable(),
+  providerMessageId: z.string().nullable(),
+  createdAt: isoUtcTimestampSchema,
+})
+
 export const chatsListResultSchema = z.object({
   chats: z.array(chatSummarySchema),
+})
+
+export const chatsGetMessagesResultSchema = z.object({
+  messages: z.array(chatMessageSnapshotSchema),
+})
+
+export const chatsSendMessageResultSchema = z.object({
+  userMessage: chatMessageSnapshotSchema,
+  assistantMessage: chatMessageSnapshotSchema,
+  checkpointIds: z.array(opaqueIdSchema),
 })
 
 export const chatsCreateInputSchema = z.object({
@@ -59,6 +83,10 @@ export const chatsGetInputSchema = z.object({
 
 export const chatsListInputSchema = z.object({
   project_id: projectIdSchema,
+})
+
+export const chatsGetMessagesInputSchema = z.object({
+  chat_id: chatIdSchema,
 })
 
 export const chatsRenameInputSchema = z.object({
@@ -80,6 +108,11 @@ export const chatsArchiveInputSchema = z.object({
 
 export const chatsRestoreInputSchema = z.object({
   chat_id: chatIdSchema,
+})
+
+export const chatsSendMessageInputSchema = z.object({
+  chat_id: chatIdSchema,
+  prompt: z.string().min(1),
 })
 
 export const chatsCreateCommandSchema = commandRequestEnvelopeSchema.extend({
@@ -122,6 +155,27 @@ export const chatsListQuerySchema = queryRequestEnvelopeSchema.extend({
   payload: chatsListInputSchema,
 })
 
+export const chatsGetMessagesQuerySchema = queryRequestEnvelopeSchema.extend({
+  name: z.literal("chats.get_messages"),
+  payload: chatsGetMessagesInputSchema,
+})
+
+export const chatsSendMessageCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("chats.send_message"),
+    payload: chatsSendMessageInputSchema,
+  })
+
+export const chatsMessagesSubscribeInputSchema = z.object({
+  chat_id: chatIdSchema,
+})
+
+export const chatsMessagesSubscribeRequestSchema =
+  subscribeRequestEnvelopeSchema.extend({
+    name: z.literal("chats.messages"),
+    payload: chatsMessagesSubscribeInputSchema,
+  })
+
 export const chatsCreateSuccessResponseSchema =
   successResponseEnvelopeSchema.extend({
     result: chatSnapshotSchema,
@@ -137,20 +191,64 @@ export const chatsListSuccessResponseSchema =
     result: chatsListResultSchema,
   })
 
+export const chatsGetMessagesSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: chatsGetMessagesResultSchema,
+  })
+
+export const chatsSendMessageSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: chatsSendMessageResultSchema,
+  })
+
+export const chatsMessagesEventSchema = subscriptionEventEnvelopeSchema.extend({
+  event_name: z.literal("chats.messages"),
+  payload: chatMessageSnapshotSchema,
+})
+
 export type ChatId = z.infer<typeof chatIdSchema>
 export type ChatSnapshot = z.infer<typeof chatSnapshotSchema>
 export type ChatSummary = z.infer<typeof chatSummarySchema>
 export type ChatSessionSnapshot = z.infer<typeof chatSessionSnapshotSchema>
+export type ChatMessageSnapshot = z.infer<typeof chatMessageSnapshotSchema>
 export type ChatsCreateInput = z.infer<typeof chatsCreateInputSchema>
 export type ChatsGetInput = z.infer<typeof chatsGetInputSchema>
 export type ChatsListInput = z.infer<typeof chatsListInputSchema>
+export type ChatsGetMessagesInput = z.infer<typeof chatsGetMessagesInputSchema>
+export type ChatsSendMessageInput = z.infer<typeof chatsSendMessageInputSchema>
 export type ChatsRenameInput = z.infer<typeof chatsRenameInputSchema>
 export type ChatsListResult = z.infer<typeof chatsListResultSchema>
+export type ChatsGetMessagesResult = z.infer<typeof chatsGetMessagesResultSchema>
+export type ChatsSendMessageResult = z.infer<typeof chatsSendMessageResultSchema>
+export type ChatsMessagesSubscribeInput = z.infer<
+  typeof chatsMessagesSubscribeInputSchema
+>
+export type ChatsMessagesEvent = z.infer<typeof chatsMessagesEventSchema>
 
 export function parseChatSnapshot(input: unknown): ChatSnapshot {
   return chatSnapshotSchema.parse(input)
 }
 
+export function parseChatMessageSnapshot(input: unknown): ChatMessageSnapshot {
+  return chatMessageSnapshotSchema.parse(input)
+}
+
 export function parseChatsListResult(input: unknown): ChatsListResult {
   return chatsListResultSchema.parse(input)
+}
+
+export function parseChatsGetMessagesResult(
+  input: unknown,
+): ChatsGetMessagesResult {
+  return chatsGetMessagesResultSchema.parse(input)
+}
+
+export function parseChatsSendMessageResult(
+  input: unknown,
+): ChatsSendMessageResult {
+  return chatsSendMessageResultSchema.parse(input)
+}
+
+export function parseChatsMessagesEvent(input: unknown): ChatsMessagesEvent {
+  return chatsMessagesEventSchema.parse(input)
 }

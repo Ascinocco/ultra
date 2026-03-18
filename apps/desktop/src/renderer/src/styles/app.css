@@ -674,6 +674,11 @@ button {
   background: rgba(91, 141, 239, 0.08);
 }
 
+.active-chat-pane__message--user {
+  border-color: rgba(94, 234, 212, 0.24);
+  background: rgba(94, 234, 212, 0.08);
+}
+
 .active-chat-pane__message--system {
   border-color: rgba(250, 204, 21, 0.24);
   background: rgba(250, 204, 21, 0.08);
@@ -692,6 +697,12 @@ button {
   color: var(--text-secondary);
   font-size: 0.85rem;
   line-height: 1.5;
+}
+
+.active-chat-pane__transcript-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
 }
 
 .active-chat-pane__reference-list {
@@ -767,11 +778,12 @@ button {
   font-size: 0.82rem;
   font-weight: 600;
   padding: 8px 14px;
-  cursor: not-allowed;
+  cursor: pointer;
 }
 
 .active-chat-pane__send:disabled {
   opacity: 0.8;
+  cursor: not-allowed;
 }
 
 /* ── Drag Handle (chat ↔ thread resize) ──────────────────── */

@@ -238,6 +238,11 @@ function mapChatChatRefRow(row: ChatChatRefRow): ChatChatRefSnapshot {
 }
 
 export class ChatService {
+  private readonly messageListenersByChatId = new Map<
+    ChatId,
+    Set<(message: ChatMessageSnapshot) => void>
+  >()
+
   constructor(
     private readonly database: DatabaseSync,
     private readonly now: () => string = () => new Date().toISOString(),
@@ -550,7 +555,9 @@ export class ChatService {
       )
     }
 
-    return mapChatMessageRow(row)
+    const snapshot = mapChatMessageRow(row)
+    this.notifyMessageListeners(snapshot)
+    return snapshot
   }
 
   createActionCheckpoint(input: CreateChatActionCheckpointInput): string {
@@ -668,6 +675,30 @@ export class ChatService {
       .map(mapChatMessageRow)
   }
 
+  subscribeToMessages(
+    chatId: ChatId,
+    listener: (message: ChatMessageSnapshot) => void,
+  ): () => void {
+    this.get(chatId)
+    const listeners = this.messageListenersByChatId.get(chatId) ?? new Set()
+    listeners.add(listener)
+    this.messageListenersByChatId.set(chatId, listeners)
+
+    return () => {
+      const active = this.messageListenersByChatId.get(chatId)
+
+      if (!active) {
+        return
+      }
+
+      active.delete(listener)
+
+      if (active.size === 0) {
+        this.messageListenersByChatId.delete(chatId)
+      }
+    }
+  }
+
   listThreadRefs(chatId: ChatId): ChatThreadRefSnapshot[] {
     this.get(chatId)
 
@@ -709,6 +740,18 @@ export class ChatService {
 
     if (!project) {
       throw new IpcProtocolError("not_found", `Project not found: ${projectId}`)
+    }
+  }
+
+  private notifyMessageListeners(message: ChatMessageSnapshot): void {
+    const listeners = this.messageListenersByChatId.get(message.chatId)
+
+    if (!listeners) {
+      return
+    }
+
+    for (const listener of listeners) {
+      listener(message)
     }
   }
 

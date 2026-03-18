@@ -9,8 +9,12 @@ import {
   parseArtifactLoadResult,
   parseArtifactSnapshot,
   parseArtifactsCaptureRuntimeResult,
+  parseChatMessageSnapshot,
   parseChatSnapshot,
+  parseChatsGetMessagesResult,
   parseChatsListResult,
+  parseChatsMessagesEvent,
+  parseChatsSendMessageResult,
   parseCommandRequest,
   parseEnvironmentReadinessSnapshot,
   parseIpcResponseEnvelope,
@@ -369,6 +373,87 @@ describe("shared contracts", () => {
     expect(sendMessageCommand.name).toBe("threads.send_message")
     expect(subscribeRequest.name).toBe("threads.messages")
     expect(retryCommand.name).toBe("runtime.retry_thread")
+  })
+
+  it("parses chat message query/command/subscription envelopes", () => {
+    const getMessagesQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_messages",
+      type: "query",
+      name: "chats.get_messages",
+      payload: {
+        chat_id: "chat_123",
+      },
+    })
+    const sendMessageCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_send_message",
+      type: "command",
+      name: "chats.send_message",
+      payload: {
+        chat_id: "chat_123",
+        prompt: "Summarize next actions.",
+      },
+    })
+    const subscribeRequest = parseSubscribeRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_messages_subscribe",
+      type: "subscribe",
+      name: "chats.messages",
+      payload: {
+        chat_id: "chat_123",
+      },
+    })
+
+    expect(getMessagesQuery.name).toBe("chats.get_messages")
+    expect(sendMessageCommand.name).toBe("chats.send_message")
+    expect(subscribeRequest.name).toBe("chats.messages")
+  })
+
+  it("parses chat message snapshots, results, and events", () => {
+    const userMessage = parseChatMessageSnapshot({
+      id: "chat_msg_1",
+      chatId: "chat_123",
+      sessionId: "chat_sess_123",
+      role: "user",
+      messageType: "user_text",
+      contentMarkdown: "Hello",
+      structuredPayloadJson: null,
+      providerMessageId: null,
+      createdAt: "2026-03-18T12:00:00.000Z",
+    })
+    const assistantMessage = parseChatMessageSnapshot({
+      id: "chat_msg_2",
+      chatId: "chat_123",
+      sessionId: "chat_sess_123",
+      role: "assistant",
+      messageType: "assistant_text",
+      contentMarkdown: "Hi there.",
+      structuredPayloadJson: null,
+      providerMessageId: "vendor_msg_2",
+      createdAt: "2026-03-18T12:00:01.000Z",
+    })
+    const listResult = parseChatsGetMessagesResult({
+      messages: [userMessage, assistantMessage],
+    })
+    const sendResult = parseChatsSendMessageResult({
+      userMessage,
+      assistantMessage,
+      checkpointIds: ["chat_checkpoint_1"],
+    })
+    const messageEvent = parseChatsMessagesEvent(
+      parseSubscriptionEventEnvelope({
+        protocol_version: IPC_PROTOCOL_VERSION,
+        type: "event",
+        subscription_id: "sub_chat_1",
+        event_name: "chats.messages",
+        payload: assistantMessage,
+      }),
+    )
+
+    expect(listResult.messages).toHaveLength(2)
+    expect(sendResult.assistantMessage.providerMessageId).toBe("vendor_msg_2")
+    expect(messageEvent.payload.role).toBe("assistant")
   })
 
   it("parses the system hello result contract", () => {

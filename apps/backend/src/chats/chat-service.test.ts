@@ -149,6 +149,40 @@ describe("ChatService", () => {
     runtime.close()
   })
 
+  it("publishes appended messages to chat subscribers and supports unsubscribe", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const service = new ChatService(runtime.database)
+    const project = projectService.open({ path: projectPath })
+    const chat = service.create(project.id)
+    const received: string[] = []
+
+    const unsubscribe = service.subscribeToMessages(chat.id, (message) => {
+      received.push(message.id)
+    })
+
+    const first = service.appendMessage({
+      chatId: chat.id,
+      role: "user",
+      messageType: "user_text",
+      contentMarkdown: "First",
+    })
+
+    unsubscribe()
+
+    service.appendMessage({
+      chatId: chat.id,
+      role: "assistant",
+      messageType: "assistant_text",
+      contentMarkdown: "Second",
+    })
+
+    expect(received).toEqual([first.id])
+
+    runtime.close()
+  })
+
   it("updates runtime config and persists provider changes", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
