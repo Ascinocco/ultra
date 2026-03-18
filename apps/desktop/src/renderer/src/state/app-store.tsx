@@ -217,7 +217,7 @@ const defaultTerminalState: TerminalSlice = {
   focusedSessionIdByProjectId: {},
   savedCommandsByProjectId: {},
   commandBarProvider: "claude",
-  commandBarModel: "sonnet-4-6",
+  commandBarModel: "claude-sonnet-4-6",
 }
 
 const defaultThreadsState: ThreadsSlice = {
