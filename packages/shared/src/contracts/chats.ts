@@ -115,6 +115,14 @@ export const chatsSendMessageInputSchema = z.object({
   prompt: z.string().min(1),
 })
 
+export const chatsApprovePlanInputSchema = z.object({
+  chat_id: chatIdSchema,
+})
+
+export const chatsApproveSpecsInputSchema = z.object({
+  chat_id: chatIdSchema,
+})
+
 export const chatsCreateCommandSchema = commandRequestEnvelopeSchema.extend({
   name: z.literal("chats.create"),
   payload: chatsCreateInputSchema,
@@ -166,6 +174,18 @@ export const chatsSendMessageCommandSchema =
     payload: chatsSendMessageInputSchema,
   })
 
+export const chatsApprovePlanCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("chats.approve_plan"),
+    payload: chatsApprovePlanInputSchema,
+  })
+
+export const chatsApproveSpecsCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("chats.approve_specs"),
+    payload: chatsApproveSpecsInputSchema,
+  })
+
 export const chatsMessagesSubscribeInputSchema = z.object({
   chat_id: chatIdSchema,
 })
@@ -201,6 +221,16 @@ export const chatsSendMessageSuccessResponseSchema =
     result: chatsSendMessageResultSchema,
   })
 
+export const chatsApprovePlanSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: chatMessageSnapshotSchema,
+  })
+
+export const chatsApproveSpecsSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: chatMessageSnapshotSchema,
+  })
+
 export const chatsMessagesEventSchema = subscriptionEventEnvelopeSchema.extend({
   event_name: z.literal("chats.messages"),
   payload: chatMessageSnapshotSchema,
@@ -216,6 +246,10 @@ export type ChatsGetInput = z.infer<typeof chatsGetInputSchema>
 export type ChatsListInput = z.infer<typeof chatsListInputSchema>
 export type ChatsGetMessagesInput = z.infer<typeof chatsGetMessagesInputSchema>
 export type ChatsSendMessageInput = z.infer<typeof chatsSendMessageInputSchema>
+export type ChatsApprovePlanInput = z.infer<typeof chatsApprovePlanInputSchema>
+export type ChatsApproveSpecsInput = z.infer<
+  typeof chatsApproveSpecsInputSchema
+>
 export type ChatsRenameInput = z.infer<typeof chatsRenameInputSchema>
 export type ChatsListResult = z.infer<typeof chatsListResultSchema>
 export type ChatsGetMessagesResult = z.infer<typeof chatsGetMessagesResultSchema>

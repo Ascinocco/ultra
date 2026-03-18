@@ -701,7 +701,6 @@ describe("socket server", () => {
       directory,
       socketPath,
     )
-    const chatService = new ChatService(databaseRuntime.database)
     await mkdir(projectDirectory, { recursive: true })
 
     const openProjectRaw = await request(socketPath, {
@@ -736,24 +735,59 @@ describe("socket server", () => {
       throw new Error("Expected chat create to succeed")
     }
 
-    const planApproval = chatService.appendMessage({
-      chatId: createChatResponse.result.id,
-      role: "user",
-      messageType: "plan_approval",
-      contentMarkdown: "approve plan",
+    const approvePlanRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_approve_plan",
+      type: "command",
+      name: "chats.approve_plan",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
     })
-    const specApproval = chatService.appendMessage({
-      chatId: createChatResponse.result.id,
-      role: "user",
-      messageType: "spec_approval",
-      contentMarkdown: "approve specs",
+    const approvePlanResponse = parseIpcResponseEnvelope(approvePlanRaw)
+    expect(approvePlanResponse.ok).toBe(true)
+    if (!approvePlanResponse.ok) {
+      throw new Error("Expected plan approval to succeed")
+    }
+
+    const approveSpecsRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_approve_specs",
+      type: "command",
+      name: "chats.approve_specs",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
     })
-    const startRequest = chatService.appendMessage({
-      chatId: createChatResponse.result.id,
-      role: "user",
-      messageType: "thread_start_request",
-      contentMarkdown: "start work",
+    const approveSpecsResponse = parseIpcResponseEnvelope(approveSpecsRaw)
+    expect(approveSpecsResponse.ok).toBe(true)
+    if (!approveSpecsResponse.ok) {
+      throw new Error("Expected specs approval to succeed")
+    }
+
+    const planApproval = approvePlanResponse.result
+    const specApproval = approveSpecsResponse.result
+
+    expect(planApproval.messageType).toBe("plan_approval")
+    expect(specApproval.messageType).toBe("spec_approval")
+
+    const getMessagesBeforeStartRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_get_chat_messages_before_start",
+      type: "query",
+      name: "chats.get_messages",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
     })
+    const getMessagesBeforeStartResponse = parseIpcResponseEnvelope(
+      getMessagesBeforeStartRaw,
+    )
+    expect(getMessagesBeforeStartResponse.ok).toBe(true)
+    if (!getMessagesBeforeStartResponse.ok) {
+      throw new Error("Expected chat message query to succeed")
+    }
+    expect(getMessagesBeforeStartResponse.result.messages).toHaveLength(2)
 
     const startThreadRaw = await request(socketPath, {
       protocol_version: IPC_PROTOCOL_VERSION,
@@ -766,7 +800,7 @@ describe("socket server", () => {
         summary: "Created via socket",
         plan_approval_message_id: planApproval.id,
         spec_approval_message_id: specApproval.id,
-        start_request_message_id: startRequest.id,
+        confirm_start: true,
         spec_refs: [],
         ticket_refs: [],
       },
@@ -832,6 +866,29 @@ describe("socket server", () => {
         }),
       ])
     }
+
+    const getMessagesAfterStartRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_get_chat_messages_after_start",
+      type: "query",
+      name: "chats.get_messages",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
+    })
+    const getMessagesAfterStartResponse = parseIpcResponseEnvelope(
+      getMessagesAfterStartRaw,
+    )
+    expect(getMessagesAfterStartResponse.ok).toBe(true)
+    if (!getMessagesAfterStartResponse.ok) {
+      throw new Error("Expected chat message query after start to succeed")
+    }
+    expect(
+      getMessagesAfterStartResponse.result.messages.some(
+        (message: { messageType?: string }) =>
+          message.messageType === "thread_start_request",
+      ),
+    ).toBe(true)
 
     await runtime.close()
     databaseRuntime.close()

@@ -186,6 +186,13 @@ export class CoordinatorService {
     input: ChatsStartThreadInput
     thread: ThreadDetailResult
   }): void {
+    if (!input.input.start_request_message_id) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Start request message is required before dispatching start_thread.",
+      )
+    }
+
     const { thread } = input.thread
     this.dispatchCommand(
       thread.projectId,

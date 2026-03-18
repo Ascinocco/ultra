@@ -240,6 +240,27 @@ describe("shared contracts", () => {
     expect(command.name).toBe("chats.start_thread")
   })
 
+  it("parses chats.start_thread when confirmation is explicit and start request id is omitted", () => {
+    const command = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_start_thread_confirm",
+      type: "command",
+      name: "chats.start_thread",
+      payload: {
+        chat_id: "chat_123",
+        title: "Thread Title",
+        summary: "Thread Summary",
+        plan_approval_message_id: "msg_plan",
+        spec_approval_message_id: "msg_spec",
+        confirm_start: true,
+        spec_refs: [],
+        ticket_refs: [],
+      },
+    })
+
+    expect(command.name).toBe("chats.start_thread")
+  })
+
   it("parses a valid query envelope for threads.get_events", () => {
     const query = parseQueryRequest({
       protocol_version: IPC_PROTOCOL_VERSION,
@@ -395,6 +416,24 @@ describe("shared contracts", () => {
         prompt: "Summarize next actions.",
       },
     })
+    const approvePlanCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_approve_plan",
+      type: "command",
+      name: "chats.approve_plan",
+      payload: {
+        chat_id: "chat_123",
+      },
+    })
+    const approveSpecsCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_approve_specs",
+      type: "command",
+      name: "chats.approve_specs",
+      payload: {
+        chat_id: "chat_123",
+      },
+    })
     const subscribeRequest = parseSubscribeRequest({
       protocol_version: IPC_PROTOCOL_VERSION,
       request_id: "req_chat_messages_subscribe",
@@ -407,6 +446,8 @@ describe("shared contracts", () => {
 
     expect(getMessagesQuery.name).toBe("chats.get_messages")
     expect(sendMessageCommand.name).toBe("chats.send_message")
+    expect(approvePlanCommand.name).toBe("chats.approve_plan")
+    expect(approveSpecsCommand.name).toBe("chats.approve_specs")
     expect(subscribeRequest.name).toBe("chats.messages")
   })
 

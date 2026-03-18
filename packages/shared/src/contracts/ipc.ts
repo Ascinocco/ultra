@@ -44,6 +44,8 @@ export const commandMethodSchema = z.enum([
   "chats.archive",
   "chats.restore",
   "chats.send_message",
+  "chats.approve_plan",
+  "chats.approve_specs",
   "chats.start_thread",
   "chats.promote_work_to_thread",
   "threads.send_message",

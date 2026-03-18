@@ -3,8 +3,11 @@ import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import {
+  approvePlan as approveChatPlan,
+  approveSpecs as approveChatSpecs,
   fetchChatMessages,
   sendChatMessage,
+  startThreadFromChat,
   subscribeToChatMessages,
 } from "../chats/chat-message-workflows.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
@@ -42,6 +45,27 @@ function resolveChatMessageVariant(
   }
 
   return "system"
+}
+
+function findLatestChatMessageByType(
+  messages: ChatMessageSnapshot[],
+  messageType: string,
+): {
+  message: ChatMessageSnapshot
+  index: number
+} | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (!message) {
+      continue
+    }
+
+    if (message.messageType === messageType) {
+      return { message, index }
+    }
+  }
+
+  return null
 }
 
 function TerminalDrawer({
@@ -304,6 +328,9 @@ export function ChatPageShell({
   const [isDragging, setIsDragging] = useState(false)
   const [chatInputValue, setChatInputValue] = useState("")
   const [isSendingChatMessage, setIsSendingChatMessage] = useState(false)
+  const [isApprovingPlan, setIsApprovingPlan] = useState(false)
+  const [isApprovingSpecs, setIsApprovingSpecs] = useState(false)
+  const [isStartingWork, setIsStartingWork] = useState(false)
 
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
@@ -320,6 +347,28 @@ export function ChatPageShell({
   const activeChatMessagesFetchStatus = activeChatId
     ? (chatMessages.fetchStatusByChatId[activeChatId] ?? "idle")
     : "idle"
+  const latestPlanApproval = findLatestChatMessageByType(
+    activeChatMessages,
+    "plan_approval",
+  )
+  const latestSpecApproval = findLatestChatMessageByType(
+    activeChatMessages,
+    "spec_approval",
+  )
+  const latestStartRequest = findLatestChatMessageByType(
+    activeChatMessages,
+    "thread_start_request",
+  )
+  const canApproveSpecs =
+    latestPlanApproval !== null &&
+    (latestSpecApproval === null ||
+      latestPlanApproval.index > latestSpecApproval.index)
+  const canStartWork =
+    latestPlanApproval !== null &&
+    latestSpecApproval !== null &&
+    latestPlanApproval.index < latestSpecApproval.index &&
+    (latestStartRequest === null ||
+      latestSpecApproval.index > latestStartRequest.index)
   const terminalSessions = activeProjectId
     ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
         .filter((s) => s.status === "running")
@@ -506,6 +555,9 @@ export function ChatPageShell({
   useEffect(() => {
     setChatInputValue("")
     setIsSendingChatMessage(false)
+    setIsApprovingPlan(false)
+    setIsApprovingSpecs(false)
+    setIsStartingWork(false)
   }, [activeChatId])
 
   useEffect(() => {
@@ -547,6 +599,85 @@ export function ChatPageShell({
   function handleSelectThread(threadId: string | null) {
     if (!activeProjectId) return
     actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
+  }
+
+  function handleApprovePlan() {
+    if (!activeChat || isApprovingPlan || isApprovingSpecs || isStartingWork) {
+      return
+    }
+
+    setIsApprovingPlan(true)
+    approveChatPlan(activeChat.id, actions)
+      .catch((err) => {
+        console.error("[chats] failed to approve plan:", err)
+      })
+      .finally(() => {
+        setIsApprovingPlan(false)
+      })
+  }
+
+  function handleApproveSpecs() {
+    if (
+      !activeChat ||
+      isApprovingPlan ||
+      isApprovingSpecs ||
+      isStartingWork ||
+      !canApproveSpecs
+    ) {
+      return
+    }
+
+    setIsApprovingSpecs(true)
+    approveChatSpecs(activeChat.id, actions)
+      .catch((err) => {
+        console.error("[chats] failed to approve specs:", err)
+      })
+      .finally(() => {
+        setIsApprovingSpecs(false)
+      })
+  }
+
+  function handleStartWork() {
+    if (
+      !activeProjectId ||
+      !activeChat ||
+      !latestPlanApproval?.message.id ||
+      !latestSpecApproval?.message.id ||
+      isApprovingPlan ||
+      isApprovingSpecs ||
+      isStartingWork ||
+      !canStartWork
+    ) {
+      return
+    }
+
+    if (!window.confirm("Start work and create a thread from this chat?")) {
+      return
+    }
+
+    setIsStartingWork(true)
+    const projectId = activeProjectId
+    startThreadFromChat({
+      chatId: activeChat.id,
+      title: activeChat.title,
+      summary: null,
+      planApprovalMessageId: latestPlanApproval.message.id,
+      specApprovalMessageId: latestSpecApproval.message.id,
+      confirmStart: true,
+    })
+      .then((threadDetail) => {
+        actions.setLayoutField(projectId, { selectedThreadId: threadDetail.thread.id })
+        return Promise.all([
+          fetchThreads(projectId, actions),
+          fetchChatMessages(activeChat.id, actions),
+        ])
+      })
+      .catch((err) => {
+        console.error("[chats] failed to start work:", err)
+      })
+      .finally(() => {
+        setIsStartingWork(false)
+      })
   }
 
   function handleFetchMessages(threadId: string) {
@@ -667,6 +798,42 @@ export function ChatPageShell({
                 className="active-chat-pane__input-dock"
                 onSubmit={handleSendChatMessage}
               >
+                <div className="active-chat-pane__approval-actions">
+                  <button
+                    className="active-chat-pane__approval-action"
+                    type="button"
+                    onClick={handleApprovePlan}
+                    disabled={isApprovingPlan || isApprovingSpecs || isStartingWork}
+                  >
+                    {isApprovingPlan ? "Approving plan…" : "Approve plan"}
+                  </button>
+                  <button
+                    className="active-chat-pane__approval-action"
+                    type="button"
+                    onClick={handleApproveSpecs}
+                    disabled={
+                      isApprovingPlan ||
+                      isApprovingSpecs ||
+                      isStartingWork ||
+                      !canApproveSpecs
+                    }
+                  >
+                    {isApprovingSpecs ? "Approving specs…" : "Approve specs"}
+                  </button>
+                  <button
+                    className="active-chat-pane__approval-action active-chat-pane__approval-action--primary"
+                    type="button"
+                    onClick={handleStartWork}
+                    disabled={
+                      isApprovingPlan ||
+                      isApprovingSpecs ||
+                      isStartingWork ||
+                      !canStartWork
+                    }
+                  >
+                    {isStartingWork ? "Starting…" : "Start work"}
+                  </button>
+                </div>
                 <label className="active-chat-pane__input-label" htmlFor="chat-input">
                   Message
                 </label>

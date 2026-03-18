@@ -5,6 +5,8 @@ import type {
 } from "@ultra/shared"
 import {
   artifactsCaptureRuntimeInputSchema,
+  chatsApprovePlanInputSchema,
+  chatsApproveSpecsInputSchema,
   chatsArchiveInputSchema,
   chatsCreateInputSchema,
   chatsGetInputSchema,
@@ -435,6 +437,26 @@ export async function routeIpcRequest(
           await services.chatTurnService.sendMessage(chat_id, prompt),
         )
       }
+      case "chats.approve_plan": {
+        const approvePlanCommand = assertCommandRequest(request)
+        const { chat_id } = chatsApprovePlanInputSchema.parse(
+          approvePlanCommand.payload,
+        )
+        return createSuccessResponse(
+          approvePlanCommand.request_id,
+          services.chatService.approvePlan(chat_id),
+        )
+      }
+      case "chats.approve_specs": {
+        const approveSpecsCommand = assertCommandRequest(request)
+        const { chat_id } = chatsApproveSpecsInputSchema.parse(
+          approveSpecsCommand.payload,
+        )
+        return createSuccessResponse(
+          approveSpecsCommand.request_id,
+          services.chatService.approveSpecs(chat_id),
+        )
+      }
       case "terminal.get_runtime_profile": {
         const profileQuery = assertQueryRequest(request)
         return createSuccessResponse(
@@ -538,10 +560,37 @@ export async function routeIpcRequest(
       }
       case "chats.start_thread": {
         const startThreadCommand = assertCommandRequest(request)
+        const parsedInput = chatsStartThreadInputSchema.parse(
+          startThreadCommand.payload,
+        )
+        let startRequestMessageId = parsedInput.start_request_message_id
+
+        if (!startRequestMessageId) {
+          if (!parsedInput.confirm_start) {
+            throw new IpcProtocolError(
+              "invalid_request",
+              "Explicit start-work confirmation is required before creating a thread.",
+              { requestId: startThreadCommand.request_id },
+            )
+          }
+
+          const startConfirmationMessage = services.chatService.confirmStartWork(
+            parsedInput.chat_id,
+            {
+              threadTitle: parsedInput.title,
+              threadSummary: parsedInput.summary ?? null,
+            },
+          )
+          startRequestMessageId = startConfirmationMessage.id
+        }
+
         return createSuccessResponse(
           startThreadCommand.request_id,
           services.threadService.startThread(
-            chatsStartThreadInputSchema.parse(startThreadCommand.payload),
+            {
+              ...parsedInput,
+              start_request_message_id: startRequestMessageId,
+            },
           ),
         )
       }
