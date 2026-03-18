@@ -18,6 +18,8 @@ type Logger = {
   error: (message: string) => void
 }
 
+const CHAT_SEND_MESSAGE_TIMEOUT_MS = 300_000
+
 export class BackendSocketClient {
   constructor(
     private readonly socketPath: string,
@@ -29,14 +31,19 @@ export class BackendSocketClient {
     name: QueryMethodName,
     payload: unknown = {},
   ): Promise<IpcResponseEnvelope> {
-    return this.sendRequest("query", name, payload)
+    return this.sendRequest("query", name, payload, this.timeoutMs)
   }
 
   async command(
     name: CommandMethodName,
     payload: unknown = {},
   ): Promise<IpcResponseEnvelope> {
-    return this.sendRequest("command", name, payload)
+    return this.sendRequest(
+      "command",
+      name,
+      payload,
+      this.resolveCommandTimeoutMs(name),
+    )
   }
 
   async subscribe(
@@ -182,6 +189,7 @@ export class BackendSocketClient {
     type: "query" | "command",
     name: string,
     payload: unknown,
+    timeoutMs: number,
   ): Promise<IpcResponseEnvelope> {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
@@ -198,7 +206,7 @@ export class BackendSocketClient {
         settled = true
         socket.destroy()
         reject(new Error(`Backend request timed out: ${name}`))
-      }, this.timeoutMs)
+      }, timeoutMs)
 
       const finish = (callback: () => void) => {
         if (settled) {
@@ -254,5 +262,13 @@ export class BackendSocketClient {
         )
       })
     })
+  }
+
+  private resolveCommandTimeoutMs(name: CommandMethodName): number {
+    if (name === "chats.send_message") {
+      return CHAT_SEND_MESSAGE_TIMEOUT_MS
+    }
+
+    return this.timeoutMs
   }
 }
