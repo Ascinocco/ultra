@@ -14,6 +14,15 @@ import {
   unpinChat,
 } from "./chat-workflows.js"
 
+export function resolveRenamedChatTitle(
+  currentTitle: string,
+  candidateTitle: string,
+): string | null {
+  const trimmedTitle = candidateTitle.trim()
+  if (!trimmedTitle || trimmedTitle === currentTitle) return null
+  return trimmedTitle
+}
+
 export function Sidebar({
   onOpenProject,
   onOpenSettings,
@@ -29,6 +38,8 @@ export function Sidebar({
   const actions = useAppStore((s) => s.actions)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
+  const [renamingChatId, setRenamingChatId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState("")
   const prevActiveProjectRef = useRef<string | null>(null)
 
   // Auto-expand the active project when it first becomes active
@@ -63,12 +74,24 @@ export function Sidebar({
     setContextMenu({ chat, x: event.clientX, y: event.clientY })
   }
 
-  // TODO: Replace window.prompt with a custom modal — prompt may be blocked in Electron.
   function handleRename(chat: ChatSummary) {
-    const newTitle = window.prompt("Rename chat:", chat.title)
-    if (newTitle && newTitle !== chat.title) {
-      void renameChat(chat.id, newTitle, actions)
+    setRenamingChatId(chat.id)
+    setRenameDraft(chat.title)
+  }
+
+  function handleRenameCommit(chat: ChatSummary) {
+    if (renamingChatId !== chat.id) return
+    const nextTitle = resolveRenamedChatTitle(chat.title, renameDraft)
+    if (nextTitle) {
+      void renameChat(chat.id, nextTitle, actions)
     }
+    setRenamingChatId(null)
+    setRenameDraft("")
+  }
+
+  function handleRenameCancel() {
+    setRenamingChatId(null)
+    setRenameDraft("")
   }
 
   function handleTogglePin(chat: ChatSummary) {
@@ -128,6 +151,11 @@ export function Sidebar({
                   void loadChatsForProject(projectId, actions)
                 }
                 onNewChat={() => handleNewChat(projectId)}
+                renamingChatId={renamingChatId}
+                renameDraft={renameDraft}
+                onRenameDraftChange={setRenameDraft}
+                onRenameCommit={handleRenameCommit}
+                onRenameCancel={handleRenameCancel}
               />
             )
           })

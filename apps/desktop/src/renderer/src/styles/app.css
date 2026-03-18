@@ -1128,6 +1128,11 @@ button {
   color: var(--text-primary);
 }
 
+.chat-row--editing {
+  cursor: default;
+  background: rgba(148, 163, 200, 0.08);
+}
+
 .chat-row--active {
   background: rgba(91, 141, 239, 0.08);
   color: var(--text-primary);
@@ -1151,6 +1156,24 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+
+.chat-row__rename-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  padding: 2px 6px;
+}
+
+.chat-row__rename-input:focus {
+  outline: 1px solid var(--accent-strong);
+  outline-offset: 0;
 }
 
 .chat-row__time {

@@ -19,11 +19,21 @@ export function ChatRow({
   isActive,
   onSelect,
   onContextMenu,
+  isEditing,
+  renameDraft,
+  onRenameDraftChange,
+  onRenameCommit,
+  onRenameCancel,
 }: {
   chat: ChatSummary
   isActive: boolean
   onSelect: () => void
   onContextMenu: (event: React.MouseEvent) => void
+  isEditing?: boolean
+  renameDraft?: string
+  onRenameDraftChange?: (value: string) => void
+  onRenameCommit?: () => void
+  onRenameCancel?: () => void
 }) {
   function handleKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
     if (
@@ -38,6 +48,37 @@ export function ChatRow({
         clientY: rect.bottom,
       } as React.MouseEvent)
     }
+  }
+
+  if (isEditing) {
+    return (
+      <div
+        className={`chat-row chat-row--editing ${isActive ? "chat-row--active" : ""} ${chat.isPinned ? "chat-row--pinned" : ""}`}
+      >
+        <input
+          className="chat-row__rename-input"
+          type="text"
+          value={renameDraft ?? chat.title}
+          onChange={(event) => onRenameDraftChange?.(event.target.value)}
+          onBlur={() => onRenameCommit?.()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              event.currentTarget.blur()
+            }
+            if (event.key === "Escape") {
+              event.preventDefault()
+              onRenameCancel?.()
+            }
+          }}
+          aria-label={`Rename ${chat.title}`}
+          autoFocus
+        />
+        <span className="chat-row__time">
+          {formatRelativeTime(chat.updatedAt)}
+        </span>
+      </div>
+    )
   }
 
   return (
