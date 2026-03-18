@@ -223,6 +223,17 @@ function buildCommandLabel(command: string, args: string[]): string {
   return [command, ...args].join(" ")
 }
 
+function shouldProbeInSession(
+  tool: ToolDefinition,
+  requiredInCurrentSession: boolean,
+): boolean {
+  if (requiredInCurrentSession) {
+    return true
+  }
+
+  return tool.tool === "codex"
+}
+
 export class EnvironmentReadinessService {
   constructor(
     private readonly sessionMode: EnvironmentSessionMode = defaultSessionMode(),
@@ -264,7 +275,7 @@ export class EnvironmentReadinessService {
       this.sessionMode,
     )
 
-    if (!requiredInCurrentSession) {
+    if (!shouldProbeInSession(tool, requiredInCurrentSession)) {
       return {
         tool: tool.tool,
         displayName: tool.displayName,

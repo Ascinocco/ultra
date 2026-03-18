@@ -26,6 +26,7 @@ This document defines:
 Ultra distinguishes between two dependency scopes:
 
 - `runtime-required`
+- `runtime-optional`
 - `developer-required`
 
 ### Runtime-Required Tools
@@ -33,11 +34,16 @@ Ultra distinguishes between two dependency scopes:
 These tools block packaged desktop usage and local development sessions:
 
 - `git`
-- `ov`
 - `tmux`
 - `sd`
-- `codex`
 - `claude`
+
+### Runtime-Optional Tools
+
+These tools are always probed for readiness visibility, but never block startup:
+
+- `ov`
+- `codex`
 
 ### Developer-Required Tools
 
@@ -50,6 +56,8 @@ These tools block local contributor sessions, but not packaged desktop runtime s
 
 - Packaged or normal desktop runtime sessions block only on `runtime-required` tools.
 - Local contributor and development sessions block on both `runtime-required` and `developer-required` tools.
+- `runtime-optional` tools do not block startup; their readiness is reported to enable feature gating.
+- `codex` is optional and still probed so renderer surfaces (for example Cmd+K provider selection) can distinguish installed vs missing.
 - `sd` is required because Overstory depends on Seeds.
 - Claude Code is detected through the `claude` binary.
 - Ultra uses PATH-based resolution only in v1.
