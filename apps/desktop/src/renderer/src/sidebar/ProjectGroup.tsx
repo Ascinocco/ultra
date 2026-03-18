@@ -21,6 +21,11 @@ export function ProjectGroup({
   onChatContextMenu,
   onRetryFetch,
   onNewChat,
+  renamingChatId,
+  renameDraft,
+  onRenameDraftChange,
+  onRenameCommit,
+  onRenameCancel,
 }: {
   project: ProjectSnapshot
   isExpanded: boolean
@@ -32,6 +37,11 @@ export function ProjectGroup({
   onChatContextMenu: (event: React.MouseEvent, chat: ChatSummary) => void
   onRetryFetch: () => void
   onNewChat: () => void
+  renamingChatId: string | null
+  renameDraft: string
+  onRenameDraftChange: (value: string) => void
+  onRenameCommit: (chat: ChatSummary) => void
+  onRenameCancel: () => void
 }) {
   return (
     <div className="project-group">
@@ -113,6 +123,11 @@ export function ProjectGroup({
                 isActive={chat.id === activeChatId}
                 onSelect={() => onSelectChat(chat.id)}
                 onContextMenu={(e) => onChatContextMenu(e, chat)}
+                isEditing={chat.id === renamingChatId}
+                renameDraft={renameDraft}
+                onRenameDraftChange={onRenameDraftChange}
+                onRenameCommit={() => onRenameCommit(chat)}
+                onRenameCancel={onRenameCancel}
               />
             ))
           )}
