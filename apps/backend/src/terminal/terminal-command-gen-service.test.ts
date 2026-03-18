@@ -89,13 +89,17 @@ describe("TerminalCommandGenService", () => {
       const args = service.buildCliArgs("codex", "gpt-5.4", "test prompt")
 
       expect(args.command).toBe("codex")
-      expect(args.args).toContain("exec")
-      expect(args.args).toContain("--json")
-      expect(args.args).toContain("-m")
-      expect(args.args).toContain("gpt-5.4")
-      expect(args.args).toContain("-s")
-      expect(args.args).toContain("danger-full-access")
-      expect(args.args).toContain("test prompt")
+      expect(args.args).toEqual([
+        "-a",
+        "never",
+        "exec",
+        "--json",
+        "-m",
+        "gpt-5.4",
+        "-s",
+        "danger-full-access",
+        "test prompt",
+      ])
     })
   })
 
@@ -128,6 +132,20 @@ describe("TerminalCommandGenService", () => {
 
     it("returns null for JSON without command field", () => {
       const result = service.parseCommandFromOutput('{"result": "ls -la"}')
+      expect(result).toBeNull()
+    })
+
+    it("extracts command from codex JSONL assistant text", () => {
+      const result = service.parseCommandFromOutput(
+        '{"type":"assistant.final","text":"{\\"command\\":\\"ls -la\\"}"}',
+      )
+      expect(result).toBe("ls -la")
+    })
+
+    it("ignores codex tool event command fields", () => {
+      const result = service.parseCommandFromOutput(
+        '{"type":"tool","command":"git status"}',
+      )
       expect(result).toBeNull()
     })
   })
@@ -199,6 +217,44 @@ describe("TerminalCommandGenService", () => {
           "unknown option '--permission-mode'",
         )
       }
+    })
+
+    it("emits complete for codex JSONL assistant-final output", () => {
+      const proc = createTestProcess()
+      vi.mocked(spawn).mockReturnValue(proc as unknown as ChildProcess)
+
+      const events: Array<
+        | { type: "delta"; text: string }
+        | { type: "complete"; command: string }
+        | { type: "error"; message: string }
+      > = []
+
+      service.generate(
+        {
+          project_id: "proj-1",
+          prompt: "list files",
+          cwd: "/tmp",
+          recent_output: "",
+          provider: "codex",
+          model: "gpt-5.4",
+          session_id: "term-1",
+        },
+        (event) => events.push(event),
+      )
+
+      proc.stdout.emit(
+        "data",
+        Buffer.from('{"type":"assistant.final","text":"{\\"command\\":\\"ls\\"}"}'),
+      )
+      proc.emit("close", 0, null)
+
+      expect(events).toEqual([
+        {
+          type: "delta",
+          text: '{"type":"assistant.final","text":"{\\"command\\":\\"ls\\"}"}',
+        },
+        { type: "complete", command: "ls" },
+      ])
     })
 
     it("surfaces launch failures with command context", () => {

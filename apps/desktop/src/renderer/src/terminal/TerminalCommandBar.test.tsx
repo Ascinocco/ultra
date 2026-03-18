@@ -44,14 +44,8 @@ describe("TerminalCommandBar", () => {
     expect(markup).toContain("terminal-command-bar__spinner")
   })
 
-  it("shows streaming text during generation", () => {
-    const markup = renderBar({ generating: true, streamingText: "grep -rn" })
-    expect(markup).toContain("grep -rn")
-    expect(markup).toContain("terminal-command-bar__streaming-text")
-  })
-
-  it("omits streaming text element when streamingText is empty", () => {
-    const markup = renderBar({ generating: true, streamingText: "" })
+  it("does not render streaming text element during generation", () => {
+    const markup = renderBar({ generating: true })
     expect(markup).not.toContain("terminal-command-bar__streaming-text")
   })
 

@@ -45,6 +45,39 @@ describe("generateCommand", () => {
 
     expect(unsub).toBe(unsubscribe)
   })
+
+  it("passes codex provider/model payload through unchanged", async () => {
+    const unsubscribe = vi.fn().mockResolvedValue(undefined)
+    const client = {
+      query: vi.fn(),
+      command: vi.fn(),
+      subscribe: vi.fn().mockResolvedValue(unsubscribe),
+    }
+    const listener = vi.fn()
+
+    await generateCommand(
+      {
+        projectId: "proj-1",
+        prompt: "list files",
+        cwd: "/tmp",
+        recentOutput: "",
+        provider: "codex",
+        model: "gpt-5.4",
+        sessionId: "term-1",
+      },
+      listener,
+      client,
+    )
+
+    expect(client.subscribe).toHaveBeenCalledWith(
+      "terminal.generate_command",
+      expect.objectContaining({
+        provider: "codex",
+        model: "gpt-5.4",
+      }),
+      expect.any(Function),
+    )
+  })
 })
 
 describe("injectCommand", () => {

@@ -85,7 +85,7 @@ describe("EnvironmentReadinessService", () => {
     )
   })
 
-  it("blocks when claude is missing but not when codex is missing", async () => {
+  it("blocks when claude is missing while keeping codex optional", async () => {
     const snapshotBoth = await buildSnapshot("desktop", {
       codex: missingCommandError("codex"),
       claude: missingCommandError("claude"),
@@ -94,7 +94,7 @@ describe("EnvironmentReadinessService", () => {
     expect(snapshotBoth.status).toBe("blocked")
     expect(
       snapshotBoth.checks.find((check) => check.tool === "codex")?.status,
-    ).toBe("skipped")
+    ).toBe("missing")
     expect(
       snapshotBoth.checks.find((check) => check.tool === "claude")?.status,
     ).toBe("missing")
@@ -104,6 +104,20 @@ describe("EnvironmentReadinessService", () => {
     })
 
     expect(snapshotCodexOnly.status).toBe("ready")
+    expect(
+      snapshotCodexOnly.checks.find((check) => check.tool === "codex")?.status,
+    ).toBe("missing")
+  })
+
+  it("reports codex probe errors without blocking desktop startup", async () => {
+    const snapshot = await buildSnapshot("desktop", {
+      codex: new Error("codex probe failed"),
+    })
+
+    expect(snapshot.status).toBe("ready")
+    expect(snapshot.checks.find((check) => check.tool === "codex")?.status).toBe(
+      "error",
+    )
   })
 
   it("blocks development sessions on unsupported node or pnpm versions", async () => {

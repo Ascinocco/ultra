@@ -9,6 +9,10 @@ Do not explain. Do not wrap in markdown. Do not include anything else.`
 
 const TIMEOUT_MS = 30_000
 const STDERR_SNIPPET_MAX_LENGTH = 280
+const COMMAND_JSON_PATTERN =
+  /\{[^{}]*"command"\s*:\s*"(?:[^"\\]|\\.)*"[^{}]*\}/g
+
+type JsonRecord = Record<string, unknown>
 
 export type CommandGenEventListener = (
   event:
@@ -19,6 +23,10 @@ export type CommandGenEventListener = (
 
 export class TerminalCommandGenService {
   private activeProcesses = new Map<string, ChildProcess>()
+
+  private isJsonRecord(value: unknown): value is JsonRecord {
+    return typeof value === "object" && value !== null
+  }
 
   private formatStderrSnippet(stderr: string): string | null {
     const normalized = stderr.replace(/\s+/g, " ").trim()
@@ -68,22 +76,144 @@ export class TerminalCommandGenService {
 
     return {
       command: "codex",
-      args: ["exec", "--json", "-m", model, "-s", "danger-full-access", prompt],
+      args: [
+        "-a",
+        "never",
+        "exec",
+        "--json",
+        "-m",
+        model,
+        "-s",
+        "danger-full-access",
+        prompt,
+      ],
     }
   }
 
-  parseCommandFromOutput(output: string): string | null {
-    const jsonPattern = /\{[^{}]*"command"\s*:\s*"(?:[^"\\]|\\.)*"[^{}]*\}/
-    const match = output.match(jsonPattern)
-
-    if (!match) return null
-
+  private parseCommandObject(raw: string): string | null {
     try {
-      const parsed = JSON.parse(match[0]) as { command?: string }
-      return typeof parsed.command === "string" ? parsed.command : null
+      const parsed = JSON.parse(raw) as JsonRecord
+      const command = parsed.command
+      if (typeof command !== "string" || command.trim().length === 0) {
+        return null
+      }
+
+      const payloadType = parsed.type
+      if (
+        typeof payloadType === "string" &&
+        !payloadType.includes("assistant") &&
+        !payloadType.includes("complete")
+      ) {
+        return null
+      }
+
+      return command
     } catch {
       return null
     }
+  }
+
+  private extractTextCandidate(input: unknown): string | null {
+    if (!this.isJsonRecord(input)) {
+      return null
+    }
+
+    const candidateKeys = ["text", "delta", "content", "message"]
+    for (const key of candidateKeys) {
+      const value = input[key]
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value
+      }
+    }
+
+    if (this.isJsonRecord(input.delta) && typeof input.delta.text === "string") {
+      return input.delta.text
+    }
+
+    if (Array.isArray(input.content)) {
+      const parts = input.content
+        .map((part) =>
+          this.isJsonRecord(part) && typeof part.text === "string"
+            ? part.text
+            : "",
+        )
+        .filter((text) => text.length > 0)
+      if (parts.length > 0) {
+        return parts.join("")
+      }
+    }
+
+    for (const value of Object.values(input)) {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const found = this.extractTextCandidate(item)
+          if (found) {
+            return found
+          }
+        }
+        continue
+      }
+
+      const found = this.extractTextCandidate(value)
+      if (found) {
+        return found
+      }
+    }
+
+    return null
+  }
+
+  private parseCommandFromCommandJsonChunks(output: string): string | null {
+    for (const match of output.matchAll(COMMAND_JSON_PATTERN)) {
+      const parsed = this.parseCommandObject(match[0])
+      if (parsed !== null) {
+        return parsed
+      }
+    }
+
+    return null
+  }
+
+  private parseCommandFromJsonLines(output: string): string | null {
+    for (const rawLine of output.split(/\r?\n/)) {
+      const line = rawLine.trim()
+      if (line.length === 0) {
+        continue
+      }
+
+      const direct = this.parseCommandObject(line)
+      if (direct !== null) {
+        return direct
+      }
+
+      let parsedLine: unknown
+      try {
+        parsedLine = JSON.parse(line)
+      } catch {
+        continue
+      }
+
+      const textCandidate = this.extractTextCandidate(parsedLine)
+      if (textCandidate === null) {
+        continue
+      }
+
+      const embedded = this.parseCommandFromCommandJsonChunks(textCandidate)
+      if (embedded !== null) {
+        return embedded
+      }
+    }
+
+    return null
+  }
+
+  parseCommandFromOutput(output: string): string | null {
+    const fromCommandJsonChunks = this.parseCommandFromCommandJsonChunks(output)
+    if (fromCommandJsonChunks !== null) {
+      return fromCommandJsonChunks
+    }
+
+    return this.parseCommandFromJsonLines(output)
   }
 
   generate(
