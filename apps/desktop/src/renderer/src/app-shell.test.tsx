@@ -61,6 +61,7 @@ describe("AppShell", () => {
     expect(markup).toContain("chat-frame")
     expect(markup).toContain("chat-frame__rail")
     expect(markup).toContain("chat-frame__main")
+    expect(markup).toContain("active-chat-pane")
     expect(markup).toContain("chat-frame__side")
   })
 })

@@ -25,6 +25,19 @@ const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
 const MAX_DRAWER_HEIGHT_RATIO = 0.8
 
+const ACTIVE_CHAT_PANE_SHELL_MESSAGES = [
+  {
+    id: "assistant-ready",
+    role: "assistant",
+    text: "Active chat shell is ready. Live message streaming lands in ULR-19.",
+  },
+  {
+    id: "system-next-step",
+    role: "system",
+    text: "Use the input dock below once chat message workflows are wired.",
+  },
+] as const
+
 function TerminalDrawer({
   height,
   sessions,
@@ -470,17 +483,101 @@ export function ChatPageShell({
               {activeChat ? activeChat.title : "Command center"}
             </h2>
           </div>
-          <div className="placeholder-card placeholder-card--tall">
-            <strong>
-              {activeChat
-                ? "Chat transcript and approval controls land here"
-                : "Select or create a chat to anchor the workspace"}
-            </strong>
-            <p>
-              The center pane stays focused on the planning conversation while
-              the right pane tracks execution and the drawer handles testing.
-            </p>
-          </div>
+          {activeChat ? (
+            <section className="active-chat-pane" aria-label="Active chat pane">
+              <div className="active-chat-pane__body">
+                <section
+                  className="active-chat-pane__transcript"
+                  aria-label="Chat transcript shell"
+                >
+                  <div className="active-chat-pane__section-header">
+                    <h3 className="active-chat-pane__section-title">
+                      Transcript
+                    </h3>
+                    <span className="active-chat-pane__meta">
+                      {activeChat.provider} · {activeChat.model}
+                    </span>
+                  </div>
+                  <div className="active-chat-pane__transcript-scroll">
+                    {ACTIVE_CHAT_PANE_SHELL_MESSAGES.map((message) => (
+                      <article
+                        key={message.id}
+                        className={`active-chat-pane__message active-chat-pane__message--${message.role}`}
+                      >
+                        <span className="active-chat-pane__message-role">
+                          {message.role}
+                        </span>
+                        <p className="active-chat-pane__message-text">
+                          {message.text}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <aside
+                  className="active-chat-pane__references"
+                  aria-label="Chat references shell"
+                >
+                  <div className="active-chat-pane__section-header">
+                    <h3 className="active-chat-pane__section-title">
+                      References
+                    </h3>
+                  </div>
+                  <dl className="active-chat-pane__reference-list">
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Chat ID</dt>
+                      <dd>{activeChat.id}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Status</dt>
+                      <dd>{activeChat.status}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Updated</dt>
+                      <dd>{activeChat.updatedAt}</dd>
+                    </div>
+                  </dl>
+                </aside>
+              </div>
+
+              <form
+                className="active-chat-pane__input-dock"
+                onSubmit={(event) => event.preventDefault()}
+              >
+                <label className="active-chat-pane__input-label" htmlFor="chat-input">
+                  Message
+                </label>
+                <div className="active-chat-pane__input-row">
+                  <textarea
+                    id="chat-input"
+                    className="active-chat-pane__input"
+                    rows={3}
+                    placeholder="Message send workflow lands in ULR-19."
+                    disabled
+                  />
+                  <button
+                    className="active-chat-pane__send"
+                    type="submit"
+                    disabled
+                  >
+                    Send
+                  </button>
+                </div>
+              </form>
+            </section>
+          ) : (
+            <section
+              className="active-chat-pane active-chat-pane--empty"
+              aria-label="No chat selected"
+            >
+              <strong>Select or create a chat to anchor the workspace</strong>
+              <p>
+                The active pane exposes transcript, references, and input dock
+                once a chat is selected.
+              </p>
+            </section>
+          )}
         </section>
 
         <div
