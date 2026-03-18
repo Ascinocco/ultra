@@ -7,19 +7,36 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../shared/backend-status.js"
-import { AppShell } from "./components/AppShell.js"
 import {
   AppStoreProvider,
   type ConnectionStatus,
   createAppStore,
 } from "./state/app-store.js"
-import { makeChat, makeChatMessage, makeProject } from "./test-utils/factories.js"
+import {
+  makeChat,
+  makeChatMessage,
+  makeProject,
+} from "./test-utils/factories.js"
 
-function renderShell(options?: {
+vi.mock("./terminal/TerminalPane.js", () => ({
+  TerminalPane: () => null,
+}))
+
+async function renderShell(options?: {
   currentPage?: "chat" | "editor" | "browser"
   connectionStatus?: ConnectionStatus
   backendStatus?: Partial<BackendStatusSnapshot>
 }) {
+  if (typeof globalThis.self === "undefined") {
+    Object.defineProperty(globalThis, "self", {
+      value: globalThis,
+      configurable: true,
+      writable: true,
+    })
+  }
+
+  const { AppShell } = await import("./components/AppShell.js")
+
   const initialBackendStatus = {
     ...createInitialBackendStatus(),
     ...options?.backendStatus,
@@ -40,23 +57,23 @@ function renderShell(options?: {
 }
 
 describe("AppShell", () => {
-  it("renders the chat-first workspace shell", () => {
-    const markup = renderShell()
+  it("renders the chat-first workspace shell", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain('data-page="chat"')
     expect(markup).toContain("Open Project")
   })
 
-  it("renders the title bar with terminal toggle and sandbox selector", () => {
-    const markup = renderShell()
+  it("renders the title bar with terminal toggle and sandbox selector", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain("title-bar")
     expect(markup).toContain("title-bar__terminal-toggle")
     expect(markup).toContain("sandbox-selector")
   })
 
-  it("renders the connected-panel chat frame with sidebar, main, and side panes", () => {
-    const markup = renderShell()
+  it("renders the connected-panel chat frame with sidebar, main, and side panes", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain("chat-frame")
     expect(markup).toContain("chat-frame__rail")
@@ -432,10 +449,10 @@ describe("chat message slice", () => {
 
     store.getState().actions.setMessagesForChat("chat_1", messages)
 
-    expect(store.getState().chatMessages.messagesByChatId["chat_1"]).toEqual(
+    expect(store.getState().chatMessages.messagesByChatId.chat_1).toEqual(
       messages,
     )
-    expect(store.getState().chatMessages.fetchStatusByChatId["chat_1"]).toBe(
+    expect(store.getState().chatMessages.fetchStatusByChatId.chat_1).toBe(
       "idle",
     )
   })
@@ -447,7 +464,7 @@ describe("chat message slice", () => {
     store.getState().actions.upsertChatMessage("chat_1", message)
     store.getState().actions.upsertChatMessage("chat_1", message)
 
-    expect(store.getState().chatMessages.messagesByChatId["chat_1"]).toHaveLength(
+    expect(store.getState().chatMessages.messagesByChatId.chat_1).toHaveLength(
       1,
     )
   })
