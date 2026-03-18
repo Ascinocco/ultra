@@ -290,6 +290,13 @@ export class ThreadService {
   }
 
   startThread(input: ChatsStartThreadInput): ThreadDetailResult {
+    if (!input.start_request_message_id) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Start request message is required to create a thread.",
+      )
+    }
+
     const existing = this.getThreadByCreatedByMessageId(
       input.start_request_message_id,
     )
@@ -299,20 +306,25 @@ export class ThreadService {
     }
 
     const chat = this.assertChatExists(input.chat_id)
-    this.assertChatMessageType(
+    const planApproval = this.assertChatMessageType(
       input.chat_id,
       input.plan_approval_message_id,
       "plan_approval",
     )
-    this.assertChatMessageType(
+    const specApproval = this.assertChatMessageType(
       input.chat_id,
       input.spec_approval_message_id,
       "spec_approval",
     )
-    this.assertChatMessageType(
+    const startRequest = this.assertChatMessageType(
       input.chat_id,
       input.start_request_message_id,
       "thread_start_request",
+    )
+    this.assertMessageSequence(
+      [planApproval, "plan_approval"],
+      [specApproval, "spec_approval"],
+      [startRequest, "thread_start_request"],
     )
 
     const threadId = this.createThreadWithInitialEvent(
@@ -371,25 +383,56 @@ export class ThreadService {
 
     const chat = this.assertChatExists(input.chat_id)
 
-    this.assertChatMessageType(
+    const startRequest = this.assertChatMessageType(
       input.chat_id,
       input.start_request_message_id,
       "thread_start_request",
     )
 
+    let planApproval:
+      | {
+          sequence_number: number
+        }
+      | undefined
     if (input.plan_approval_message_id) {
-      this.assertChatMessageType(
+      planApproval = this.assertChatMessageType(
         input.chat_id,
         input.plan_approval_message_id,
         "plan_approval",
       )
     }
 
+    let specApproval:
+      | {
+          sequence_number: number
+        }
+      | undefined
     if (input.spec_approval_message_id) {
-      this.assertChatMessageType(
+      specApproval = this.assertChatMessageType(
         input.chat_id,
         input.spec_approval_message_id,
         "spec_approval",
+      )
+    }
+
+    if (planApproval && specApproval) {
+      this.assertMessageSequence(
+        [planApproval, "plan_approval"],
+        [specApproval, "spec_approval"],
+      )
+    }
+
+    if (planApproval) {
+      this.assertMessageSequence(
+        [planApproval, "plan_approval"],
+        [startRequest, "thread_start_request"],
+      )
+    }
+
+    if (specApproval) {
+      this.assertMessageSequence(
+        [specApproval, "spec_approval"],
+        [startRequest, "thread_start_request"],
       )
     }
 
@@ -1198,11 +1241,16 @@ export class ThreadService {
     chatId: string,
     messageId: string,
     expectedType: string,
-  ): void {
+  ): {
+    sequence_number: number
+  } {
     const row = this.database
       .prepare(
         `
-          SELECT chat_id, message_type
+          SELECT
+            chat_id,
+            message_type,
+            rowid AS sequence_number
           FROM chat_messages
           WHERE id = ?
         `,
@@ -1211,6 +1259,7 @@ export class ThreadService {
       | {
           chat_id: string
           message_type: string
+          sequence_number: number
         }
       | undefined
 
@@ -1233,6 +1282,37 @@ export class ThreadService {
         "invalid_request",
         `Chat message ${messageId} must have type ${expectedType}.`,
       )
+    }
+
+    return {
+      sequence_number: row.sequence_number,
+    }
+  }
+
+  private assertMessageSequence(
+    ...messages: Array<
+      [
+        {
+          sequence_number: number
+        },
+        string,
+      ]
+    >
+  ): void {
+    for (let index = 1; index < messages.length; index += 1) {
+      const previous = messages[index - 1]
+      const current = messages[index]
+
+      if (!previous || !current) {
+        continue
+      }
+
+      if (previous[0].sequence_number >= current[0].sequence_number) {
+        throw new IpcProtocolError(
+          "invalid_request",
+          `${current[1]} must occur after ${previous[1]}.`,
+        )
+      }
     }
   }
 

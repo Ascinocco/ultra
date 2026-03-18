@@ -205,7 +205,8 @@ export const chatsStartThreadInputSchema = z.object({
   summary: z.string().min(1).nullable().optional(),
   plan_approval_message_id: opaqueIdSchema,
   spec_approval_message_id: opaqueIdSchema,
-  start_request_message_id: opaqueIdSchema,
+  start_request_message_id: opaqueIdSchema.optional(),
+  confirm_start: z.boolean().optional(),
   spec_refs: z.array(threadSpecRefInputSchema).default([]),
   ticket_refs: z.array(threadTicketRefInputSchema).default([]),
 })

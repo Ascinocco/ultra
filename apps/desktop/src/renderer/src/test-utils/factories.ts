@@ -1,4 +1,5 @@
 import type {
+  ChatMessageSnapshot,
   ChatSummary,
   ProjectSnapshot,
   SandboxContextSnapshot,
@@ -41,6 +42,25 @@ export function makeChat(
     currentSessionId: null,
     createdAt: "2026-03-14T00:00:00Z",
     updatedAt: "2026-03-14T00:00:00Z",
+    ...opts,
+  }
+}
+
+export function makeChatMessage(
+  id: string,
+  chatId: string,
+  opts?: Partial<ChatMessageSnapshot>,
+): ChatMessageSnapshot {
+  return {
+    id,
+    chatId,
+    sessionId: "chat_sess_1",
+    role: "assistant",
+    messageType: "assistant_text",
+    contentMarkdown: "Hello from assistant",
+    structuredPayloadJson: null,
+    providerMessageId: null,
+    createdAt: "2026-03-18T00:00:00.000Z",
     ...opts,
   }
 }

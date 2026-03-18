@@ -1,7 +1,15 @@
-import type { TerminalSessionSnapshot } from "@ultra/shared"
+import type { ChatMessageSnapshot, TerminalSessionSnapshot } from "@ultra/shared"
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
+import {
+  approvePlan as approveChatPlan,
+  approveSpecs as approveChatSpecs,
+  fetchChatMessages,
+  sendChatMessage,
+  startThreadFromChat,
+  subscribeToChatMessages,
+} from "../chats/chat-message-workflows.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
 import { TerminalPane } from "../terminal/TerminalPane.js"
@@ -24,6 +32,41 @@ import {
 const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
 const MAX_DRAWER_HEIGHT_RATIO = 0.8
+
+function resolveChatMessageVariant(
+  message: ChatMessageSnapshot,
+): "assistant" | "user" | "system" {
+  if (message.role === "assistant") {
+    return "assistant"
+  }
+
+  if (message.role === "user") {
+    return "user"
+  }
+
+  return "system"
+}
+
+function findLatestChatMessageByType(
+  messages: ChatMessageSnapshot[],
+  messageType: string,
+): {
+  message: ChatMessageSnapshot
+  index: number
+} | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (!message) {
+      continue
+    }
+
+    if (message.messageType === messageType) {
+      return { message, index }
+    }
+  }
+
+  return null
+}
 
 function TerminalDrawer({
   height,
@@ -270,16 +313,24 @@ export function ChatPageShell({
   onOpenSettings: () => void
 }) {
   const activeProjectId = useAppStore((state) => state.app.activeProjectId)
+  const capabilities = useAppStore((state) => state.app.capabilities)
   const terminal = useAppStore((state) => state.terminal)
   const sidebar = useAppStore((state) => state.sidebar)
+  const chatMessages = useAppStore((state) => state.chatMessages)
   const layout = useAppStore((state) => state.layout)
   const actions = useAppStore((state) => state.actions)
   const threads = useAppStore((state) => state.threads)
 
   const chatFrameRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const transcriptScrollRef = useRef<HTMLDivElement>(null)
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
   const [isDragging, setIsDragging] = useState(false)
+  const [chatInputValue, setChatInputValue] = useState("")
+  const [isSendingChatMessage, setIsSendingChatMessage] = useState(false)
+  const [isApprovingPlan, setIsApprovingPlan] = useState(false)
+  const [isApprovingSpecs, setIsApprovingSpecs] = useState(false)
+  const [isStartingWork, setIsStartingWork] = useState(false)
 
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
@@ -290,6 +341,34 @@ export function ChatPageShell({
           (chat) => chat.id === activeChatId,
         ) ?? null)
       : null
+  const activeChatMessages = activeChatId
+    ? (chatMessages.messagesByChatId[activeChatId] ?? [])
+    : []
+  const activeChatMessagesFetchStatus = activeChatId
+    ? (chatMessages.fetchStatusByChatId[activeChatId] ?? "idle")
+    : "idle"
+  const latestPlanApproval = findLatestChatMessageByType(
+    activeChatMessages,
+    "plan_approval",
+  )
+  const latestSpecApproval = findLatestChatMessageByType(
+    activeChatMessages,
+    "spec_approval",
+  )
+  const latestStartRequest = findLatestChatMessageByType(
+    activeChatMessages,
+    "thread_start_request",
+  )
+  const canApproveSpecs =
+    latestPlanApproval !== null &&
+    (latestSpecApproval === null ||
+      latestPlanApproval.index > latestSpecApproval.index)
+  const canStartWork =
+    latestPlanApproval !== null &&
+    latestSpecApproval !== null &&
+    latestPlanApproval.index < latestSpecApproval.index &&
+    (latestStartRequest === null ||
+      latestSpecApproval.index > latestStartRequest.index)
   const terminalSessions = activeProjectId
     ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
         .filter((s) => s.status === "running")
@@ -435,9 +514,170 @@ export function ChatPageShell({
     })
   }, [activeProjectId, actions])
 
+  useEffect(() => {
+    if (!activeChatId) {
+      return
+    }
+
+    fetchChatMessages(activeChatId, actions).catch((err) => {
+      console.error("[chats] failed to fetch messages:", err)
+    })
+  }, [activeChatId, actions])
+
+  useEffect(() => {
+    if (!activeChatId || !capabilities?.supportsSubscriptions) {
+      return
+    }
+
+    let cancelled = false
+    let cleanup: (() => Promise<void>) | null = null
+
+    subscribeToChatMessages(activeChatId, actions)
+      .then((unsubscribe) => {
+        if (cancelled) {
+          void unsubscribe()
+          return
+        }
+        cleanup = unsubscribe
+      })
+      .catch((err) => {
+        console.error("[chats] failed to subscribe to messages:", err)
+      })
+
+    return () => {
+      cancelled = true
+      if (cleanup) {
+        void cleanup()
+      }
+    }
+  }, [activeChatId, capabilities?.supportsSubscriptions, actions])
+
+  useEffect(() => {
+    setChatInputValue("")
+    setIsSendingChatMessage(false)
+    setIsApprovingPlan(false)
+    setIsApprovingSpecs(false)
+    setIsStartingWork(false)
+  }, [activeChatId])
+
+  useEffect(() => {
+    const container = transcriptScrollRef.current
+
+    if (!container) {
+      return
+    }
+
+    container.scrollTop = container.scrollHeight
+  }, [activeChatId, activeChatMessages.length])
+
+  function handleSendChatMessage(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!activeChat || isSendingChatMessage) {
+      return
+    }
+
+    const prompt = chatInputValue.trim()
+
+    if (!prompt) {
+      return
+    }
+
+    setIsSendingChatMessage(true)
+    sendChatMessage(activeChat.id, prompt, actions)
+      .then(() => {
+        setChatInputValue("")
+      })
+      .catch((err) => {
+        console.error("[chats] failed to send message:", err)
+      })
+      .finally(() => {
+        setIsSendingChatMessage(false)
+      })
+  }
+
   function handleSelectThread(threadId: string | null) {
     if (!activeProjectId) return
     actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
+  }
+
+  function handleApprovePlan() {
+    if (!activeChat || isApprovingPlan || isApprovingSpecs || isStartingWork) {
+      return
+    }
+
+    setIsApprovingPlan(true)
+    approveChatPlan(activeChat.id, actions)
+      .catch((err) => {
+        console.error("[chats] failed to approve plan:", err)
+      })
+      .finally(() => {
+        setIsApprovingPlan(false)
+      })
+  }
+
+  function handleApproveSpecs() {
+    if (
+      !activeChat ||
+      isApprovingPlan ||
+      isApprovingSpecs ||
+      isStartingWork ||
+      !canApproveSpecs
+    ) {
+      return
+    }
+
+    setIsApprovingSpecs(true)
+    approveChatSpecs(activeChat.id, actions)
+      .catch((err) => {
+        console.error("[chats] failed to approve specs:", err)
+      })
+      .finally(() => {
+        setIsApprovingSpecs(false)
+      })
+  }
+
+  function handleStartWork() {
+    if (
+      !activeProjectId ||
+      !activeChat ||
+      !latestPlanApproval?.message.id ||
+      !latestSpecApproval?.message.id ||
+      isApprovingPlan ||
+      isApprovingSpecs ||
+      isStartingWork ||
+      !canStartWork
+    ) {
+      return
+    }
+
+    if (!window.confirm("Start work and create a thread from this chat?")) {
+      return
+    }
+
+    setIsStartingWork(true)
+    const projectId = activeProjectId
+    startThreadFromChat({
+      chatId: activeChat.id,
+      title: activeChat.title,
+      summary: null,
+      planApprovalMessageId: latestPlanApproval.message.id,
+      specApprovalMessageId: latestSpecApproval.message.id,
+      confirmStart: true,
+    })
+      .then((threadDetail) => {
+        actions.setLayoutField(projectId, { selectedThreadId: threadDetail.thread.id })
+        return Promise.all([
+          fetchThreads(projectId, actions),
+          fetchChatMessages(activeChat.id, actions),
+        ])
+      })
+      .catch((err) => {
+        console.error("[chats] failed to start work:", err)
+      })
+      .finally(() => {
+        setIsStartingWork(false)
+      })
   }
 
   function handleFetchMessages(threadId: string) {
@@ -470,17 +710,165 @@ export function ChatPageShell({
               {activeChat ? activeChat.title : "Command center"}
             </h2>
           </div>
-          <div className="placeholder-card placeholder-card--tall">
-            <strong>
-              {activeChat
-                ? "Chat transcript and approval controls land here"
-                : "Select or create a chat to anchor the workspace"}
-            </strong>
-            <p>
-              The center pane stays focused on the planning conversation while
-              the right pane tracks execution and the drawer handles testing.
-            </p>
-          </div>
+          {activeChat ? (
+            <section className="active-chat-pane" aria-label="Active chat pane">
+              <div className="active-chat-pane__body">
+                <section
+                  className="active-chat-pane__transcript"
+                  aria-label="Chat transcript shell"
+                >
+                  <div className="active-chat-pane__section-header">
+                    <h3 className="active-chat-pane__section-title">
+                      Transcript
+                    </h3>
+                    <span className="active-chat-pane__meta">
+                      {activeChat.provider} · {activeChat.model}
+                    </span>
+                  </div>
+                  <div
+                    className="active-chat-pane__transcript-scroll"
+                    ref={transcriptScrollRef}
+                  >
+                    {activeChatMessagesFetchStatus === "loading" &&
+                    activeChatMessages.length === 0 ? (
+                      <p className="active-chat-pane__transcript-empty">
+                        Loading transcript…
+                      </p>
+                    ) : null}
+                    {activeChatMessagesFetchStatus === "error" &&
+                    activeChatMessages.length === 0 ? (
+                      <p className="active-chat-pane__transcript-empty">
+                        Unable to load transcript. Try reselecting this chat.
+                      </p>
+                    ) : null}
+                    {activeChatMessagesFetchStatus === "idle" &&
+                    activeChatMessages.length === 0 ? (
+                      <p className="active-chat-pane__transcript-empty">
+                        No messages yet. Send one to start this transcript.
+                      </p>
+                    ) : null}
+                    {activeChatMessages.map((message) => (
+                      <article
+                        key={message.id}
+                        className={`active-chat-pane__message active-chat-pane__message--${resolveChatMessageVariant(message)}`}
+                      >
+                        <span className="active-chat-pane__message-role">
+                          {message.role}
+                        </span>
+                        <p className="active-chat-pane__message-text">
+                          {message.contentMarkdown ??
+                            "(Structured message payload)"}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <aside
+                  className="active-chat-pane__references"
+                  aria-label="Chat references shell"
+                >
+                  <div className="active-chat-pane__section-header">
+                    <h3 className="active-chat-pane__section-title">
+                      References
+                    </h3>
+                  </div>
+                  <dl className="active-chat-pane__reference-list">
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Chat ID</dt>
+                      <dd>{activeChat.id}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Status</dt>
+                      <dd>{activeChat.status}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Messages</dt>
+                      <dd>{activeChatMessages.length}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Updated</dt>
+                      <dd>{activeChat.updatedAt}</dd>
+                    </div>
+                  </dl>
+                </aside>
+              </div>
+
+              <form
+                className="active-chat-pane__input-dock"
+                onSubmit={handleSendChatMessage}
+              >
+                <div className="active-chat-pane__approval-actions">
+                  <button
+                    className="active-chat-pane__approval-action"
+                    type="button"
+                    onClick={handleApprovePlan}
+                    disabled={isApprovingPlan || isApprovingSpecs || isStartingWork}
+                  >
+                    {isApprovingPlan ? "Approving plan…" : "Approve plan"}
+                  </button>
+                  <button
+                    className="active-chat-pane__approval-action"
+                    type="button"
+                    onClick={handleApproveSpecs}
+                    disabled={
+                      isApprovingPlan ||
+                      isApprovingSpecs ||
+                      isStartingWork ||
+                      !canApproveSpecs
+                    }
+                  >
+                    {isApprovingSpecs ? "Approving specs…" : "Approve specs"}
+                  </button>
+                  <button
+                    className="active-chat-pane__approval-action active-chat-pane__approval-action--primary"
+                    type="button"
+                    onClick={handleStartWork}
+                    disabled={
+                      isApprovingPlan ||
+                      isApprovingSpecs ||
+                      isStartingWork ||
+                      !canStartWork
+                    }
+                  >
+                    {isStartingWork ? "Starting…" : "Start work"}
+                  </button>
+                </div>
+                <label className="active-chat-pane__input-label" htmlFor="chat-input">
+                  Message
+                </label>
+                <div className="active-chat-pane__input-row">
+                  <textarea
+                    id="chat-input"
+                    className="active-chat-pane__input"
+                    rows={3}
+                    placeholder="Ask the active chat to plan, code, or explain."
+                    value={chatInputValue}
+                    onChange={(event) => setChatInputValue(event.target.value)}
+                    disabled={isSendingChatMessage}
+                  />
+                  <button
+                    className="active-chat-pane__send"
+                    type="submit"
+                    disabled={isSendingChatMessage || chatInputValue.trim().length === 0}
+                  >
+                    {isSendingChatMessage ? "Sending…" : "Send"}
+                  </button>
+                </div>
+              </form>
+            </section>
+          ) : (
+            <section
+              className="active-chat-pane active-chat-pane--empty"
+              aria-label="No chat selected"
+            >
+              <strong>Select or create a chat to anchor the workspace</strong>
+              <p>
+                The active pane exposes transcript, references, and input dock
+                once a chat is selected.
+              </p>
+            </section>
+          )}
         </section>
 
         <div

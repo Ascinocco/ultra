@@ -1,5 +1,6 @@
 import type {
   BackendCapabilities,
+  ChatMessageSnapshot,
   ChatSummary,
   ConnectionStatus,
   EnvironmentReadinessSnapshot,
@@ -61,6 +62,11 @@ type SidebarSlice = {
   expandedProjectIds: string[]
   chatsByProjectId: Record<string, ChatSummary[]>
   chatsFetchStatus: Record<string, "idle" | "loading" | "error">
+}
+
+type ChatMessagesSlice = {
+  messagesByChatId: Record<string, ChatMessageSnapshot[]>
+  fetchStatusByChatId: Record<string, "idle" | "loading" | "error">
 }
 
 type SandboxSlice = {
@@ -147,6 +153,15 @@ type AppActions = {
   resetReadiness: () => void
   setSystemToolsOpen: (open: boolean) => void
   setThreadsForProject: (projectId: string, threads: ThreadSnapshot[]) => void
+  setMessagesForChat: (
+    chatId: string,
+    messages: ChatMessageSnapshot[],
+  ) => void
+  upsertChatMessage: (chatId: string, message: ChatMessageSnapshot) => void
+  setChatMessagesFetchStatus: (
+    chatId: string,
+    status: "idle" | "loading" | "error",
+  ) => void
   setMessagesForThread: (
     threadId: string,
     messages: ThreadMessageSnapshot[],
@@ -164,6 +179,7 @@ export type AppStoreState = {
   projects: ProjectsSlice
   layout: LayoutSlice
   sidebar: SidebarSlice
+  chatMessages: ChatMessagesSlice
   sandboxes: SandboxSlice
   terminal: TerminalSlice
   threads: ThreadsSlice
@@ -202,6 +218,11 @@ const defaultSidebarState: SidebarSlice = {
   expandedProjectIds: [],
   chatsByProjectId: {},
   chatsFetchStatus: {},
+}
+
+const defaultChatMessagesState: ChatMessagesSlice = {
+  messagesByChatId: {},
+  fetchStatusByChatId: {},
 }
 
 const defaultSandboxState: SandboxSlice = {
@@ -289,6 +310,7 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
     projects: { ...defaultProjectsState },
     layout: { ...defaultLayoutState },
     sidebar: { ...defaultSidebarState },
+    chatMessages: { ...defaultChatMessagesState },
     sandboxes: { ...defaultSandboxState },
     terminal: { ...defaultTerminalState },
     threads: { ...defaultThreadsState },
@@ -324,6 +346,9 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       resetReadiness: () => undefined,
       setSystemToolsOpen: () => undefined,
       setThreadsForProject: () => undefined,
+      setMessagesForChat: () => undefined,
+      upsertChatMessage: () => undefined,
+      setChatMessagesFetchStatus: () => undefined,
       setMessagesForThread: () => undefined,
       appendMessage: () => undefined,
       setThreadFetchStatus: () => undefined,
@@ -703,6 +728,49 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             threadFetchStatus: {
               ...state.threads.threadFetchStatus,
               [projectId]: "idle",
+            },
+          },
+        })),
+      setMessagesForChat: (chatId, messages) =>
+        set((state) => ({
+          ...state,
+          chatMessages: {
+            ...state.chatMessages,
+            messagesByChatId: {
+              ...state.chatMessages.messagesByChatId,
+              [chatId]: messages,
+            },
+            fetchStatusByChatId: {
+              ...state.chatMessages.fetchStatusByChatId,
+              [chatId]: "idle",
+            },
+          },
+        })),
+      upsertChatMessage: (chatId, message) =>
+        set((state) => {
+          const existing = state.chatMessages.messagesByChatId[chatId] ?? []
+          const alreadyPresent = existing.some((entry) => entry.id === message.id)
+          const nextMessages = alreadyPresent ? existing : [...existing, message]
+
+          return {
+            ...state,
+            chatMessages: {
+              ...state.chatMessages,
+              messagesByChatId: {
+                ...state.chatMessages.messagesByChatId,
+                [chatId]: nextMessages,
+              },
+            },
+          }
+        }),
+      setChatMessagesFetchStatus: (chatId, status) =>
+        set((state) => ({
+          ...state,
+          chatMessages: {
+            ...state.chatMessages,
+            fetchStatusByChatId: {
+              ...state.chatMessages.fetchStatusByChatId,
+              [chatId]: status,
             },
           },
         })),

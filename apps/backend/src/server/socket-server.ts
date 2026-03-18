@@ -12,6 +12,7 @@ import type {
 } from "@ultra/shared"
 import {
   IPC_PROTOCOL_VERSION,
+  chatsMessagesSubscribeInputSchema,
   parseIpcRequestEnvelope,
   runtimeComponentUpdatedSubscribeInputSchema,
   runtimeHealthUpdatedSubscribeRequestSchema,
@@ -24,6 +25,7 @@ import {
 
 import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
 import type { ChatService } from "../chats/chat-service.js"
+import type { ChatTurnService } from "../chats/chat-turn-service.js"
 import { createErrorResponse, IpcProtocolError } from "../ipc/errors.js"
 import { routeIpcRequest } from "../ipc/router.js"
 import type { ProjectService } from "../projects/project-service.js"
@@ -68,6 +70,7 @@ export async function startSocketServer(
   services: {
     artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
+    chatTurnService: ChatTurnService
     coordinatorService: CoordinatorService
     systemService?: SystemService
     projectService: ProjectService
@@ -115,6 +118,7 @@ export async function startSocketServer(
           {
             artifactCaptureService: services.artifactCaptureService,
             chatService: services.chatService,
+            chatTurnService: services.chatTurnService,
             coordinatorService: services.coordinatorService,
             systemService,
             projectService: services.projectService,
@@ -155,6 +159,7 @@ async function handleLine(
   services: {
     artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
+    chatTurnService: ChatTurnService
     coordinatorService: CoordinatorService
     systemService: SystemService
     projectService: ProjectService
@@ -297,6 +302,7 @@ function handleSubscribeRequest(
   request: SubscribeRequestEnvelope,
   services: {
     chatService: ChatService
+    chatTurnService: ChatTurnService
     coordinatorService: CoordinatorService
     systemService: SystemService
     projectService: ProjectService
@@ -480,6 +486,26 @@ function handleSubscribeRequest(
           )
         },
       )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "chats.messages": {
+      const { chat_id } = chatsMessagesSubscribeInputSchema.parse(
+        request.payload,
+      )
+      const cleanup = services.chatService.subscribeToMessages(chat_id, (msg) => {
+        socket.write(
+          `${JSON.stringify(
+            createSubscriptionEvent(subscriptionId, "chats.messages", msg),
+          )}\n`,
+        )
+      })
 
       subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
 

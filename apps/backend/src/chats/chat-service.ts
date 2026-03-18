@@ -53,6 +53,11 @@ type ChatMessageRow = {
   created_at: string
 }
 
+type ChatMessageSequenceRow = {
+  id: string
+  sequence_number: number
+}
+
 type ChatThreadRefRow = {
   chat_id: string
   thread_id: string
@@ -238,6 +243,11 @@ function mapChatChatRefRow(row: ChatChatRefRow): ChatChatRefSnapshot {
 }
 
 export class ChatService {
+  private readonly messageListenersByChatId = new Map<
+    ChatId,
+    Set<(message: ChatMessageSnapshot) => void>
+  >()
+
   constructor(
     private readonly database: DatabaseSync,
     private readonly now: () => string = () => new Date().toISOString(),
@@ -444,6 +454,112 @@ export class ChatService {
     return this.get(chatId)
   }
 
+  approvePlan(chatId: ChatId): ChatMessageSnapshot {
+    this.get(chatId)
+
+    return this.appendMessage({
+      chatId,
+      role: "user",
+      messageType: "plan_approval",
+      contentMarkdown: "Plan approved.",
+      structuredPayloadJson: JSON.stringify({
+        type: "plan_approval",
+        approved: true,
+      }),
+    })
+  }
+
+  approveSpecs(chatId: ChatId): ChatMessageSnapshot {
+    this.get(chatId)
+
+    const latestPlanApproval = this.getLatestMessageByType(chatId, "plan_approval")
+    if (!latestPlanApproval) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Plan approval is required before specs can be approved.",
+      )
+    }
+
+    const latestSpecApproval = this.getLatestMessageByType(chatId, "spec_approval")
+    if (
+      latestSpecApproval &&
+      latestSpecApproval.sequence_number >= latestPlanApproval.sequence_number
+    ) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Specs are already approved for the latest approved plan.",
+      )
+    }
+
+    return this.appendMessage({
+      chatId,
+      role: "user",
+      messageType: "spec_approval",
+      contentMarkdown: "Specs approved.",
+      structuredPayloadJson: JSON.stringify({
+        type: "spec_approval",
+        approved: true,
+        planApprovalMessageId: latestPlanApproval.id,
+      }),
+    })
+  }
+
+  confirmStartWork(
+    chatId: ChatId,
+    input?: {
+      threadTitle?: string
+      threadSummary?: string | null
+    },
+  ): ChatMessageSnapshot {
+    this.get(chatId)
+
+    const latestPlanApproval = this.getLatestMessageByType(chatId, "plan_approval")
+    const latestSpecApproval = this.getLatestMessageByType(chatId, "spec_approval")
+
+    if (!latestPlanApproval || !latestSpecApproval) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Plan and spec approvals are required before starting work.",
+      )
+    }
+
+    if (latestPlanApproval.sequence_number >= latestSpecApproval.sequence_number) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Plan must be approved before specs, and specs must be the latest approval step before starting work.",
+      )
+    }
+
+    const latestStartRequest = this.getLatestMessageByType(
+      chatId,
+      "thread_start_request",
+    )
+    if (
+      latestStartRequest &&
+      latestStartRequest.sequence_number >= latestSpecApproval.sequence_number
+    ) {
+      throw new IpcProtocolError(
+        "invalid_request",
+        "Start work is already confirmed for the latest approved specs.",
+      )
+    }
+
+    return this.appendMessage({
+      chatId,
+      role: "user",
+      messageType: "thread_start_request",
+      contentMarkdown: "Start work confirmed.",
+      structuredPayloadJson: JSON.stringify({
+        type: "thread_start_request",
+        confirmed: true,
+        planApprovalMessageId: latestPlanApproval.id,
+        specApprovalMessageId: latestSpecApproval.id,
+        threadTitle: input?.threadTitle ?? null,
+        threadSummary: input?.threadSummary ?? null,
+      }),
+    })
+  }
+
   getRuntimeContext(chatId: ChatId): ChatRuntimeContext {
     const chat = this.get(chatId)
     const projectRow = this.database
@@ -550,7 +666,9 @@ export class ChatService {
       )
     }
 
-    return mapChatMessageRow(row)
+    const snapshot = mapChatMessageRow(row)
+    this.notifyMessageListeners(snapshot)
+    return snapshot
   }
 
   createActionCheckpoint(input: CreateChatActionCheckpointInput): string {
@@ -668,6 +786,30 @@ export class ChatService {
       .map(mapChatMessageRow)
   }
 
+  subscribeToMessages(
+    chatId: ChatId,
+    listener: (message: ChatMessageSnapshot) => void,
+  ): () => void {
+    this.get(chatId)
+    const listeners = this.messageListenersByChatId.get(chatId) ?? new Set()
+    listeners.add(listener)
+    this.messageListenersByChatId.set(chatId, listeners)
+
+    return () => {
+      const active = this.messageListenersByChatId.get(chatId)
+
+      if (!active) {
+        return
+      }
+
+      active.delete(listener)
+
+      if (active.size === 0) {
+        this.messageListenersByChatId.delete(chatId)
+      }
+    }
+  }
+
   listThreadRefs(chatId: ChatId): ChatThreadRefSnapshot[] {
     this.get(chatId)
 
@@ -710,6 +852,41 @@ export class ChatService {
     if (!project) {
       throw new IpcProtocolError("not_found", `Project not found: ${projectId}`)
     }
+  }
+
+  private notifyMessageListeners(message: ChatMessageSnapshot): void {
+    const listeners = this.messageListenersByChatId.get(message.chatId)
+
+    if (!listeners) {
+      return
+    }
+
+    for (const listener of listeners) {
+      listener(message)
+    }
+  }
+
+  private getLatestMessageByType(
+    chatId: ChatId,
+    messageType: string,
+  ): ChatMessageSequenceRow | null {
+    this.get(chatId)
+
+    const row = this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            rowid AS sequence_number
+          FROM chat_messages
+          WHERE chat_id = ? AND message_type = ?
+          ORDER BY rowid DESC
+          LIMIT 1
+        `,
+      )
+      .get(chatId, messageType) as ChatMessageSequenceRow | undefined
+
+    return row ?? null
   }
 
   private updateChat(

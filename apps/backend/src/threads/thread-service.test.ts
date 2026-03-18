@@ -237,6 +237,60 @@ describe("ThreadService", () => {
     runtime.close()
   })
 
+  it("rejects out-of-order approval/start message sequences", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-16T00:11:00Z",
+    )
+    const threadService = new ThreadService(runtime.database)
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+
+    const firstPlan = chatService.appendMessage({
+      chatId: chat.id,
+      role: "user",
+      messageType: "plan_approval",
+      contentMarkdown: "Plan v1 approved",
+    })
+    const firstSpecs = chatService.appendMessage({
+      chatId: chat.id,
+      role: "user",
+      messageType: "spec_approval",
+      contentMarkdown: "Specs v1 approved",
+    })
+    const secondPlan = chatService.appendMessage({
+      chatId: chat.id,
+      role: "user",
+      messageType: "plan_approval",
+      contentMarkdown: "Plan v2 approved",
+    })
+    const startRequest = chatService.appendMessage({
+      chatId: chat.id,
+      role: "user",
+      messageType: "thread_start_request",
+      contentMarkdown: "Start work",
+    })
+
+    expect(() =>
+      threadService.startThread({
+        chat_id: chat.id,
+        title: "Out of order",
+        summary: null,
+        plan_approval_message_id: secondPlan.id,
+        spec_approval_message_id: firstSpecs.id,
+        start_request_message_id: startRequest.id,
+        spec_refs: [],
+        ticket_refs: [],
+      }),
+    ).toThrow(/spec_approval must occur after plan_approval/)
+
+    expect(firstPlan.messageType).toBe("plan_approval")
+    runtime.close()
+  })
+
   it("rejects approval messages from another chat", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })

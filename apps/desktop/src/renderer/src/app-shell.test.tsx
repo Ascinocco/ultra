@@ -7,19 +7,36 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../shared/backend-status.js"
-import { AppShell } from "./components/AppShell.js"
 import {
   AppStoreProvider,
   type ConnectionStatus,
   createAppStore,
 } from "./state/app-store.js"
-import { makeChat, makeProject } from "./test-utils/factories.js"
+import {
+  makeChat,
+  makeChatMessage,
+  makeProject,
+} from "./test-utils/factories.js"
 
-function renderShell(options?: {
+vi.mock("./terminal/TerminalPane.js", () => ({
+  TerminalPane: () => null,
+}))
+
+async function renderShell(options?: {
   currentPage?: "chat" | "editor" | "browser"
   connectionStatus?: ConnectionStatus
   backendStatus?: Partial<BackendStatusSnapshot>
 }) {
+  if (typeof globalThis.self === "undefined") {
+    Object.defineProperty(globalThis, "self", {
+      value: globalThis,
+      configurable: true,
+      writable: true,
+    })
+  }
+
+  const { AppShell } = await import("./components/AppShell.js")
+
   const initialBackendStatus = {
     ...createInitialBackendStatus(),
     ...options?.backendStatus,
@@ -40,27 +57,28 @@ function renderShell(options?: {
 }
 
 describe("AppShell", () => {
-  it("renders the chat-first workspace shell", () => {
-    const markup = renderShell()
+  it("renders the chat-first workspace shell", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain('data-page="chat"')
     expect(markup).toContain("Open Project")
   })
 
-  it("renders the title bar with terminal toggle and sandbox selector", () => {
-    const markup = renderShell()
+  it("renders the title bar with terminal toggle and sandbox selector", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain("title-bar")
     expect(markup).toContain("title-bar__terminal-toggle")
     expect(markup).toContain("sandbox-selector")
   })
 
-  it("renders the connected-panel chat frame with sidebar, main, and side panes", () => {
-    const markup = renderShell()
+  it("renders the connected-panel chat frame with sidebar, main, and side panes", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain("chat-frame")
     expect(markup).toContain("chat-frame__rail")
     expect(markup).toContain("chat-frame__main")
+    expect(markup).toContain("active-chat-pane")
     expect(markup).toContain("chat-frame__side")
   })
 })
@@ -417,6 +435,37 @@ describe("sidebar slice", () => {
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]).toHaveLength(1)
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe(
       "c2",
+    )
+  })
+})
+
+describe("chat message slice", () => {
+  it("setMessagesForChat stores transcript history and marks fetch idle", () => {
+    const store = createAppStore()
+    const messages = [
+      makeChatMessage("chat_msg_1", "chat_1", { role: "user" }),
+      makeChatMessage("chat_msg_2", "chat_1", { role: "assistant" }),
+    ]
+
+    store.getState().actions.setMessagesForChat("chat_1", messages)
+
+    expect(store.getState().chatMessages.messagesByChatId.chat_1).toEqual(
+      messages,
+    )
+    expect(store.getState().chatMessages.fetchStatusByChatId.chat_1).toBe(
+      "idle",
+    )
+  })
+
+  it("upsertChatMessage de-duplicates by message id", () => {
+    const store = createAppStore()
+    const message = makeChatMessage("chat_msg_1", "chat_1")
+
+    store.getState().actions.upsertChatMessage("chat_1", message)
+    store.getState().actions.upsertChatMessage("chat_1", message)
+
+    expect(store.getState().chatMessages.messagesByChatId.chat_1).toHaveLength(
+      1,
     )
   })
 })

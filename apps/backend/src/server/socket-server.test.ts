@@ -5,6 +5,9 @@ import { join } from "node:path"
 import {
   IPC_PROTOCOL_VERSION,
   parseArtifactSnapshot,
+  parseChatsGetMessagesResult,
+  parseChatsMessagesEvent,
+  parseChatsSendMessageResult,
   parseIpcResponseEnvelope,
   parseProjectRuntimeHealthSummary,
   parseProjectRuntimeSnapshot,
@@ -24,6 +27,10 @@ import { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js
 import { ArtifactPersistenceService } from "../artifacts/artifact-persistence-service.js"
 import { ArtifactStorageService } from "../artifacts/artifact-storage-service.js"
 import { ChatService } from "../chats/chat-service.js"
+import { ChatTurnService } from "../chats/chat-turn-service.js"
+import { ChatRuntimeRegistry } from "../chats/runtime/chat-runtime-registry.js"
+import type { ChatRuntimeAdapter } from "../chats/runtime/types.js"
+import { ChatRuntimeSessionManager } from "../chats/runtime/runtime-session-manager.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
 import { CoordinatorService } from "../runtime/coordinator-service.js"
@@ -37,6 +44,7 @@ import { SandboxService } from "../sandboxes/sandbox-service.js"
 import { FakePtyAdapter } from "../terminal/fake-pty-adapter.js"
 import { RuntimeProfileService } from "../terminal/runtime-profile-service.js"
 import { RuntimeSyncService } from "../terminal/runtime-sync-service.js"
+import { TerminalCommandGenService } from "../terminal/terminal-command-gen-service.js"
 import { TerminalService } from "../terminal/terminal-service.js"
 import { TerminalSessionService } from "../terminal/terminal-session-service.js"
 import { ThreadService } from "../threads/thread-service.js"
@@ -67,6 +75,35 @@ async function createServerRuntime(directory: string, socketPath: string) {
   )
   const sandboxService = new SandboxService(sandboxPersistenceService)
   const threadService = new ThreadService(databaseRuntime.database)
+  const chatService = new ChatService(databaseRuntime.database)
+  const createAdapter = (
+    provider: "codex" | "claude",
+  ): ChatRuntimeAdapter => ({
+    provider,
+    async runTurn(request) {
+      const finalText = `${provider.toUpperCase()} ack: ${request.prompt}`
+      return {
+        events: [{ type: "assistant_final", text: finalText }],
+        finalText,
+        vendorSessionId: `${provider}_session_1`,
+        diagnostics: {
+          exitCode: 0,
+          signal: null,
+          stdout: "",
+          stderr: "",
+          stdoutLines: [],
+          stderrLines: [],
+          timedOut: false,
+        },
+        resumed: request.vendorSessionId !== null,
+      }
+    },
+  })
+  const chatTurnService = new ChatTurnService(
+    chatService,
+    new ChatRuntimeRegistry([createAdapter("codex"), createAdapter("claude")]),
+    new ChatRuntimeSessionManager(),
+  )
   const coordinatorService = new CoordinatorService(
     runtimeSupervisor,
     runtimeRegistry,
@@ -93,6 +130,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
     runtimeProfileService,
     ptyAdapter,
   )
+  const terminalCommandGenService = new TerminalCommandGenService()
   const artifactCaptureService = new ArtifactCaptureService(
     new ArtifactStorageService(
       new ArtifactPersistenceService(databaseRuntime.database),
@@ -108,12 +146,14 @@ async function createServerRuntime(directory: string, socketPath: string) {
     socketPath,
     {
       artifactCaptureService,
-      chatService: new ChatService(databaseRuntime.database),
+      chatService,
+      chatTurnService,
       coordinatorService,
       projectService,
       runtimeRegistry,
       watchService,
       sandboxService,
+      terminalCommandGenService,
       terminalSessionService,
       terminalService,
       threadService,
@@ -539,6 +579,120 @@ describe("socket server", () => {
     await rm(directory, { recursive: true, force: true })
   })
 
+  it("round-trips chat messaging and chat message subscriptions over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const { runtime, databaseRuntime } = await createServerRuntime(
+      directory,
+      socketPath,
+    )
+    await mkdir(projectDirectory, { recursive: true })
+
+    const openProjectRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_open_project_chat_messages",
+      type: "command",
+      name: "projects.open",
+      payload: {
+        path: projectDirectory,
+      },
+    })
+    const openProjectResponse = parseIpcResponseEnvelope(openProjectRaw)
+    expect(openProjectResponse.ok).toBe(true)
+    if (!openProjectResponse.ok) {
+      throw new Error("Expected project open to succeed")
+    }
+
+    const createChatRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_create_messages",
+      type: "command",
+      name: "chats.create",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const createChatResponse = parseIpcResponseEnvelope(createChatRaw)
+    expect(createChatResponse.ok).toBe(true)
+    if (!createChatResponse.ok) {
+      throw new Error("Expected chat create to succeed")
+    }
+
+    const chatId = createChatResponse.result.id
+    const connection = await openPersistentConnection(socketPath)
+    connection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_messages_subscribe",
+      type: "subscribe",
+      name: "chats.messages",
+      payload: {
+        chat_id: chatId,
+      },
+    })
+
+    const subscribeResponse = parseIpcResponseEnvelope(
+      await connection.nextMessage(),
+    )
+    expect(subscribeResponse.ok).toBe(true)
+
+    const sendMessageRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_send_message",
+      type: "command",
+      name: "chats.send_message",
+      payload: {
+        chat_id: chatId,
+        prompt: "Outline next steps.",
+      },
+    })
+    const sendMessageResponse = parseIpcResponseEnvelope(sendMessageRaw)
+    expect(sendMessageResponse.ok).toBe(true)
+    if (!sendMessageResponse.ok) {
+      throw new Error("Expected chat send_message to succeed")
+    }
+
+    const sendResult = parseChatsSendMessageResult(sendMessageResponse.result)
+    expect(sendResult.userMessage.role).toBe("user")
+    expect(sendResult.assistantMessage.role).toBe("assistant")
+
+    const userMessageEvent = parseChatsMessagesEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    const assistantMessageEvent = parseChatsMessagesEvent(
+      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    )
+    expect(userMessageEvent.payload.role).toBe("user")
+    expect(assistantMessageEvent.payload.role).toBe("assistant")
+
+    const getMessagesRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_get_messages",
+      type: "query",
+      name: "chats.get_messages",
+      payload: {
+        chat_id: chatId,
+      },
+    })
+    const getMessagesResponse = parseIpcResponseEnvelope(getMessagesRaw)
+    expect(getMessagesResponse.ok).toBe(true)
+    if (!getMessagesResponse.ok) {
+      throw new Error("Expected chat get_messages to succeed")
+    }
+
+    const messages = parseChatsGetMessagesResult(getMessagesResponse.result)
+    expect(messages.messages).toHaveLength(2)
+    expect(messages.messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ])
+
+    await connection.close()
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
   it("round-trips thread creation and thread queries over the Unix socket", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
     const socketPath = join(directory, "backend.sock")
@@ -547,7 +701,6 @@ describe("socket server", () => {
       directory,
       socketPath,
     )
-    const chatService = new ChatService(databaseRuntime.database)
     await mkdir(projectDirectory, { recursive: true })
 
     const openProjectRaw = await request(socketPath, {
@@ -582,24 +735,59 @@ describe("socket server", () => {
       throw new Error("Expected chat create to succeed")
     }
 
-    const planApproval = chatService.appendMessage({
-      chatId: createChatResponse.result.id,
-      role: "user",
-      messageType: "plan_approval",
-      contentMarkdown: "approve plan",
+    const approvePlanRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_approve_plan",
+      type: "command",
+      name: "chats.approve_plan",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
     })
-    const specApproval = chatService.appendMessage({
-      chatId: createChatResponse.result.id,
-      role: "user",
-      messageType: "spec_approval",
-      contentMarkdown: "approve specs",
+    const approvePlanResponse = parseIpcResponseEnvelope(approvePlanRaw)
+    expect(approvePlanResponse.ok).toBe(true)
+    if (!approvePlanResponse.ok) {
+      throw new Error("Expected plan approval to succeed")
+    }
+
+    const approveSpecsRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_approve_specs",
+      type: "command",
+      name: "chats.approve_specs",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
     })
-    const startRequest = chatService.appendMessage({
-      chatId: createChatResponse.result.id,
-      role: "user",
-      messageType: "thread_start_request",
-      contentMarkdown: "start work",
+    const approveSpecsResponse = parseIpcResponseEnvelope(approveSpecsRaw)
+    expect(approveSpecsResponse.ok).toBe(true)
+    if (!approveSpecsResponse.ok) {
+      throw new Error("Expected specs approval to succeed")
+    }
+
+    const planApproval = approvePlanResponse.result
+    const specApproval = approveSpecsResponse.result
+
+    expect(planApproval.messageType).toBe("plan_approval")
+    expect(specApproval.messageType).toBe("spec_approval")
+
+    const getMessagesBeforeStartRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_get_chat_messages_before_start",
+      type: "query",
+      name: "chats.get_messages",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
     })
+    const getMessagesBeforeStartResponse = parseIpcResponseEnvelope(
+      getMessagesBeforeStartRaw,
+    )
+    expect(getMessagesBeforeStartResponse.ok).toBe(true)
+    if (!getMessagesBeforeStartResponse.ok) {
+      throw new Error("Expected chat message query to succeed")
+    }
+    expect(getMessagesBeforeStartResponse.result.messages).toHaveLength(2)
 
     const startThreadRaw = await request(socketPath, {
       protocol_version: IPC_PROTOCOL_VERSION,
@@ -612,7 +800,7 @@ describe("socket server", () => {
         summary: "Created via socket",
         plan_approval_message_id: planApproval.id,
         spec_approval_message_id: specApproval.id,
-        start_request_message_id: startRequest.id,
+        confirm_start: true,
         spec_refs: [],
         ticket_refs: [],
       },
@@ -678,6 +866,29 @@ describe("socket server", () => {
         }),
       ])
     }
+
+    const getMessagesAfterStartRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_get_chat_messages_after_start",
+      type: "query",
+      name: "chats.get_messages",
+      payload: {
+        chat_id: createChatResponse.result.id,
+      },
+    })
+    const getMessagesAfterStartResponse = parseIpcResponseEnvelope(
+      getMessagesAfterStartRaw,
+    )
+    expect(getMessagesAfterStartResponse.ok).toBe(true)
+    if (!getMessagesAfterStartResponse.ok) {
+      throw new Error("Expected chat message query after start to succeed")
+    }
+    expect(
+      getMessagesAfterStartResponse.result.messages.some(
+        (message: { messageType?: string }) =>
+          message.messageType === "thread_start_request",
+      ),
+    ).toBe(true)
 
     await runtime.close()
     databaseRuntime.close()
