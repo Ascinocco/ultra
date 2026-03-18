@@ -8,6 +8,7 @@ const SYSTEM_PROMPT = `You are a shell command generator. Given the user's reque
 Do not explain. Do not wrap in markdown. Do not include anything else.`
 
 const TIMEOUT_MS = 30_000
+const STDERR_SNIPPET_MAX_LENGTH = 280
 
 export type CommandGenEventListener = (
   event:
@@ -18,6 +19,19 @@ export type CommandGenEventListener = (
 
 export class TerminalCommandGenService {
   private activeProcesses = new Map<string, ChildProcess>()
+
+  private formatStderrSnippet(stderr: string): string | null {
+    const normalized = stderr.replace(/\s+/g, " ").trim()
+    if (!normalized) {
+      return null
+    }
+
+    if (normalized.length <= STDERR_SNIPPET_MAX_LENGTH) {
+      return normalized
+    }
+
+    return `${normalized.slice(0, STDERR_SNIPPET_MAX_LENGTH)}...`
+  }
 
   buildPrompt(prompt: string, cwd: string, recentOutput: string): string {
     let fullPrompt = `${SYSTEM_PROMPT}\n\nCurrent working directory: ${cwd}\n`
@@ -44,8 +58,7 @@ export class TerminalCommandGenService {
           "text",
           "--model",
           model,
-          "--permission-mode",
-          "bypassPermissions",
+          "--dangerously-skip-permissions",
           "--effort",
           "medium",
           prompt,
@@ -114,6 +127,7 @@ export class TerminalCommandGenService {
     this.activeProcesses.set(subscriptionKey, proc)
 
     let accumulatedOutput = ""
+    let accumulatedStderr = ""
     let terminated = false
 
     const timeout = setTimeout(() => {
@@ -129,30 +143,57 @@ export class TerminalCommandGenService {
     })
 
     proc.stderr?.on("data", (chunk: Buffer) => {
-      accumulatedOutput += chunk.toString()
+      const text = chunk.toString()
+      accumulatedStderr += text
+      accumulatedOutput += text
     })
 
-    proc.on("close", (code) => {
+    proc.on("close", (code, signal) => {
       clearTimeout(timeout)
       this.activeProcesses.delete(subscriptionKey)
 
-      if (terminated || code === null) {
+      if (terminated) {
         return
       }
 
       const parsedCommand = this.parseCommandFromOutput(accumulatedOutput)
+      const stderrSnippet = this.formatStderrSnippet(accumulatedStderr)
 
       if (parsedCommand !== null) {
         listener({ type: "complete", command: parsedCommand })
-      } else if (code !== 0) {
+      } else if (code !== null && code !== 0) {
+        const diagnostics = [`CLI exited with code ${code}`]
+        if (signal) {
+          diagnostics.push(`signal ${signal}`)
+        }
+        if (stderrSnippet !== null) {
+          diagnostics.push(`stderr: ${stderrSnippet}`)
+        }
         listener({
           type: "error",
-          message: `CLI exited with code ${code}`,
+          message: diagnostics.join(" | "),
+        })
+      } else if (code === null) {
+        const diagnostics = [
+          signal
+            ? `CLI exited due to signal ${signal}`
+            : "CLI exited unexpectedly",
+        ]
+        if (stderrSnippet !== null) {
+          diagnostics.push(`stderr: ${stderrSnippet}`)
+        }
+        listener({
+          type: "error",
+          message: diagnostics.join(" | "),
         })
       } else {
+        const diagnostics = ["Failed to parse command from CLI output"]
+        if (stderrSnippet !== null) {
+          diagnostics.push(`stderr: ${stderrSnippet}`)
+        }
         listener({
           type: "error",
-          message: "Failed to parse command from CLI output",
+          message: diagnostics.join(" | "),
         })
       }
     })
@@ -160,7 +201,15 @@ export class TerminalCommandGenService {
     proc.on("error", (err) => {
       clearTimeout(timeout)
       this.activeProcesses.delete(subscriptionKey)
-      listener({ type: "error", message: err.message })
+      const diagnostics = [`Failed to launch ${command}: ${err.message}`]
+      const stderrSnippet = this.formatStderrSnippet(accumulatedStderr)
+      if (stderrSnippet !== null) {
+        diagnostics.push(`stderr: ${stderrSnippet}`)
+      }
+      listener({
+        type: "error",
+        message: diagnostics.join(" | "),
+      })
     })
 
     return () => {

@@ -17,7 +17,7 @@ describe("terminalCommandGenInputSchema", () => {
       cwd: "/Users/tony/Projects/ultra",
       recent_output: "$ docker ps\nCONTAINER ID   IMAGE\n",
       provider: "claude",
-      model: "sonnet-4-6",
+      model: "claude-sonnet-4-6",
       session_id: "term-1",
     }
 
@@ -49,7 +49,7 @@ describe("terminalCommandGenInputSchema", () => {
       cwd: "/tmp",
       recent_output: "",
       provider: "claude",
-      model: "sonnet-4-6",
+      model: "claude-sonnet-4-6",
       session_id: "term-1",
     }
 

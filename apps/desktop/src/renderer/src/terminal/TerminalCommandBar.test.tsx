@@ -6,7 +6,7 @@ import { TerminalCommandBar } from "./TerminalCommandBar.js"
 const defaultProps = {
   visible: true,
   provider: "claude" as const,
-  model: "sonnet-4-6",
+  model: "claude-sonnet-4-6",
   onSubmit: vi.fn(),
   onCancel: vi.fn(),
   onProviderChange: vi.fn(),
@@ -63,8 +63,8 @@ describe("TerminalCommandBar", () => {
   })
 
   it("shows the current model name", () => {
-    const markup = renderBar({ model: "opus-4-6" })
-    expect(markup).toContain("opus-4-6")
+    const markup = renderBar({ model: "claude-opus-4-6" })
+    expect(markup).toContain("claude-opus-4-6")
     expect(markup).toContain("terminal-command-bar__model-name")
   })
 
