@@ -53,6 +53,121 @@ afterEach(() => {
 })
 
 describe("ChatTurnService", () => {
+  it("creates durable queued turns with idempotent client turn ids and event history", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    let tick = 0
+    const now = () => {
+      tick += 1
+      return `2026-03-18T12:00:${String(tick).padStart(2, "0")}Z`
+    }
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database, now)
+    const chatService = new ChatService(runtime.database, now)
+    const service = new ChatTurnService(
+      chatService,
+      new ChatRuntimeRegistry([
+        createAdapter("codex", async () => {
+          throw new Error("runtime should not be used for startTurn tests")
+        }),
+      ]),
+      new ChatRuntimeSessionManager(),
+      now,
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+
+    const first = service.startTurn({
+      chatId: chat.id,
+      prompt: "Plan implementation steps",
+      clientTurnId: "client_turn_1",
+    })
+    const second = service.startTurn({
+      chatId: chat.id,
+      prompt: "This should be idempotent",
+      clientTurnId: "client_turn_1",
+    })
+
+    const loaded = service.getTurn(chat.id, first.turn.turnId)
+    const listed = service.listTurns({ chatId: chat.id, limit: 20 })
+    const events = service.getTurnEvents(chat.id, first.turn.turnId)
+    const turnCount = runtime.database
+      .prepare<[string], { count: number }>(
+        "SELECT COUNT(*) AS count FROM chat_turns WHERE chat_id = ?",
+      )
+      .get(chat.id)?.count
+    const messageCount = runtime.database
+      .prepare<[string], { count: number }>(
+        "SELECT COUNT(*) AS count FROM chat_messages WHERE chat_id = ?",
+      )
+      .get(chat.id)?.count
+
+    expect(first.accepted).toBe(true)
+    expect(first.turn.status).toBe("queued")
+    expect(second.turn.turnId).toBe(first.turn.turnId)
+    expect(loaded.turnId).toBe(first.turn.turnId)
+    expect(turnCount).toBe(1)
+    expect(messageCount).toBe(1)
+    expect(listed.turns.map((turn) => turn.turnId)).toEqual([first.turn.turnId])
+    expect(listed.nextCursor).toBeNull()
+    expect(events.events).toHaveLength(1)
+    expect(events.events[0]).toMatchObject({
+      sequenceNumber: 1,
+      eventType: "chat.turn_queued",
+    })
+
+    runtime.close()
+  })
+
+  it("cancels queued turns and publishes turn lifecycle events to subscribers", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    let tick = 0
+    const now = () => {
+      tick += 1
+      return `2026-03-18T13:00:${String(tick).padStart(2, "0")}Z`
+    }
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database, now)
+    const chatService = new ChatService(runtime.database, now)
+    const service = new ChatTurnService(
+      chatService,
+      new ChatRuntimeRegistry([
+        createAdapter("codex", async () => {
+          throw new Error("runtime should not be used for cancel tests")
+        }),
+      ]),
+      new ChatRuntimeSessionManager(),
+      now,
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+    const receivedTypes: string[] = []
+
+    const unsubscribe = service.subscribeToTurnEvents({ chatId: chat.id }, (e) => {
+      receivedTypes.push(e.eventType)
+    })
+
+    const started = service.startTurn({
+      chatId: chat.id,
+      prompt: "Start and then cancel",
+    })
+    const canceled = service.cancelTurn(chat.id, started.turn.turnId)
+    const events = service.getTurnEvents(chat.id, started.turn.turnId)
+
+    unsubscribe()
+
+    expect(receivedTypes).toEqual(["chat.turn_queued", "chat.turn_canceled"])
+    expect(canceled.status).toBe("canceled")
+    expect(canceled.cancelRequestedAt).not.toBeNull()
+    expect(canceled.completedAt).not.toBeNull()
+    expect(events.events.map((event) => event.sequenceNumber)).toEqual([1, 2])
+    expect(events.events.map((event) => event.eventType)).toEqual([
+      "chat.turn_queued",
+      "chat.turn_canceled",
+    ])
+
+    runtime.close()
+  })
+
   it("persists user and assistant messages plus checkpoints and reuses the runtime session", async () => {
     const { databasePath, projectPath } = createWorkspace()
     let tick = 0

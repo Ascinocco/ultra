@@ -8,15 +8,20 @@ import {
   chatsApprovePlanInputSchema,
   chatsApproveSpecsInputSchema,
   chatsArchiveInputSchema,
+  chatsCancelTurnInputSchema,
   chatsCreateInputSchema,
   chatsGetInputSchema,
   chatsGetMessagesInputSchema,
+  chatsGetTurnEventsInputSchema,
+  chatsGetTurnInputSchema,
   chatsListInputSchema,
+  chatsListTurnsInputSchema,
   chatsPinInputSchema,
   chatsPromoteWorkToThreadInputSchema,
   chatsRenameInputSchema,
   chatsRestoreInputSchema,
   chatsSendMessageInputSchema,
+  chatsStartTurnInputSchema,
   chatsStartThreadInputSchema,
   chatsUnpinInputSchema,
   IPC_PROTOCOL_VERSION,
@@ -435,6 +440,66 @@ export async function routeIpcRequest(
         return createSuccessResponse(
           sendMessageCommand.request_id,
           await services.chatTurnService.sendMessage(chat_id, prompt),
+        )
+      }
+      case "chats.start_turn": {
+        const startTurnCommand = assertCommandRequest(request)
+        const { chat_id, prompt, client_turn_id } =
+          chatsStartTurnInputSchema.parse(startTurnCommand.payload)
+        return createSuccessResponse(
+          startTurnCommand.request_id,
+          services.chatTurnService.startTurn({
+            chatId: chat_id,
+            prompt,
+            clientTurnId: client_turn_id,
+          }),
+        )
+      }
+      case "chats.cancel_turn": {
+        const cancelTurnCommand = assertCommandRequest(request)
+        const { chat_id, turn_id } = chatsCancelTurnInputSchema.parse(
+          cancelTurnCommand.payload,
+        )
+        return createSuccessResponse(
+          cancelTurnCommand.request_id,
+          services.chatTurnService.cancelTurn(chat_id, turn_id),
+        )
+      }
+      case "chats.get_turn": {
+        const getTurnQuery = assertQueryRequest(request)
+        const { chat_id, turn_id } = chatsGetTurnInputSchema.parse(
+          getTurnQuery.payload,
+        )
+        return createSuccessResponse(
+          getTurnQuery.request_id,
+          services.chatTurnService.getTurn(chat_id, turn_id),
+        )
+      }
+      case "chats.list_turns": {
+        const listTurnsQuery = assertQueryRequest(request)
+        const { chat_id, limit, cursor } = chatsListTurnsInputSchema.parse(
+          listTurnsQuery.payload,
+        )
+        return createSuccessResponse(
+          listTurnsQuery.request_id,
+          services.chatTurnService.listTurns({
+            chatId: chat_id,
+            limit,
+            cursor,
+          }),
+        )
+      }
+      case "chats.get_turn_events": {
+        const getTurnEventsQuery = assertQueryRequest(request)
+        const { chat_id, turn_id, from_sequence } =
+          chatsGetTurnEventsInputSchema.parse(getTurnEventsQuery.payload)
+        return createSuccessResponse(
+          getTurnEventsQuery.request_id,
+          services.chatTurnService.getTurnEvents(
+            chat_id,
+            turn_id,
+            from_sequence,
+          ),
         )
       }
       case "chats.approve_plan": {

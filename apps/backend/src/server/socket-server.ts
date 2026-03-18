@@ -13,6 +13,7 @@ import type {
 import {
   IPC_PROTOCOL_VERSION,
   chatsMessagesSubscribeInputSchema,
+  chatsTurnEventsSubscribeInputSchema,
   parseIpcRequestEnvelope,
   runtimeComponentUpdatedSubscribeInputSchema,
   runtimeHealthUpdatedSubscribeRequestSchema,
@@ -506,6 +507,36 @@ function handleSubscribeRequest(
           )}\n`,
         )
       })
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "chats.turn_events": {
+      const { chat_id, turn_id } = chatsTurnEventsSubscribeInputSchema.parse(
+        request.payload,
+      )
+      const cleanup = services.chatTurnService.subscribeToTurnEvents(
+        {
+          chatId: chat_id,
+          turnId: turn_id,
+        },
+        (event) => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(
+                subscriptionId,
+                "chats.turn_events",
+                event,
+              ),
+            )}\n`,
+          )
+        },
+      )
 
       subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
 

@@ -844,6 +844,10 @@ export class ChatService {
       .map(mapChatChatRefRow)
   }
 
+  getDatabase(): DatabaseSync {
+    return this.database
+  }
+
   private assertProjectExists(projectId: ProjectId): void {
     const project = this.database
       .prepare("SELECT id FROM projects WHERE id = ?")
