@@ -285,7 +285,9 @@ button {
   color: var(--text-muted);
   cursor: pointer;
   -webkit-app-region: no-drag;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .title-bar__sidebar-toggle:hover {
@@ -548,7 +550,11 @@ button {
   background: var(--surface-2);
   overflow: hidden;
   grid-row: 1 / -1;
-  transition: width 0.2s ease, min-width 0.2s ease, padding 0.2s ease, border-width 0.2s ease;
+  transition:
+    width 0.2s ease,
+    min-width 0.2s ease,
+    padding 0.2s ease,
+    border-width 0.2s ease;
 }
 
 .chat-frame__rail--collapsed {
@@ -674,11 +680,6 @@ button {
   background: rgba(91, 141, 239, 0.08);
 }
 
-.active-chat-pane__message--user {
-  border-color: rgba(94, 234, 212, 0.24);
-  background: rgba(94, 234, 212, 0.08);
-}
-
 .active-chat-pane__message--system {
   border-color: rgba(250, 204, 21, 0.24);
   background: rgba(250, 204, 21, 0.08);
@@ -697,12 +698,6 @@ button {
   color: var(--text-secondary);
   font-size: 0.85rem;
   line-height: 1.5;
-}
-
-.active-chat-pane__transcript-empty {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--text-muted);
 }
 
 .active-chat-pane__reference-list {
@@ -744,35 +739,6 @@ button {
   color: var(--text-secondary);
 }
 
-.active-chat-pane__approval-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.active-chat-pane__approval-action {
-  appearance: none;
-  border: 1px solid var(--panel-border);
-  border-radius: 6px;
-  background: rgba(148, 163, 200, 0.06);
-  color: var(--text-muted);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-
-.active-chat-pane__approval-action--primary {
-  border-color: rgba(94, 234, 212, 0.3);
-  background: rgba(94, 234, 212, 0.12);
-}
-
-.active-chat-pane__approval-action:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
 .active-chat-pane__input-row {
   display: flex;
   align-items: flex-end;
@@ -807,12 +773,11 @@ button {
   font-size: 0.82rem;
   font-weight: 600;
   padding: 8px 14px;
-  cursor: pointer;
+  cursor: not-allowed;
 }
 
 .active-chat-pane__send:disabled {
   opacity: 0.8;
-  cursor: not-allowed;
 }
 
 /* ── Drag Handle (chat ↔ thread resize) ──────────────────── */
@@ -2219,11 +2184,6 @@ button {
   .active-chat-pane__input-row {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .active-chat-pane__approval-actions {
-    display: grid;
-    grid-template-columns: 1fr;
   }
 
   .active-chat-pane__send {
