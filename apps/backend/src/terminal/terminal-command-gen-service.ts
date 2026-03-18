@@ -152,7 +152,7 @@ export class TerminalCommandGenService {
       clearTimeout(timeout)
       this.activeProcesses.delete(subscriptionKey)
 
-      if (terminated || code === null) {
+      if (terminated) {
         return
       }
 
@@ -161,11 +161,24 @@ export class TerminalCommandGenService {
 
       if (parsedCommand !== null) {
         listener({ type: "complete", command: parsedCommand })
-      } else if (code !== 0) {
+      } else if (code !== null && code !== 0) {
         const diagnostics = [`CLI exited with code ${code}`]
         if (signal) {
           diagnostics.push(`signal ${signal}`)
         }
+        if (stderrSnippet !== null) {
+          diagnostics.push(`stderr: ${stderrSnippet}`)
+        }
+        listener({
+          type: "error",
+          message: diagnostics.join(" | "),
+        })
+      } else if (code === null) {
+        const diagnostics = [
+          signal
+            ? `CLI exited due to signal ${signal}`
+            : "CLI exited unexpectedly",
+        ]
         if (stderrSnippet !== null) {
           diagnostics.push(`stderr: ${stderrSnippet}`)
         }
@@ -188,9 +201,14 @@ export class TerminalCommandGenService {
     proc.on("error", (err) => {
       clearTimeout(timeout)
       this.activeProcesses.delete(subscriptionKey)
+      const diagnostics = [`Failed to launch ${command}: ${err.message}`]
+      const stderrSnippet = this.formatStderrSnippet(accumulatedStderr)
+      if (stderrSnippet !== null) {
+        diagnostics.push(`stderr: ${stderrSnippet}`)
+      }
       listener({
         type: "error",
-        message: `Failed to launch ${command}: ${err.message}`,
+        message: diagnostics.join(" | "),
       })
     })
 
