@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react"
 
 type Provider = "claude" | "codex"
 
-const CLAUDE_MODELS = ["sonnet-4-6", "opus-4-6", "haiku-4-5"]
+const CLAUDE_MODELS = [
+  "claude-sonnet-4-6",
+  "claude-opus-4-6",
+  "claude-haiku-4-5",
+]
 const CODEX_MODELS = ["gpt-5.4"]
 
 export function TerminalCommandBar({

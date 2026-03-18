@@ -1,4 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process"
+import { homedir } from "node:os"
+import { join } from "node:path"
 
 import type { TerminalCommandGenInput } from "@ultra/shared"
 
@@ -39,7 +41,7 @@ export class TerminalCommandGenService {
         args: [
           "-p",
           "--output-format",
-          "stream-json",
+          "text",
           "--model",
           model,
           "--permission-mode",
@@ -86,10 +88,27 @@ export class TerminalCommandGenService {
       prompt,
     )
 
+    // Ensure ~/.local/bin is in PATH for CLI tools (claude, codex)
+    // Electron apps on macOS often don't inherit the user's shell PATH
+    const localBin = join(homedir(), ".local", "bin")
+    const envPath = process.env.PATH ?? ""
+    const augmentedPath = envPath.includes(localBin)
+      ? envPath
+      : `${localBin}:${envPath}`
+
     const proc = spawn(command, args, {
       cwd: input.cwd,
       stdio: ["pipe", "pipe", "pipe"],
+      env: {
+        ...process.env,
+        PATH: augmentedPath,
+        // Clear CLAUDECODE to avoid nested session detection
+        CLAUDECODE: "",
+      },
     })
+
+    // Close stdin immediately — CLI should not wait for input
+    proc.stdin?.end()
 
     const subscriptionKey = `${input.session_id}:${crypto.randomUUID()}`
     this.activeProcesses.set(subscriptionKey, proc)

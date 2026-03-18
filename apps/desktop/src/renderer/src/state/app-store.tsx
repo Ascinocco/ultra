@@ -217,7 +217,7 @@ const defaultTerminalState: TerminalSlice = {
   focusedSessionIdByProjectId: {},
   savedCommandsByProjectId: {},
   commandBarProvider: "claude",
-  commandBarModel: "sonnet-4-6",
+  commandBarModel: "claude-sonnet-4-6",
 }
 
 const defaultThreadsState: ThreadsSlice = {
@@ -634,15 +634,21 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             },
           },
         })),
-      setCommandBarProvider: (provider) =>
+      setCommandBarProvider: (cmdBarProvider) =>
         set((state) => ({
           ...state,
-          terminal: { ...state.terminal, commandBarProvider: provider },
+          terminal: {
+            ...state.terminal,
+            commandBarProvider: cmdBarProvider,
+          },
         })),
-      setCommandBarModel: (model) =>
+      setCommandBarModel: (cmdBarModel) =>
         set((state) => ({
           ...state,
-          terminal: { ...state.terminal, commandBarModel: model },
+          terminal: {
+            ...state.terminal,
+            commandBarModel: cmdBarModel,
+          },
         })),
       setReadinessChecking: () =>
         set((state) => ({
