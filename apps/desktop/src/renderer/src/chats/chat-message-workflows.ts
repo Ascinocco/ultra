@@ -2,7 +2,6 @@ import type {
   ChatMessageSnapshot,
   ChatsGetTurnEventsResult,
   ChatsListTurnsResult,
-  ChatsSendMessageResult,
   ChatsStartTurnResult,
   ChatTurnEventSnapshot,
   ChatTurnSnapshot,
@@ -14,7 +13,6 @@ import {
   parseChatsGetTurnEventsResult,
   parseChatsListTurnsResult,
   parseChatsMessagesEvent,
-  parseChatsSendMessageResult,
   parseChatsStartTurnResult,
   parseChatsTurnEventsEvent,
   parseChatTurnSnapshot,
@@ -47,24 +45,6 @@ export async function fetchChatMessages(
     actions.setChatMessagesFetchStatus(chatId, "error")
     throw err
   }
-}
-
-type SendChatMessageActions = Pick<AppActions, "upsertChatMessage">
-
-export async function sendChatMessage(
-  chatId: string,
-  prompt: string,
-  actions: SendChatMessageActions,
-  client: WorkflowClient = ipcClient,
-): Promise<ChatsSendMessageResult> {
-  const result = await client.command("chats.send_message", {
-    chat_id: chatId,
-    prompt,
-  })
-  const parsed = parseChatsSendMessageResult(result)
-  actions.upsertChatMessage(chatId, parsed.userMessage)
-  actions.upsertChatMessage(chatId, parsed.assistantMessage)
-  return parsed
 }
 
 type StartChatTurnActions = Pick<

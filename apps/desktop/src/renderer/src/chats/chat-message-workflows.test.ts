@@ -9,7 +9,6 @@ import {
   fetchChatTurns,
   replayChatTurnEvents,
   selectCurrentTurn,
-  sendChatMessage,
   startChatTurn,
   startThreadFromChat,
   subscribeToChatMessages,
@@ -97,53 +96,6 @@ describe("fetchChatMessages", () => {
       chat_id: "chat_1",
     })
     expect(actions.setMessagesForChat).toHaveBeenCalledWith("chat_1", messages)
-  })
-})
-
-describe("sendChatMessage", () => {
-  it("sends a prompt and upserts returned user/assistant messages", async () => {
-    const userMessage = makeChatMessage("chat_msg_user", "chat_1", {
-      role: "user",
-      messageType: "user_text",
-      contentMarkdown: "Outline next steps.",
-    })
-    const assistantMessage = makeChatMessage("chat_msg_assistant", "chat_1", {
-      role: "assistant",
-      messageType: "assistant_text",
-      contentMarkdown: "Here are next steps.",
-    })
-    const client = createMockClient({
-      "chats.send_message": {
-        userMessage,
-        assistantMessage,
-        checkpointIds: ["chat_checkpoint_1"],
-      },
-    })
-    const actions = {
-      upsertChatMessage: vi.fn(),
-    }
-
-    const result = await sendChatMessage(
-      "chat_1",
-      "Outline next steps.",
-      actions,
-      client,
-    )
-
-    expect(client.command).toHaveBeenCalledWith("chats.send_message", {
-      chat_id: "chat_1",
-      prompt: "Outline next steps.",
-    })
-    expect(actions.upsertChatMessage).toHaveBeenCalledWith(
-      "chat_1",
-      userMessage,
-    )
-    expect(actions.upsertChatMessage).toHaveBeenCalledWith(
-      "chat_1",
-      assistantMessage,
-    )
-    expect(result.userMessage.id).toBe("chat_msg_user")
-    expect(result.assistantMessage.id).toBe("chat_msg_assistant")
   })
 })
 
