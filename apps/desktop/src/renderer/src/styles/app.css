@@ -1944,8 +1944,8 @@ button {
 .coordinator-conversation {
   display: flex;
   flex-direction: column;
-  min-height: 120px;
-  max-height: 300px;
+  flex: 1;
+  min-height: 0;
   margin-top: 8px;
 }
 
@@ -1967,44 +1967,6 @@ button {
   margin: 0;
 }
 
-.coordinator-conversation__message {
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 0.85rem;
-}
-
-.coordinator-conversation__message--coordinator {
-  background: rgba(91, 141, 239, 0.06);
-  border: 1px solid rgba(91, 141, 239, 0.1);
-}
-
-.coordinator-conversation__message--user {
-  background: rgba(148, 163, 200, 0.06);
-  border: 1px solid rgba(148, 163, 200, 0.1);
-}
-
-.coordinator-conversation__message--system {
-  background: rgba(250, 204, 21, 0.06);
-  border: 1px solid rgba(250, 204, 21, 0.1);
-  font-size: 0.8rem;
-}
-
-.coordinator-conversation__role {
-  display: block;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
-  margin-bottom: 2px;
-}
-
-.coordinator-conversation__text {
-  color: var(--text-secondary);
-  margin: 0;
-  line-height: 1.5;
-  white-space: pre-wrap;
-}
 
 .coordinator-conversation__input-dock {
   display: flex;
