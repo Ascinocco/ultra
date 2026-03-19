@@ -6,8 +6,12 @@ import {
   IPC_PROTOCOL_VERSION,
   parseArtifactSnapshot,
   parseChatsGetMessagesResult,
+  parseChatsGetTurnEventsResult,
+  parseChatsListTurnsResult,
   parseChatsMessagesEvent,
   parseChatsSendMessageResult,
+  parseChatsStartTurnResult,
+  parseChatsTurnEventsEvent,
   parseIpcResponseEnvelope,
   parseProjectRuntimeHealthSummary,
   parseProjectRuntimeSnapshot,
@@ -686,6 +690,195 @@ describe("socket server", () => {
       "user",
       "assistant",
     ])
+
+    await connection.close()
+    await runtime.close()
+    databaseRuntime.close()
+    await rm(directory, { recursive: true, force: true })
+  })
+
+  it("round-trips chat turn commands, queries, and turn-event subscriptions over the Unix socket", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
+    const socketPath = join(directory, "backend.sock")
+    const projectDirectory = join(directory, "repo")
+    const { runtime, databaseRuntime } = await createServerRuntime(
+      directory,
+      socketPath,
+    )
+    await mkdir(projectDirectory, { recursive: true })
+
+    const openProjectRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_open_project_chat_turns",
+      type: "command",
+      name: "projects.open",
+      payload: {
+        path: projectDirectory,
+      },
+    })
+    const openProjectResponse = parseIpcResponseEnvelope(openProjectRaw)
+    expect(openProjectResponse.ok).toBe(true)
+    if (!openProjectResponse.ok) {
+      throw new Error("Expected project open to succeed")
+    }
+
+    const createChatRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_create_turns",
+      type: "command",
+      name: "chats.create",
+      payload: {
+        project_id: openProjectResponse.result.id,
+      },
+    })
+    const createChatResponse = parseIpcResponseEnvelope(createChatRaw)
+    expect(createChatResponse.ok).toBe(true)
+    if (!createChatResponse.ok) {
+      throw new Error("Expected chat create to succeed")
+    }
+    const chatId = createChatResponse.result.id
+
+    const connection = await openPersistentConnection(socketPath)
+    connection.send({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_turn_events_subscribe",
+      type: "subscribe",
+      name: "chats.turn_events",
+      payload: {
+        chat_id: chatId,
+      },
+    })
+    const subscribeResponse = parseIpcResponseEnvelope(
+      await connection.nextMessage(),
+    )
+    expect(subscribeResponse.ok).toBe(true)
+
+    const startTurnRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_start_turn",
+      type: "command",
+      name: "chats.start_turn",
+      payload: {
+        chat_id: chatId,
+        prompt: "Queue a durable turn",
+        client_turn_id: "client_turn_roundtrip_1",
+      },
+    })
+    const startTurnResponse = parseIpcResponseEnvelope(startTurnRaw)
+    expect(startTurnResponse.ok).toBe(true)
+    if (!startTurnResponse.ok) {
+      throw new Error("Expected chats.start_turn to succeed")
+    }
+    const startResult = parseChatsStartTurnResult(startTurnResponse.result)
+    const receivedTurnEventTypes: string[] = []
+    while (!receivedTurnEventTypes.includes("chat.turn_completed")) {
+      const turnEvent = parseChatsTurnEventsEvent(
+        parseSubscriptionEventEnvelope(await connection.nextMessage()),
+      )
+      expect(turnEvent.payload.turnId).toBe(startResult.turn.turnId)
+      receivedTurnEventTypes.push(turnEvent.payload.eventType)
+    }
+    expect(receivedTurnEventTypes).toEqual(
+      expect.arrayContaining([
+        "chat.turn_queued",
+        "chat.turn_started",
+        "chat.turn_progress",
+        "chat.turn_completed",
+      ]),
+    )
+
+    const getTurnRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_get_turn",
+      type: "query",
+      name: "chats.get_turn",
+      payload: {
+        chat_id: chatId,
+        turn_id: startResult.turn.turnId,
+      },
+    })
+    const getTurnResponse = parseIpcResponseEnvelope(getTurnRaw)
+    expect(getTurnResponse.ok).toBe(true)
+    if (!getTurnResponse.ok) {
+      throw new Error("Expected chats.get_turn to succeed")
+    }
+    expect(getTurnResponse.result.turnId).toBe(startResult.turn.turnId)
+    expect(getTurnResponse.result.status).toBe("succeeded")
+
+    const listTurnsRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_list_turns",
+      type: "query",
+      name: "chats.list_turns",
+      payload: {
+        chat_id: chatId,
+        limit: 10,
+      },
+    })
+    const listTurnsResponse = parseIpcResponseEnvelope(listTurnsRaw)
+    expect(listTurnsResponse.ok).toBe(true)
+    if (!listTurnsResponse.ok) {
+      throw new Error("Expected chats.list_turns to succeed")
+    }
+    const listTurnsResult = parseChatsListTurnsResult(listTurnsResponse.result)
+    expect(listTurnsResult.turns.map((turn) => turn.turnId)).toEqual([
+      startResult.turn.turnId,
+    ])
+
+    const getTurnEventsRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_get_turn_events",
+      type: "query",
+      name: "chats.get_turn_events",
+      payload: {
+        chat_id: chatId,
+        turn_id: startResult.turn.turnId,
+      },
+    })
+    const getTurnEventsResponse = parseIpcResponseEnvelope(getTurnEventsRaw)
+    expect(getTurnEventsResponse.ok).toBe(true)
+    if (!getTurnEventsResponse.ok) {
+      throw new Error("Expected chats.get_turn_events to succeed")
+    }
+    const initialEvents = parseChatsGetTurnEventsResult(
+      getTurnEventsResponse.result,
+    )
+    expect(initialEvents.events.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining([
+        "chat.turn_queued",
+        "chat.turn_started",
+        "chat.turn_progress",
+        "chat.turn_completed",
+      ]),
+    )
+    const fromSequence = initialEvents.events[1]?.sequenceNumber ?? 1
+    const replayFromSequenceRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_get_turn_events_from_sequence",
+      type: "query",
+      name: "chats.get_turn_events",
+      payload: {
+        chat_id: chatId,
+        turn_id: startResult.turn.turnId,
+        from_sequence: fromSequence,
+      },
+    })
+    const replayFromSequenceResponse = parseIpcResponseEnvelope(
+      replayFromSequenceRaw,
+    )
+    expect(replayFromSequenceResponse.ok).toBe(true)
+    if (!replayFromSequenceResponse.ok) {
+      throw new Error("Expected chats.get_turn_events from sequence to succeed")
+    }
+    const replayFromSequence = parseChatsGetTurnEventsResult(
+      replayFromSequenceResponse.result,
+    )
+    expect(
+      replayFromSequence.events.every(
+        (event) => event.sequenceNumber > fromSequence,
+      ),
+    ).toBe(true)
+    expect(replayFromSequence.events.length).toBeGreaterThan(0)
 
     await connection.close()
     await runtime.close()

@@ -60,6 +60,9 @@ describe("database bootstrap", () => {
     expect(runtime.migrationResult.appliedMigrationIds).toContain(
       "0008_artifacts_and_sharing",
     )
+    expect(runtime.migrationResult.appliedMigrationIds).toContain(
+      "0011_chat_turn_persistence",
+    )
 
     const tables = runtime.database
       .prepare<[string], { name: string }>(
@@ -138,6 +141,20 @@ describe("database bootstrap", () => {
         )
         .all("artifact_shares"),
     ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("chat_turns"),
+    ).toHaveLength(1)
+    expect(
+      runtime.database
+        .prepare<[string], { name: string }>(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        )
+        .all("chat_turn_events"),
+    ).toHaveLength(1)
 
     runtime.close()
   })
@@ -156,7 +173,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0009_layout_sidebar_and_split_ratio",
+      "0011_chat_turn_persistence",
     )
 
     secondRuntime.close()

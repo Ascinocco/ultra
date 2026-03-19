@@ -1,14 +1,20 @@
-import type { ChatMessageSnapshot, TerminalSessionSnapshot } from "@ultra/shared"
-import { useEffect, useRef, useState } from "react"
+import type {
+  ChatTurnEventSnapshot,
+  ChatTurnSnapshot,
+  TerminalSessionSnapshot,
+} from "@ultra/shared"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
 import {
-  approvePlan as approveChatPlan,
-  approveSpecs as approveChatSpecs,
   fetchChatMessages,
-  sendChatMessage,
-  startThreadFromChat,
+  fetchChatTurn,
+  fetchChatTurns,
+  replayChatTurnEvents,
+  selectCurrentTurn,
+  startChatTurn,
   subscribeToChatMessages,
+  subscribeToChatTurnEvents,
 } from "../chats/chat-message-workflows.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
@@ -33,39 +39,33 @@ const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
 const MAX_DRAWER_HEIGHT_RATIO = 0.8
 
-function resolveChatMessageVariant(
-  message: ChatMessageSnapshot,
-): "assistant" | "user" | "system" {
-  if (message.role === "assistant") {
-    return "assistant"
+function formatTurnStatusLabel(
+  status: ChatTurnSnapshot["status"] | "idle",
+): string {
+  switch (status) {
+    case "queued":
+      return "Queued"
+    case "running":
+      return "Running"
+    case "succeeded":
+      return "Completed"
+    case "failed":
+      return "Failed"
+    case "canceled":
+      return "Canceled"
+    default:
+      return "Idle"
   }
-
-  if (message.role === "user") {
-    return "user"
-  }
-
-  return "system"
 }
 
-function findLatestChatMessageByType(
-  messages: ChatMessageSnapshot[],
-  messageType: string,
-): {
-  message: ChatMessageSnapshot
-  index: number
-} | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (!message) {
-      continue
-    }
-
-    if (message.messageType === messageType) {
-      return { message, index }
-    }
+function summarizeTurnActivity(event: ChatTurnEventSnapshot | null): string {
+  if (!event) {
+    return "No turn events yet."
   }
 
-  return null
+  const stage =
+    typeof event.payload.stage === "string" ? ` (${event.payload.stage})` : ""
+  return `${event.eventType}${stage} · #${event.sequenceNumber}`
 }
 
 function TerminalDrawer({
@@ -313,24 +313,22 @@ export function ChatPageShell({
   onOpenSettings: () => void
 }) {
   const activeProjectId = useAppStore((state) => state.app.activeProjectId)
+  const connectionStatus = useAppStore((state) => state.app.connectionStatus)
   const capabilities = useAppStore((state) => state.app.capabilities)
   const terminal = useAppStore((state) => state.terminal)
   const sidebar = useAppStore((state) => state.sidebar)
-  const chatMessages = useAppStore((state) => state.chatMessages)
   const layout = useAppStore((state) => state.layout)
+  const chatMessages = useAppStore((state) => state.chatMessages)
+  const chatTurns = useAppStore((state) => state.chatTurns)
   const actions = useAppStore((state) => state.actions)
   const threads = useAppStore((state) => state.threads)
 
   const chatFrameRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
-  const transcriptScrollRef = useRef<HTMLDivElement>(null)
+  const turnSequenceRef = useRef<Record<string, number>>({})
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
   const [isDragging, setIsDragging] = useState(false)
-  const [chatInputValue, setChatInputValue] = useState("")
-  const [isSendingChatMessage, setIsSendingChatMessage] = useState(false)
-  const [isApprovingPlan, setIsApprovingPlan] = useState(false)
-  const [isApprovingSpecs, setIsApprovingSpecs] = useState(false)
-  const [isStartingWork, setIsStartingWork] = useState(false)
+  const [chatInput, setChatInput] = useState("")
 
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
@@ -344,31 +342,38 @@ export function ChatPageShell({
   const activeChatMessages = activeChatId
     ? (chatMessages.messagesByChatId[activeChatId] ?? [])
     : []
-  const activeChatMessagesFetchStatus = activeChatId
+  const chatMessagesFetchStatus = activeChatId
     ? (chatMessages.fetchStatusByChatId[activeChatId] ?? "idle")
     : "idle"
-  const latestPlanApproval = findLatestChatMessageByType(
-    activeChatMessages,
-    "plan_approval",
-  )
-  const latestSpecApproval = findLatestChatMessageByType(
-    activeChatMessages,
-    "spec_approval",
-  )
-  const latestStartRequest = findLatestChatMessageByType(
-    activeChatMessages,
-    "thread_start_request",
-  )
-  const canApproveSpecs =
-    latestPlanApproval !== null &&
-    (latestSpecApproval === null ||
-      latestPlanApproval.index > latestSpecApproval.index)
-  const canStartWork =
-    latestPlanApproval !== null &&
-    latestSpecApproval !== null &&
-    latestPlanApproval.index < latestSpecApproval.index &&
-    (latestStartRequest === null ||
-      latestSpecApproval.index > latestStartRequest.index)
+  const turnsForActiveChat = activeChatId
+    ? (chatTurns.turnsByChatId[activeChatId] ?? [])
+    : []
+  const chatTurnsFetchStatus = activeChatId
+    ? (chatTurns.fetchStatusByChatId[activeChatId] ?? "idle")
+    : "idle"
+  const activeTurnId = activeChatId
+    ? (chatTurns.activeTurnIdByChatId[activeChatId] ?? null)
+    : null
+  const activeTurn = activeTurnId
+    ? (turnsForActiveChat.find((turn) => turn.turnId === activeTurnId) ?? null)
+    : null
+  const activeTurnEvents = activeTurnId
+    ? (chatTurns.eventsByTurnId[activeTurnId] ?? [])
+    : []
+  const chatTurnSendStatus = activeChatId
+    ? (chatTurns.sendStatusByChatId[activeChatId] ?? "idle")
+    : "idle"
+  const chatTurnSendError = activeChatId
+    ? (chatTurns.sendErrorByChatId[activeChatId] ?? null)
+    : null
+  const latestTurnEvent = activeTurnEvents[activeTurnEvents.length - 1] ?? null
+  const inFlightTurn =
+    activeTurn?.status === "queued" || activeTurn?.status === "running"
+  const chatInputDisabled =
+    !activeChatId ||
+    connectionStatus !== "connected" ||
+    chatTurnSendStatus === "starting" ||
+    inFlightTurn
   const terminalSessions = activeProjectId
     ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
         .filter((s) => s.status === "running")
@@ -421,12 +426,18 @@ export function ChatPageShell({
 
   const sidebarW = sidebarCollapsed ? 0 : SIDEBAR_WIDTH
   const availableWidth = containerWidth - sidebarW - DRAG_HANDLE_WIDTH
-  const chatWidth = Math.max(MIN_PANE_WIDTH, Math.round(availableWidth * splitRatio))
+  const chatWidth = Math.max(
+    MIN_PANE_WIDTH,
+    Math.round(availableWidth * splitRatio),
+  )
   const threadWidth = Math.max(MIN_PANE_WIDTH, availableWidth - chatWidth)
 
-  const gridStyle: React.CSSProperties = containerWidth > 0
-    ? { gridTemplateColumns: `${sidebarW}px ${chatWidth}px ${DRAG_HANDLE_WIDTH}px ${threadWidth}px` }
-    : {}
+  const gridStyle: React.CSSProperties =
+    containerWidth > 0
+      ? {
+          gridTemplateColumns: `${sidebarW}px ${chatWidth}px ${DRAG_HANDLE_WIDTH}px ${threadWidth}px`,
+        }
+      : {}
 
   function handleDragStart(e: React.PointerEvent) {
     e.preventDefault()
@@ -459,6 +470,19 @@ export function ChatPageShell({
       : 600
     setDrawerHeight(Math.min(Math.max(height, MIN_DRAWER_HEIGHT), maxHeight))
   }
+
+  const recordTurnSequence = useCallback((events: ChatTurnEventSnapshot[]) => {
+    const latest = events[events.length - 1]
+
+    if (!latest) {
+      return
+    }
+
+    turnSequenceRef.current[latest.turnId] = Math.max(
+      turnSequenceRef.current[latest.turnId] ?? 0,
+      latest.sequenceNumber,
+    )
+  }, [])
 
   function handleNewTerminalSession() {
     if (!activeProjectId) return
@@ -515,169 +539,131 @@ export function ChatPageShell({
   }, [activeProjectId, actions])
 
   useEffect(() => {
+    setChatInput("")
+    if (!activeChatId) {
+      turnSequenceRef.current = {}
+    }
+  }, [activeChatId])
+
+  useEffect(() => {
+    if (!activeChatId || connectionStatus !== "connected") {
+      return
+    }
+    const chatId: string = activeChatId
+
+    let cancelled = false
+    let unsubscribeChatMessages: (() => Promise<void>) | null = null
+    let unsubscribeTurnEvents: (() => Promise<void>) | null = null
+
+    const handleTurnEvent = (event: ChatTurnEventSnapshot) => {
+      if (cancelled) {
+        return
+      }
+
+      turnSequenceRef.current[event.turnId] = Math.max(
+        turnSequenceRef.current[event.turnId] ?? 0,
+        event.sequenceNumber,
+      )
+
+      if (
+        event.eventType === "chat.turn_queued" ||
+        event.eventType === "chat.turn_started"
+      ) {
+        actions.setActiveChatTurn(chatId, event.turnId)
+      }
+
+      fetchChatTurn(chatId, event.turnId, actions).catch((err) => {
+        console.error("[chat] failed to refresh turn snapshot:", err)
+      })
+    }
+
+    async function hydrateActiveChat() {
+      try {
+        await fetchChatMessages(chatId, actions)
+        const turnsResult = await fetchChatTurns(chatId, actions)
+        const currentTurn = selectCurrentTurn(turnsResult.turns)
+
+        actions.setActiveChatTurn(chatId, currentTurn?.turnId ?? null)
+
+        if (capabilities?.supportsSubscriptions) {
+          unsubscribeChatMessages = await subscribeToChatMessages(
+            chatId,
+            actions,
+          )
+          unsubscribeTurnEvents = await subscribeToChatTurnEvents(
+            { chatId },
+            actions,
+            handleTurnEvent,
+          )
+        }
+
+        if (!currentTurn) {
+          return
+        }
+
+        const replayResult = await replayChatTurnEvents(
+          chatId,
+          currentTurn.turnId,
+          actions,
+          turnSequenceRef.current[currentTurn.turnId],
+        )
+        recordTurnSequence(replayResult.events)
+        await fetchChatTurn(chatId, currentTurn.turnId, actions)
+      } catch (err) {
+        if (!cancelled) {
+          console.error("[chat] failed to hydrate active chat:", err)
+        }
+      }
+    }
+
+    void hydrateActiveChat()
+
+    return () => {
+      cancelled = true
+      void unsubscribeChatMessages?.()
+      void unsubscribeTurnEvents?.()
+    }
+  }, [
+    activeChatId,
+    actions,
+    capabilities?.supportsSubscriptions,
+    connectionStatus,
+    recordTurnSequence,
+  ])
+
+  function handleStartTurn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
     if (!activeChatId) {
       return
     }
 
-    fetchChatMessages(activeChatId, actions).catch((err) => {
-      console.error("[chats] failed to fetch messages:", err)
-    })
-  }, [activeChatId, actions])
-
-  useEffect(() => {
-    if (!activeChatId || !capabilities?.supportsSubscriptions) {
+    const prompt = chatInput.trim()
+    if (!prompt || chatInputDisabled) {
       return
     }
 
-    let cancelled = false
-    let cleanup: (() => Promise<void>) | null = null
+    startChatTurn(activeChatId, prompt, actions)
+      .then(async ({ turn }) => {
+        setChatInput("")
 
-    subscribeToChatMessages(activeChatId, actions)
-      .then((unsubscribe) => {
-        if (cancelled) {
-          void unsubscribe()
-          return
-        }
-        cleanup = unsubscribe
+        const replayResult = await replayChatTurnEvents(
+          activeChatId,
+          turn.turnId,
+          actions,
+          turnSequenceRef.current[turn.turnId],
+        )
+        recordTurnSequence(replayResult.events)
+        await fetchChatTurn(activeChatId, turn.turnId, actions)
       })
       .catch((err) => {
-        console.error("[chats] failed to subscribe to messages:", err)
-      })
-
-    return () => {
-      cancelled = true
-      if (cleanup) {
-        void cleanup()
-      }
-    }
-  }, [activeChatId, capabilities?.supportsSubscriptions, actions])
-
-  useEffect(() => {
-    setChatInputValue("")
-    setIsSendingChatMessage(false)
-    setIsApprovingPlan(false)
-    setIsApprovingSpecs(false)
-    setIsStartingWork(false)
-  }, [activeChatId])
-
-  useEffect(() => {
-    const container = transcriptScrollRef.current
-
-    if (!container) {
-      return
-    }
-
-    container.scrollTop = container.scrollHeight
-  }, [activeChatId, activeChatMessages.length])
-
-  function handleSendChatMessage(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    if (!activeChat || isSendingChatMessage) {
-      return
-    }
-
-    const prompt = chatInputValue.trim()
-
-    if (!prompt) {
-      return
-    }
-
-    setIsSendingChatMessage(true)
-    sendChatMessage(activeChat.id, prompt, actions)
-      .then(() => {
-        setChatInputValue("")
-      })
-      .catch((err) => {
-        console.error("[chats] failed to send message:", err)
-      })
-      .finally(() => {
-        setIsSendingChatMessage(false)
+        console.error("[chat] failed to start turn:", err)
       })
   }
 
   function handleSelectThread(threadId: string | null) {
     if (!activeProjectId) return
     actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
-  }
-
-  function handleApprovePlan() {
-    if (!activeChat || isApprovingPlan || isApprovingSpecs || isStartingWork) {
-      return
-    }
-
-    setIsApprovingPlan(true)
-    approveChatPlan(activeChat.id, actions)
-      .catch((err) => {
-        console.error("[chats] failed to approve plan:", err)
-      })
-      .finally(() => {
-        setIsApprovingPlan(false)
-      })
-  }
-
-  function handleApproveSpecs() {
-    if (
-      !activeChat ||
-      isApprovingPlan ||
-      isApprovingSpecs ||
-      isStartingWork ||
-      !canApproveSpecs
-    ) {
-      return
-    }
-
-    setIsApprovingSpecs(true)
-    approveChatSpecs(activeChat.id, actions)
-      .catch((err) => {
-        console.error("[chats] failed to approve specs:", err)
-      })
-      .finally(() => {
-        setIsApprovingSpecs(false)
-      })
-  }
-
-  function handleStartWork() {
-    if (
-      !activeProjectId ||
-      !activeChat ||
-      !latestPlanApproval?.message.id ||
-      !latestSpecApproval?.message.id ||
-      isApprovingPlan ||
-      isApprovingSpecs ||
-      isStartingWork ||
-      !canStartWork
-    ) {
-      return
-    }
-
-    if (!window.confirm("Start work and create a thread from this chat?")) {
-      return
-    }
-
-    setIsStartingWork(true)
-    const projectId = activeProjectId
-    startThreadFromChat({
-      chatId: activeChat.id,
-      title: activeChat.title,
-      summary: null,
-      planApprovalMessageId: latestPlanApproval.message.id,
-      specApprovalMessageId: latestSpecApproval.message.id,
-      confirmStart: true,
-    })
-      .then((threadDetail) => {
-        actions.setLayoutField(projectId, { selectedThreadId: threadDetail.thread.id })
-        return Promise.all([
-          fetchThreads(projectId, actions),
-          fetchChatMessages(activeChat.id, actions),
-        ])
-      })
-      .catch((err) => {
-        console.error("[chats] failed to start work:", err)
-      })
-      .finally(() => {
-        setIsStartingWork(false)
-      })
   }
 
   function handleFetchMessages(threadId: string) {
@@ -699,8 +685,13 @@ export function ChatPageShell({
         ref={gridRef}
         style={gridStyle}
       >
-        <aside className={`chat-frame__rail ${sidebarCollapsed ? "chat-frame__rail--collapsed" : ""}`}>
-          <Sidebar onOpenProject={onOpenProject} onOpenSettings={onOpenSettings} />
+        <aside
+          className={`chat-frame__rail ${sidebarCollapsed ? "chat-frame__rail--collapsed" : ""}`}
+        >
+          <Sidebar
+            onOpenProject={onOpenProject}
+            onOpenSettings={onOpenSettings}
+          />
         </aside>
 
         <section className="chat-frame__main">
@@ -715,49 +706,54 @@ export function ChatPageShell({
               <div className="active-chat-pane__body">
                 <section
                   className="active-chat-pane__transcript"
-                  aria-label="Chat transcript shell"
+                  aria-label="Chat transcript"
                 >
                   <div className="active-chat-pane__section-header">
                     <h3 className="active-chat-pane__section-title">
                       Transcript
                     </h3>
-                    <span className="active-chat-pane__meta">
-                      {activeChat.provider} · {activeChat.model}
-                    </span>
+                    <div className="active-chat-pane__meta-row">
+                      <span className="active-chat-pane__meta">
+                        {activeChat.provider} · {activeChat.model}
+                      </span>
+                      <span
+                        className="active-chat-pane__turn-status"
+                        data-status={activeTurn?.status ?? "idle"}
+                      >
+                        {formatTurnStatusLabel(activeTurn?.status ?? "idle")}
+                      </span>
+                    </div>
                   </div>
-                  <div
-                    className="active-chat-pane__transcript-scroll"
-                    ref={transcriptScrollRef}
-                  >
-                    {activeChatMessagesFetchStatus === "loading" &&
+                  <div className="active-chat-pane__transcript-scroll">
+                    {chatMessagesFetchStatus === "loading" &&
                     activeChatMessages.length === 0 ? (
-                      <p className="active-chat-pane__transcript-empty">
+                      <p className="active-chat-pane__empty-copy">
                         Loading transcript…
                       </p>
                     ) : null}
-                    {activeChatMessagesFetchStatus === "error" &&
-                    activeChatMessages.length === 0 ? (
-                      <p className="active-chat-pane__transcript-empty">
-                        Unable to load transcript. Try reselecting this chat.
+                    {chatMessagesFetchStatus === "error" ? (
+                      <p className="active-chat-pane__empty-copy active-chat-pane__empty-copy--error">
+                        Failed to load transcript.
                       </p>
                     ) : null}
-                    {activeChatMessagesFetchStatus === "idle" &&
+                    {chatMessagesFetchStatus !== "loading" &&
                     activeChatMessages.length === 0 ? (
-                      <p className="active-chat-pane__transcript-empty">
-                        No messages yet. Send one to start this transcript.
+                      <p className="active-chat-pane__empty-copy">
+                        No messages yet. Send a prompt to start a turn.
                       </p>
                     ) : null}
                     {activeChatMessages.map((message) => (
                       <article
                         key={message.id}
-                        className={`active-chat-pane__message active-chat-pane__message--${resolveChatMessageVariant(message)}`}
+                        className={`active-chat-pane__message active-chat-pane__message--${message.role}`}
                       >
                         <span className="active-chat-pane__message-role">
                           {message.role}
                         </span>
                         <p className="active-chat-pane__message-text">
                           {message.contentMarkdown ??
-                            "(Structured message payload)"}
+                            message.structuredPayloadJson ??
+                            "No text content."}
                         </p>
                       </article>
                     ))}
@@ -766,7 +762,7 @@ export function ChatPageShell({
 
                 <aside
                   className="active-chat-pane__references"
-                  aria-label="Chat references shell"
+                  aria-label="Chat references"
                 >
                   <div className="active-chat-pane__section-header">
                     <h3 className="active-chat-pane__section-title">
@@ -783,8 +779,22 @@ export function ChatPageShell({
                       <dd>{activeChat.status}</dd>
                     </div>
                     <div className="active-chat-pane__reference-item">
-                      <dt>Messages</dt>
-                      <dd>{activeChatMessages.length}</dd>
+                      <dt>Turn ID</dt>
+                      <dd>{activeTurn?.turnId ?? "—"}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Turn State</dt>
+                      <dd>
+                        {formatTurnStatusLabel(activeTurn?.status ?? "idle")}
+                      </dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Turn Events</dt>
+                      <dd>{activeTurnEvents.length}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Latest Activity</dt>
+                      <dd>{summarizeTurnActivity(latestTurnEvent)}</dd>
                     </div>
                     <div className="active-chat-pane__reference-item">
                       <dt>Updated</dt>
@@ -796,45 +806,12 @@ export function ChatPageShell({
 
               <form
                 className="active-chat-pane__input-dock"
-                onSubmit={handleSendChatMessage}
+                onSubmit={handleStartTurn}
               >
-                <div className="active-chat-pane__approval-actions">
-                  <button
-                    className="active-chat-pane__approval-action"
-                    type="button"
-                    onClick={handleApprovePlan}
-                    disabled={isApprovingPlan || isApprovingSpecs || isStartingWork}
-                  >
-                    {isApprovingPlan ? "Approving plan…" : "Approve plan"}
-                  </button>
-                  <button
-                    className="active-chat-pane__approval-action"
-                    type="button"
-                    onClick={handleApproveSpecs}
-                    disabled={
-                      isApprovingPlan ||
-                      isApprovingSpecs ||
-                      isStartingWork ||
-                      !canApproveSpecs
-                    }
-                  >
-                    {isApprovingSpecs ? "Approving specs…" : "Approve specs"}
-                  </button>
-                  <button
-                    className="active-chat-pane__approval-action active-chat-pane__approval-action--primary"
-                    type="button"
-                    onClick={handleStartWork}
-                    disabled={
-                      isApprovingPlan ||
-                      isApprovingSpecs ||
-                      isStartingWork ||
-                      !canStartWork
-                    }
-                  >
-                    {isStartingWork ? "Starting…" : "Start work"}
-                  </button>
-                </div>
-                <label className="active-chat-pane__input-label" htmlFor="chat-input">
+                <label
+                  className="active-chat-pane__input-label"
+                  htmlFor="chat-input"
+                >
                   Message
                 </label>
                 <div className="active-chat-pane__input-row">
@@ -842,19 +819,44 @@ export function ChatPageShell({
                     id="chat-input"
                     className="active-chat-pane__input"
                     rows={3}
-                    placeholder="Ask the active chat to plan, code, or explain."
-                    value={chatInputValue}
-                    onChange={(event) => setChatInputValue(event.target.value)}
-                    disabled={isSendingChatMessage}
+                    placeholder={
+                      inFlightTurn
+                        ? "Wait for the active turn to finish."
+                        : "Send a prompt to start a chat turn."
+                    }
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    disabled={chatInputDisabled}
                   />
                   <button
                     className="active-chat-pane__send"
                     type="submit"
-                    disabled={isSendingChatMessage || chatInputValue.trim().length === 0}
+                    disabled={
+                      chatInputDisabled || chatInput.trim().length === 0
+                    }
                   >
-                    {isSendingChatMessage ? "Sending…" : "Send"}
+                    {chatTurnSendStatus === "starting"
+                      ? "Starting…"
+                      : inFlightTurn
+                        ? "Running…"
+                        : "Send"}
                   </button>
                 </div>
+                {chatTurnsFetchStatus === "error" ? (
+                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
+                    Failed to load turn state for this chat.
+                  </p>
+                ) : null}
+                {chatTurnSendError ? (
+                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
+                    {chatTurnSendError}
+                  </p>
+                ) : null}
+                {connectionStatus !== "connected" ? (
+                  <p className="active-chat-pane__input-hint">
+                    Reconnect to the backend before sending a new turn.
+                  </p>
+                ) : null}
               </form>
             </section>
           ) : (

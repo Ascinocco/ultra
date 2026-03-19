@@ -12,9 +12,13 @@ import {
   parseChatMessageSnapshot,
   parseChatSnapshot,
   parseChatsGetMessagesResult,
+  parseChatsGetTurnEventsResult,
   parseChatsListResult,
+  parseChatsListTurnsResult,
   parseChatsMessagesEvent,
   parseChatsSendMessageResult,
+  parseChatsStartTurnResult,
+  parseChatsTurnEventsEvent,
   parseCommandRequest,
   parseEnvironmentReadinessSnapshot,
   parseIpcResponseEnvelope,
@@ -451,6 +455,77 @@ describe("shared contracts", () => {
     expect(subscribeRequest.name).toBe("chats.messages")
   })
 
+  it("parses chat turn query/command/subscription envelopes", () => {
+    const startTurnCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_start_turn",
+      type: "command",
+      name: "chats.start_turn",
+      payload: {
+        chat_id: "chat_123",
+        prompt: "Plan implementation steps",
+        client_turn_id: "client_turn_1",
+      },
+    })
+    const cancelTurnCommand = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_cancel_turn",
+      type: "command",
+      name: "chats.cancel_turn",
+      payload: {
+        chat_id: "chat_123",
+        turn_id: "chat_turn_123",
+      },
+    })
+    const getTurnQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_get_turn",
+      type: "query",
+      name: "chats.get_turn",
+      payload: {
+        chat_id: "chat_123",
+        turn_id: "chat_turn_123",
+      },
+    })
+    const listTurnsQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_list_turns",
+      type: "query",
+      name: "chats.list_turns",
+      payload: {
+        chat_id: "chat_123",
+        limit: 20,
+      },
+    })
+    const getTurnEventsQuery = parseQueryRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_get_turn_events",
+      type: "query",
+      name: "chats.get_turn_events",
+      payload: {
+        chat_id: "chat_123",
+        turn_id: "chat_turn_123",
+        from_sequence: 1,
+      },
+    })
+    const turnEventsSubscribe = parseSubscribeRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_turn_events_subscribe",
+      type: "subscribe",
+      name: "chats.turn_events",
+      payload: {
+        chat_id: "chat_123",
+      },
+    })
+
+    expect(startTurnCommand.name).toBe("chats.start_turn")
+    expect(cancelTurnCommand.name).toBe("chats.cancel_turn")
+    expect(getTurnQuery.name).toBe("chats.get_turn")
+    expect(listTurnsQuery.name).toBe("chats.list_turns")
+    expect(getTurnEventsQuery.name).toBe("chats.get_turn_events")
+    expect(turnEventsSubscribe.name).toBe("chats.turn_events")
+  })
+
   it("parses chat message snapshots, results, and events", () => {
     const userMessage = parseChatMessageSnapshot({
       id: "chat_msg_1",
@@ -495,6 +570,67 @@ describe("shared contracts", () => {
     expect(listResult.messages).toHaveLength(2)
     expect(sendResult.assistantMessage.providerMessageId).toBe("vendor_msg_2")
     expect(messageEvent.payload.role).toBe("assistant")
+  })
+
+  it("parses chat turn snapshots, results, and events", () => {
+    const turn = {
+      turnId: "chat_turn_1",
+      chatId: "chat_123",
+      sessionId: "chat_sess_123",
+      clientTurnId: "client_turn_1",
+      userMessageId: "chat_msg_1",
+      assistantMessageId: null,
+      status: "queued",
+      provider: "codex",
+      model: "gpt-5.4",
+      vendorSessionId: null,
+      startedAt: "2026-03-18T12:00:02.000Z",
+      updatedAt: "2026-03-18T12:00:02.000Z",
+      completedAt: null,
+      failureCode: null,
+      failureMessage: null,
+      cancelRequestedAt: null,
+    }
+    const startResult = parseChatsStartTurnResult({
+      accepted: true,
+      turn,
+    })
+    const listTurnsResult = parseChatsListTurnsResult({
+      turns: [turn],
+      nextCursor: null,
+    })
+    const eventSnapshot = {
+      eventId: "chat_turn_event_1",
+      chatId: "chat_123",
+      turnId: "chat_turn_1",
+      sequenceNumber: 1,
+      eventType: "chat.turn_queued",
+      source: "api",
+      actorType: "user",
+      actorId: null,
+      payload: {
+        prompt: "Plan implementation steps",
+      },
+      occurredAt: "2026-03-18T12:00:02.000Z",
+      recordedAt: "2026-03-18T12:00:02.000Z",
+    }
+    const getEventsResult = parseChatsGetTurnEventsResult({
+      events: [eventSnapshot],
+    })
+    const turnEvent = parseChatsTurnEventsEvent(
+      parseSubscriptionEventEnvelope({
+        protocol_version: IPC_PROTOCOL_VERSION,
+        type: "event",
+        subscription_id: "sub_chat_turn_1",
+        event_name: "chats.turn_events",
+        payload: eventSnapshot,
+      }),
+    )
+
+    expect(startResult.accepted).toBe(true)
+    expect(listTurnsResult.turns[0]?.status).toBe("queued")
+    expect(getEventsResult.events[0]?.sequenceNumber).toBe(1)
+    expect(turnEvent.payload.eventType).toBe("chat.turn_queued")
   })
 
   it("parses the system hello result contract", () => {
