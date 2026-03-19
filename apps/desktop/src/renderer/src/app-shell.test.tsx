@@ -470,6 +470,103 @@ describe("chat message slice", () => {
   })
 })
 
+describe("chat turn slice", () => {
+  it("setTurnsForChat stores turn snapshots and selects in-flight turn", () => {
+    const store = createAppStore()
+    const turns = [
+      {
+        turnId: "chat_turn_done",
+        chatId: "chat_1",
+        sessionId: "chat_sess_1",
+        clientTurnId: null,
+        userMessageId: "chat_msg_user_1",
+        assistantMessageId: "chat_msg_assistant_1",
+        status: "succeeded" as const,
+        provider: "claude" as const,
+        model: "claude-sonnet-4-6",
+        vendorSessionId: null,
+        startedAt: "2026-03-19T12:00:00.000Z",
+        updatedAt: "2026-03-19T12:00:10.000Z",
+        completedAt: "2026-03-19T12:00:10.000Z",
+        failureCode: null,
+        failureMessage: null,
+        cancelRequestedAt: null,
+      },
+      {
+        turnId: "chat_turn_running",
+        chatId: "chat_1",
+        sessionId: "chat_sess_1",
+        clientTurnId: null,
+        userMessageId: "chat_msg_user_2",
+        assistantMessageId: null,
+        status: "running" as const,
+        provider: "claude" as const,
+        model: "claude-sonnet-4-6",
+        vendorSessionId: null,
+        startedAt: "2026-03-19T12:00:20.000Z",
+        updatedAt: "2026-03-19T12:00:22.000Z",
+        completedAt: null,
+        failureCode: null,
+        failureMessage: null,
+        cancelRequestedAt: null,
+      },
+    ]
+
+    store.getState().actions.setTurnsForChat("chat_1", turns)
+
+    expect(store.getState().chatTurns.turnsByChatId.chat_1).toEqual(turns)
+    expect(store.getState().chatTurns.activeTurnIdByChatId.chat_1).toBe(
+      "chat_turn_running",
+    )
+    expect(store.getState().chatTurns.fetchStatusByChatId.chat_1).toBe("idle")
+  })
+
+  it("appendChatTurnEvent de-duplicates and keeps event order by sequence", () => {
+    const store = createAppStore()
+    const event2 = {
+      eventId: "chat_turn_event_2",
+      chatId: "chat_1",
+      turnId: "chat_turn_1",
+      sequenceNumber: 2,
+      eventType: "chat.turn_progress",
+      source: "runtime",
+      actorType: "system",
+      actorId: null,
+      payload: { stage: "running" },
+      occurredAt: "2026-03-19T12:00:02.000Z",
+      recordedAt: "2026-03-19T12:00:02.000Z",
+    }
+    const event1 = {
+      ...event2,
+      eventId: "chat_turn_event_1",
+      sequenceNumber: 1,
+      occurredAt: "2026-03-19T12:00:01.000Z",
+      recordedAt: "2026-03-19T12:00:01.000Z",
+    }
+
+    store.getState().actions.appendChatTurnEvent(event2)
+    store.getState().actions.appendChatTurnEvent(event1)
+    store.getState().actions.appendChatTurnEvent(event2)
+
+    expect(store.getState().chatTurns.eventsByTurnId.chat_turn_1).toEqual([
+      event1,
+      event2,
+    ])
+  })
+
+  it("setChatTurnSendState tracks errors and clears error when state returns idle", () => {
+    const store = createAppStore()
+
+    store.getState().actions.setChatTurnSendState("chat_1", "error", "conflict")
+    expect(store.getState().chatTurns.sendStatusByChatId.chat_1).toBe("error")
+    expect(store.getState().chatTurns.sendErrorByChatId.chat_1).toBe("conflict")
+
+    store.getState().actions.setChatTurnSendState("chat_1", "idle")
+    expect(store.getState().chatTurns.sendStatusByChatId.chat_1).toBe("idle")
+    expect(store.getState().chatTurns.sendErrorByChatId.chat_1).toBeNull()
+  })
+})
+
 describe("sandbox and terminal slices", () => {
   it("stores project sandboxes and active sandbox IDs", () => {
     const store = createAppStore()

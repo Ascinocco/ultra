@@ -1,7 +1,21 @@
-import type { TerminalSessionSnapshot } from "@ultra/shared"
-import { useEffect, useRef, useState } from "react"
+import type {
+  ChatTurnEventSnapshot,
+  ChatTurnSnapshot,
+  TerminalSessionSnapshot,
+} from "@ultra/shared"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 
+import {
+  fetchChatMessages,
+  fetchChatTurn,
+  fetchChatTurns,
+  replayChatTurnEvents,
+  selectCurrentTurn,
+  startChatTurn,
+  subscribeToChatMessages,
+  subscribeToChatTurnEvents,
+} from "../chats/chat-message-workflows.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { useAppStore } from "../state/app-store.js"
 import { TerminalPane } from "../terminal/TerminalPane.js"
@@ -25,18 +39,34 @@ const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
 const MAX_DRAWER_HEIGHT_RATIO = 0.8
 
-const ACTIVE_CHAT_PANE_SHELL_MESSAGES = [
-  {
-    id: "assistant-ready",
-    role: "assistant",
-    text: "Active chat shell is ready. Live message streaming lands in ULR-19.",
-  },
-  {
-    id: "system-next-step",
-    role: "system",
-    text: "Use the input dock below once chat message workflows are wired.",
-  },
-] as const
+function formatTurnStatusLabel(
+  status: ChatTurnSnapshot["status"] | "idle",
+): string {
+  switch (status) {
+    case "queued":
+      return "Queued"
+    case "running":
+      return "Running"
+    case "succeeded":
+      return "Completed"
+    case "failed":
+      return "Failed"
+    case "canceled":
+      return "Canceled"
+    default:
+      return "Idle"
+  }
+}
+
+function summarizeTurnActivity(event: ChatTurnEventSnapshot | null): string {
+  if (!event) {
+    return "No turn events yet."
+  }
+
+  const stage =
+    typeof event.payload.stage === "string" ? ` (${event.payload.stage})` : ""
+  return `${event.eventType}${stage} · #${event.sequenceNumber}`
+}
 
 function TerminalDrawer({
   height,
@@ -283,16 +313,22 @@ export function ChatPageShell({
   onOpenSettings: () => void
 }) {
   const activeProjectId = useAppStore((state) => state.app.activeProjectId)
+  const connectionStatus = useAppStore((state) => state.app.connectionStatus)
+  const capabilities = useAppStore((state) => state.app.capabilities)
   const terminal = useAppStore((state) => state.terminal)
   const sidebar = useAppStore((state) => state.sidebar)
   const layout = useAppStore((state) => state.layout)
+  const chatMessages = useAppStore((state) => state.chatMessages)
+  const chatTurns = useAppStore((state) => state.chatTurns)
   const actions = useAppStore((state) => state.actions)
   const threads = useAppStore((state) => state.threads)
 
   const chatFrameRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const turnSequenceRef = useRef<Record<string, number>>({})
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
   const [isDragging, setIsDragging] = useState(false)
+  const [chatInput, setChatInput] = useState("")
 
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
@@ -303,6 +339,41 @@ export function ChatPageShell({
           (chat) => chat.id === activeChatId,
         ) ?? null)
       : null
+  const activeChatMessages = activeChatId
+    ? (chatMessages.messagesByChatId[activeChatId] ?? [])
+    : []
+  const chatMessagesFetchStatus = activeChatId
+    ? (chatMessages.fetchStatusByChatId[activeChatId] ?? "idle")
+    : "idle"
+  const turnsForActiveChat = activeChatId
+    ? (chatTurns.turnsByChatId[activeChatId] ?? [])
+    : []
+  const chatTurnsFetchStatus = activeChatId
+    ? (chatTurns.fetchStatusByChatId[activeChatId] ?? "idle")
+    : "idle"
+  const activeTurnId = activeChatId
+    ? (chatTurns.activeTurnIdByChatId[activeChatId] ?? null)
+    : null
+  const activeTurn = activeTurnId
+    ? (turnsForActiveChat.find((turn) => turn.turnId === activeTurnId) ?? null)
+    : null
+  const activeTurnEvents = activeTurnId
+    ? (chatTurns.eventsByTurnId[activeTurnId] ?? [])
+    : []
+  const chatTurnSendStatus = activeChatId
+    ? (chatTurns.sendStatusByChatId[activeChatId] ?? "idle")
+    : "idle"
+  const chatTurnSendError = activeChatId
+    ? (chatTurns.sendErrorByChatId[activeChatId] ?? null)
+    : null
+  const latestTurnEvent = activeTurnEvents[activeTurnEvents.length - 1] ?? null
+  const inFlightTurn =
+    activeTurn?.status === "queued" || activeTurn?.status === "running"
+  const chatInputDisabled =
+    !activeChatId ||
+    connectionStatus !== "connected" ||
+    chatTurnSendStatus === "starting" ||
+    inFlightTurn
   const terminalSessions = activeProjectId
     ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
         .filter((s) => s.status === "running")
@@ -400,6 +471,19 @@ export function ChatPageShell({
     setDrawerHeight(Math.min(Math.max(height, MIN_DRAWER_HEIGHT), maxHeight))
   }
 
+  const recordTurnSequence = useCallback((events: ChatTurnEventSnapshot[]) => {
+    const latest = events[events.length - 1]
+
+    if (!latest) {
+      return
+    }
+
+    turnSequenceRef.current[latest.turnId] = Math.max(
+      turnSequenceRef.current[latest.turnId] ?? 0,
+      latest.sequenceNumber,
+    )
+  }, [])
+
   function handleNewTerminalSession() {
     if (!activeProjectId) return
     openTerminal(activeProjectId, actions, undefined, { forceNew: true }).catch(
@@ -454,6 +538,129 @@ export function ChatPageShell({
     })
   }, [activeProjectId, actions])
 
+  useEffect(() => {
+    setChatInput("")
+    if (!activeChatId) {
+      turnSequenceRef.current = {}
+    }
+  }, [activeChatId])
+
+  useEffect(() => {
+    if (!activeChatId || connectionStatus !== "connected") {
+      return
+    }
+    const chatId: string = activeChatId
+
+    let cancelled = false
+    let unsubscribeChatMessages: (() => Promise<void>) | null = null
+    let unsubscribeTurnEvents: (() => Promise<void>) | null = null
+
+    const handleTurnEvent = (event: ChatTurnEventSnapshot) => {
+      if (cancelled) {
+        return
+      }
+
+      turnSequenceRef.current[event.turnId] = Math.max(
+        turnSequenceRef.current[event.turnId] ?? 0,
+        event.sequenceNumber,
+      )
+
+      if (
+        event.eventType === "chat.turn_queued" ||
+        event.eventType === "chat.turn_started"
+      ) {
+        actions.setActiveChatTurn(chatId, event.turnId)
+      }
+
+      fetchChatTurn(chatId, event.turnId, actions).catch((err) => {
+        console.error("[chat] failed to refresh turn snapshot:", err)
+      })
+    }
+
+    async function hydrateActiveChat() {
+      try {
+        await fetchChatMessages(chatId, actions)
+        const turnsResult = await fetchChatTurns(chatId, actions)
+        const currentTurn = selectCurrentTurn(turnsResult.turns)
+
+        actions.setActiveChatTurn(chatId, currentTurn?.turnId ?? null)
+
+        if (capabilities?.supportsSubscriptions) {
+          unsubscribeChatMessages = await subscribeToChatMessages(
+            chatId,
+            actions,
+          )
+          unsubscribeTurnEvents = await subscribeToChatTurnEvents(
+            { chatId },
+            actions,
+            handleTurnEvent,
+          )
+        }
+
+        if (!currentTurn) {
+          return
+        }
+
+        const replayResult = await replayChatTurnEvents(
+          chatId,
+          currentTurn.turnId,
+          actions,
+          turnSequenceRef.current[currentTurn.turnId],
+        )
+        recordTurnSequence(replayResult.events)
+        await fetchChatTurn(chatId, currentTurn.turnId, actions)
+      } catch (err) {
+        if (!cancelled) {
+          console.error("[chat] failed to hydrate active chat:", err)
+        }
+      }
+    }
+
+    void hydrateActiveChat()
+
+    return () => {
+      cancelled = true
+      void unsubscribeChatMessages?.()
+      void unsubscribeTurnEvents?.()
+    }
+  }, [
+    activeChatId,
+    actions,
+    capabilities?.supportsSubscriptions,
+    connectionStatus,
+    recordTurnSequence,
+  ])
+
+  function handleStartTurn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!activeChatId) {
+      return
+    }
+
+    const prompt = chatInput.trim()
+    if (!prompt || chatInputDisabled) {
+      return
+    }
+
+    startChatTurn(activeChatId, prompt, actions)
+      .then(async ({ turn }) => {
+        setChatInput("")
+
+        const replayResult = await replayChatTurnEvents(
+          activeChatId,
+          turn.turnId,
+          actions,
+          turnSequenceRef.current[turn.turnId],
+        )
+        recordTurnSequence(replayResult.events)
+        await fetchChatTurn(activeChatId, turn.turnId, actions)
+      })
+      .catch((err) => {
+        console.error("[chat] failed to start turn:", err)
+      })
+  }
+
   function handleSelectThread(threadId: string | null) {
     if (!activeProjectId) return
     actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
@@ -499,18 +706,43 @@ export function ChatPageShell({
               <div className="active-chat-pane__body">
                 <section
                   className="active-chat-pane__transcript"
-                  aria-label="Chat transcript shell"
+                  aria-label="Chat transcript"
                 >
                   <div className="active-chat-pane__section-header">
                     <h3 className="active-chat-pane__section-title">
                       Transcript
                     </h3>
-                    <span className="active-chat-pane__meta">
-                      {activeChat.provider} · {activeChat.model}
-                    </span>
+                    <div className="active-chat-pane__meta-row">
+                      <span className="active-chat-pane__meta">
+                        {activeChat.provider} · {activeChat.model}
+                      </span>
+                      <span
+                        className="active-chat-pane__turn-status"
+                        data-status={activeTurn?.status ?? "idle"}
+                      >
+                        {formatTurnStatusLabel(activeTurn?.status ?? "idle")}
+                      </span>
+                    </div>
                   </div>
                   <div className="active-chat-pane__transcript-scroll">
-                    {ACTIVE_CHAT_PANE_SHELL_MESSAGES.map((message) => (
+                    {chatMessagesFetchStatus === "loading" &&
+                    activeChatMessages.length === 0 ? (
+                      <p className="active-chat-pane__empty-copy">
+                        Loading transcript…
+                      </p>
+                    ) : null}
+                    {chatMessagesFetchStatus === "error" ? (
+                      <p className="active-chat-pane__empty-copy active-chat-pane__empty-copy--error">
+                        Failed to load transcript.
+                      </p>
+                    ) : null}
+                    {chatMessagesFetchStatus !== "loading" &&
+                    activeChatMessages.length === 0 ? (
+                      <p className="active-chat-pane__empty-copy">
+                        No messages yet. Send a prompt to start a turn.
+                      </p>
+                    ) : null}
+                    {activeChatMessages.map((message) => (
                       <article
                         key={message.id}
                         className={`active-chat-pane__message active-chat-pane__message--${message.role}`}
@@ -519,7 +751,9 @@ export function ChatPageShell({
                           {message.role}
                         </span>
                         <p className="active-chat-pane__message-text">
-                          {message.text}
+                          {message.contentMarkdown ??
+                            message.structuredPayloadJson ??
+                            "No text content."}
                         </p>
                       </article>
                     ))}
@@ -528,7 +762,7 @@ export function ChatPageShell({
 
                 <aside
                   className="active-chat-pane__references"
-                  aria-label="Chat references shell"
+                  aria-label="Chat references"
                 >
                   <div className="active-chat-pane__section-header">
                     <h3 className="active-chat-pane__section-title">
@@ -545,6 +779,24 @@ export function ChatPageShell({
                       <dd>{activeChat.status}</dd>
                     </div>
                     <div className="active-chat-pane__reference-item">
+                      <dt>Turn ID</dt>
+                      <dd>{activeTurn?.turnId ?? "—"}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Turn State</dt>
+                      <dd>
+                        {formatTurnStatusLabel(activeTurn?.status ?? "idle")}
+                      </dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Turn Events</dt>
+                      <dd>{activeTurnEvents.length}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
+                      <dt>Latest Activity</dt>
+                      <dd>{summarizeTurnActivity(latestTurnEvent)}</dd>
+                    </div>
+                    <div className="active-chat-pane__reference-item">
                       <dt>Updated</dt>
                       <dd>{activeChat.updatedAt}</dd>
                     </div>
@@ -554,7 +806,7 @@ export function ChatPageShell({
 
               <form
                 className="active-chat-pane__input-dock"
-                onSubmit={(event) => event.preventDefault()}
+                onSubmit={handleStartTurn}
               >
                 <label
                   className="active-chat-pane__input-label"
@@ -567,17 +819,44 @@ export function ChatPageShell({
                     id="chat-input"
                     className="active-chat-pane__input"
                     rows={3}
-                    placeholder="Message send workflow lands in ULR-19."
-                    disabled
+                    placeholder={
+                      inFlightTurn
+                        ? "Wait for the active turn to finish."
+                        : "Send a prompt to start a chat turn."
+                    }
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    disabled={chatInputDisabled}
                   />
                   <button
                     className="active-chat-pane__send"
                     type="submit"
-                    disabled
+                    disabled={
+                      chatInputDisabled || chatInput.trim().length === 0
+                    }
                   >
-                    Send
+                    {chatTurnSendStatus === "starting"
+                      ? "Starting…"
+                      : inFlightTurn
+                        ? "Running…"
+                        : "Send"}
                   </button>
                 </div>
+                {chatTurnsFetchStatus === "error" ? (
+                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
+                    Failed to load turn state for this chat.
+                  </p>
+                ) : null}
+                {chatTurnSendError ? (
+                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
+                    {chatTurnSendError}
+                  </p>
+                ) : null}
+                {connectionStatus !== "connected" ? (
+                  <p className="active-chat-pane__input-hint">
+                    Reconnect to the backend before sending a new turn.
+                  </p>
+                ) : null}
               </form>
             </section>
           ) : (
