@@ -5,6 +5,7 @@ import type {
 } from "@ultra/shared"
 import { useRef, useState } from "react"
 
+import { ChatMessage } from "../chat-message/ChatMessage"
 import { ThreadTimeline } from "./ThreadTimeline.js"
 
 type DetailTab =
@@ -73,17 +74,11 @@ function CoordinatorConversation({
           </p>
         ) : (
           messages.map((msg) => (
-            <div
+            <ChatMessage
               key={msg.id}
-              className={`coordinator-conversation__message coordinator-conversation__message--${msg.role}`}
-            >
-              <span className="coordinator-conversation__role">
-                {msg.role === "user" ? "You" : "Coordinator"}
-              </span>
-              <p className="coordinator-conversation__text">
-                {msg.content.text}
-              </p>
-            </div>
+              role={msg.role}
+              content={msg.content.text}
+            />
           ))
         )}
         <div ref={messagesEndRef} />
