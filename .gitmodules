@@ -1,0 +1,3 @@
+[submodule "vendor/overstory"]
+	path = vendor/overstory
+	url = https://github.com/Ascinocco/overstory.git

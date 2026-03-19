@@ -578,4 +578,58 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON approvals(project_id, status);
     `,
   },
+  {
+    id: "0011_chat_turn_persistence",
+    sql: `
+      CREATE TABLE IF NOT EXISTS chat_turns (
+        turn_id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE RESTRICT,
+        client_turn_id TEXT,
+        user_message_id TEXT NOT NULL REFERENCES chat_messages(id) ON DELETE RESTRICT,
+        assistant_message_id TEXT REFERENCES chat_messages(id) ON DELETE SET NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'canceled')),
+        provider TEXT NOT NULL CHECK (provider IN ('codex', 'claude')),
+        model TEXT NOT NULL,
+        vendor_session_id TEXT,
+        started_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT,
+        failure_code TEXT,
+        failure_message TEXT,
+        cancel_requested_at TEXT
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_turns_chat_client_turn
+        ON chat_turns(chat_id, client_turn_id)
+        WHERE client_turn_id IS NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_chat_turns_chat_started
+        ON chat_turns(chat_id, started_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_chat_turns_chat_status
+        ON chat_turns(chat_id, status);
+
+      CREATE TABLE IF NOT EXISTS chat_turn_events (
+        event_id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        turn_id TEXT NOT NULL REFERENCES chat_turns(turn_id) ON DELETE CASCADE,
+        sequence_number INTEGER NOT NULL,
+        event_type TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        source TEXT NOT NULL,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT,
+        occurred_at TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        UNIQUE (turn_id, sequence_number)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_chat_turn_events_turn_sequence
+        ON chat_turn_events(turn_id, sequence_number);
+
+      CREATE INDEX IF NOT EXISTS idx_chat_turn_events_chat_recorded
+        ON chat_turn_events(chat_id, recorded_at);
+    `,
+  },
 ]

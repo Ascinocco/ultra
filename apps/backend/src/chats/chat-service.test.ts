@@ -149,6 +149,40 @@ describe("ChatService", () => {
     runtime.close()
   })
 
+  it("publishes appended messages to chat subscribers and supports unsubscribe", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const service = new ChatService(runtime.database)
+    const project = projectService.open({ path: projectPath })
+    const chat = service.create(project.id)
+    const received: string[] = []
+
+    const unsubscribe = service.subscribeToMessages(chat.id, (message) => {
+      received.push(message.id)
+    })
+
+    const first = service.appendMessage({
+      chatId: chat.id,
+      role: "user",
+      messageType: "user_text",
+      contentMarkdown: "First",
+    })
+
+    unsubscribe()
+
+    service.appendMessage({
+      chatId: chat.id,
+      role: "assistant",
+      messageType: "assistant_text",
+      contentMarkdown: "Second",
+    })
+
+    expect(received).toEqual([first.id])
+
+    runtime.close()
+  })
+
   it("updates runtime config and persists provider changes", () => {
     const { databasePath, projectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
@@ -173,6 +207,88 @@ describe("ChatService", () => {
       thinkingLevel: "medium",
       permissionLevel: "full_access",
     })
+
+    runtime.close()
+  })
+
+  it("records explicit plan and spec approval messages in chat order", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const service = new ChatService(runtime.database)
+    const project = projectService.open({ path: projectPath })
+    const chat = service.create(project.id)
+
+    const planApproval = service.approvePlan(chat.id)
+    const specApproval = service.approveSpecs(chat.id)
+    const messages = service.listMessages(chat.id)
+
+    expect(planApproval.messageType).toBe("plan_approval")
+    expect(specApproval.messageType).toBe("spec_approval")
+    expect(messages.map((message) => message.messageType)).toEqual([
+      "plan_approval",
+      "spec_approval",
+    ])
+
+    runtime.close()
+  })
+
+  it("rejects spec approval before a plan approval exists", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const service = new ChatService(runtime.database)
+    const project = projectService.open({ path: projectPath })
+    const chat = service.create(project.id)
+
+    expect(() => service.approveSpecs(chat.id)).toThrow(
+      /Plan approval is required/,
+    )
+
+    runtime.close()
+  })
+
+  it("requires a new plan approval before allowing another spec approval", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const service = new ChatService(runtime.database)
+    const project = projectService.open({ path: projectPath })
+    const chat = service.create(project.id)
+
+    service.approvePlan(chat.id)
+    service.approveSpecs(chat.id)
+
+    expect(() => service.approveSpecs(chat.id)).toThrow(
+      /already approved for the latest approved plan/,
+    )
+
+    runtime.close()
+  })
+
+  it("requires explicit approval ordering before confirming start work", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const service = new ChatService(runtime.database)
+    const project = projectService.open({ path: projectPath })
+    const chat = service.create(project.id)
+
+    expect(() => service.confirmStartWork(chat.id)).toThrow(
+      /Plan and spec approvals are required/,
+    )
+
+    service.approvePlan(chat.id)
+    service.approveSpecs(chat.id)
+    const startRequest = service.confirmStartWork(chat.id, {
+      threadTitle: "Thread title",
+      threadSummary: "Thread summary",
+    })
+
+    expect(startRequest.messageType).toBe("thread_start_request")
+    expect(() => service.confirmStartWork(chat.id)).toThrow(
+      /already confirmed for the latest approved specs/,
+    )
 
     runtime.close()
   })

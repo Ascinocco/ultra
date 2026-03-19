@@ -5,6 +5,12 @@ import { ArtifactCaptureService } from "./artifacts/artifact-capture-service.js"
 import { ArtifactPersistenceService } from "./artifacts/artifact-persistence-service.js"
 import { ArtifactStorageService } from "./artifacts/artifact-storage-service.js"
 import { ChatService } from "./chats/chat-service.js"
+import { ChatTurnService } from "./chats/chat-turn-service.js"
+import { ChatRuntimeRegistry } from "./chats/runtime/chat-runtime-registry.js"
+import { ClaudeChatRuntimeAdapter } from "./chats/runtime/claude-chat-runtime-adapter.js"
+import { CodexChatRuntimeAdapter } from "./chats/runtime/codex-chat-runtime-adapter.js"
+import { SpawnRuntimeProcessRunner } from "./chats/runtime/process-runner.js"
+import { ChatRuntimeSessionManager } from "./chats/runtime/runtime-session-manager.js"
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { ProjectService } from "./projects/project-service.js"
 import { CoordinatorService } from "./runtime/coordinator-service.js"
@@ -126,12 +132,23 @@ export async function startBackendScaffold(options?: {
       sandboxService,
       terminalSessionService,
     )
+    const chatService = new ChatService(databaseRuntime.database)
+    const chatRuntimeProcessRunner = new SpawnRuntimeProcessRunner()
+    const chatTurnService = new ChatTurnService(
+      chatService,
+      new ChatRuntimeRegistry([
+        new CodexChatRuntimeAdapter(chatRuntimeProcessRunner),
+        new ClaudeChatRuntimeAdapter(chatRuntimeProcessRunner),
+      ]),
+      new ChatRuntimeSessionManager(),
+    )
     sandboxService.setActivationSyncHandler((projectId, sandboxId) => {
       terminalService.syncRuntimeFilesForActivation(projectId, sandboxId)
     })
     socketRuntime = await startSocketServer(socketPath, {
       artifactCaptureService,
-      chatService: new ChatService(databaseRuntime.database),
+      chatService,
+      chatTurnService,
       coordinatorService,
       projectService,
       runtimeRegistry,

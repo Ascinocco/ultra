@@ -5,14 +5,23 @@ import type {
 } from "@ultra/shared"
 import {
   artifactsCaptureRuntimeInputSchema,
+  chatsApprovePlanInputSchema,
+  chatsApproveSpecsInputSchema,
   chatsArchiveInputSchema,
+  chatsCancelTurnInputSchema,
   chatsCreateInputSchema,
   chatsGetInputSchema,
+  chatsGetMessagesInputSchema,
+  chatsGetTurnEventsInputSchema,
+  chatsGetTurnInputSchema,
   chatsListInputSchema,
+  chatsListTurnsInputSchema,
   chatsPinInputSchema,
   chatsPromoteWorkToThreadInputSchema,
   chatsRenameInputSchema,
   chatsRestoreInputSchema,
+  chatsSendMessageInputSchema,
+  chatsStartTurnInputSchema,
   chatsStartThreadInputSchema,
   chatsUnpinInputSchema,
   IPC_PROTOCOL_VERSION,
@@ -58,6 +67,7 @@ import {
 } from "@ultra/shared"
 import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
 import type { ChatService } from "../chats/chat-service.js"
+import type { ChatTurnService } from "../chats/chat-turn-service.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { CoordinatorService } from "../runtime/coordinator-service.js"
 import type { RuntimeRegistry } from "../runtime/runtime-registry.js"
@@ -170,6 +180,7 @@ export async function routeIpcRequest(
   services: {
     artifactCaptureService: ArtifactCaptureService
     chatService: ChatService
+    chatTurnService: ChatTurnService
     coordinatorService: CoordinatorService
     systemService: SystemService
     projectService: ProjectService
@@ -367,6 +378,14 @@ export async function routeIpcRequest(
           ),
         )
       }
+      case "chats.get_messages": {
+        const getMessagesQuery = assertQueryRequest(request)
+        return createSuccessResponse(getMessagesQuery.request_id, {
+          messages: services.chatService.listMessages(
+            chatsGetMessagesInputSchema.parse(getMessagesQuery.payload).chat_id,
+          ),
+        })
+      }
       case "chats.rename": {
         const renameCommand = assertCommandRequest(request)
         const { chat_id, title } = chatsRenameInputSchema.parse(
@@ -411,6 +430,96 @@ export async function routeIpcRequest(
           services.chatService.restore(
             chatsRestoreInputSchema.parse(restoreCommand.payload).chat_id,
           ),
+        )
+      }
+      case "chats.send_message": {
+        const sendMessageCommand = assertCommandRequest(request)
+        const { chat_id, prompt } = chatsSendMessageInputSchema.parse(
+          sendMessageCommand.payload,
+        )
+        return createSuccessResponse(
+          sendMessageCommand.request_id,
+          await services.chatTurnService.sendMessage(chat_id, prompt),
+        )
+      }
+      case "chats.start_turn": {
+        const startTurnCommand = assertCommandRequest(request)
+        const { chat_id, prompt, client_turn_id } =
+          chatsStartTurnInputSchema.parse(startTurnCommand.payload)
+        return createSuccessResponse(
+          startTurnCommand.request_id,
+          services.chatTurnService.startTurn({
+            chatId: chat_id,
+            prompt,
+            clientTurnId: client_turn_id,
+          }),
+        )
+      }
+      case "chats.cancel_turn": {
+        const cancelTurnCommand = assertCommandRequest(request)
+        const { chat_id, turn_id } = chatsCancelTurnInputSchema.parse(
+          cancelTurnCommand.payload,
+        )
+        return createSuccessResponse(
+          cancelTurnCommand.request_id,
+          services.chatTurnService.cancelTurn(chat_id, turn_id),
+        )
+      }
+      case "chats.get_turn": {
+        const getTurnQuery = assertQueryRequest(request)
+        const { chat_id, turn_id } = chatsGetTurnInputSchema.parse(
+          getTurnQuery.payload,
+        )
+        return createSuccessResponse(
+          getTurnQuery.request_id,
+          services.chatTurnService.getTurn(chat_id, turn_id),
+        )
+      }
+      case "chats.list_turns": {
+        const listTurnsQuery = assertQueryRequest(request)
+        const { chat_id, limit, cursor } = chatsListTurnsInputSchema.parse(
+          listTurnsQuery.payload,
+        )
+        return createSuccessResponse(
+          listTurnsQuery.request_id,
+          services.chatTurnService.listTurns({
+            chatId: chat_id,
+            limit,
+            cursor,
+          }),
+        )
+      }
+      case "chats.get_turn_events": {
+        const getTurnEventsQuery = assertQueryRequest(request)
+        const { chat_id, turn_id, from_sequence } =
+          chatsGetTurnEventsInputSchema.parse(getTurnEventsQuery.payload)
+        return createSuccessResponse(
+          getTurnEventsQuery.request_id,
+          services.chatTurnService.getTurnEvents(
+            chat_id,
+            turn_id,
+            from_sequence,
+          ),
+        )
+      }
+      case "chats.approve_plan": {
+        const approvePlanCommand = assertCommandRequest(request)
+        const { chat_id } = chatsApprovePlanInputSchema.parse(
+          approvePlanCommand.payload,
+        )
+        return createSuccessResponse(
+          approvePlanCommand.request_id,
+          services.chatService.approvePlan(chat_id),
+        )
+      }
+      case "chats.approve_specs": {
+        const approveSpecsCommand = assertCommandRequest(request)
+        const { chat_id } = chatsApproveSpecsInputSchema.parse(
+          approveSpecsCommand.payload,
+        )
+        return createSuccessResponse(
+          approveSpecsCommand.request_id,
+          services.chatService.approveSpecs(chat_id),
         )
       }
       case "terminal.get_runtime_profile": {
@@ -516,10 +625,37 @@ export async function routeIpcRequest(
       }
       case "chats.start_thread": {
         const startThreadCommand = assertCommandRequest(request)
+        const parsedInput = chatsStartThreadInputSchema.parse(
+          startThreadCommand.payload,
+        )
+        let startRequestMessageId = parsedInput.start_request_message_id
+
+        if (!startRequestMessageId) {
+          if (!parsedInput.confirm_start) {
+            throw new IpcProtocolError(
+              "invalid_request",
+              "Explicit start-work confirmation is required before creating a thread.",
+              { requestId: startThreadCommand.request_id },
+            )
+          }
+
+          const startConfirmationMessage = services.chatService.confirmStartWork(
+            parsedInput.chat_id,
+            {
+              threadTitle: parsedInput.title,
+              threadSummary: parsedInput.summary ?? null,
+            },
+          )
+          startRequestMessageId = startConfirmationMessage.id
+        }
+
         return createSuccessResponse(
           startThreadCommand.request_id,
           services.threadService.startThread(
-            chatsStartThreadInputSchema.parse(startThreadCommand.payload),
+            {
+              ...parsedInput,
+              start_request_message_id: startRequestMessageId,
+            },
           ),
         )
       }

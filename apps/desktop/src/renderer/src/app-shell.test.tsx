@@ -7,19 +7,36 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { BackendStatusSnapshot } from "../../shared/backend-status.js"
 import { createInitialBackendStatus } from "../../shared/backend-status.js"
-import { AppShell } from "./components/AppShell.js"
 import {
   AppStoreProvider,
   type ConnectionStatus,
   createAppStore,
 } from "./state/app-store.js"
-import { makeChat, makeProject } from "./test-utils/factories.js"
+import {
+  makeChat,
+  makeChatMessage,
+  makeProject,
+} from "./test-utils/factories.js"
 
-function renderShell(options?: {
+vi.mock("./terminal/TerminalPane.js", () => ({
+  TerminalPane: () => null,
+}))
+
+async function renderShell(options?: {
   currentPage?: "chat" | "editor" | "browser"
   connectionStatus?: ConnectionStatus
   backendStatus?: Partial<BackendStatusSnapshot>
 }) {
+  if (typeof globalThis.self === "undefined") {
+    Object.defineProperty(globalThis, "self", {
+      value: globalThis,
+      configurable: true,
+      writable: true,
+    })
+  }
+
+  const { AppShell } = await import("./components/AppShell.js")
+
   const initialBackendStatus = {
     ...createInitialBackendStatus(),
     ...options?.backendStatus,
@@ -40,27 +57,28 @@ function renderShell(options?: {
 }
 
 describe("AppShell", () => {
-  it("renders the chat-first workspace shell", () => {
-    const markup = renderShell()
+  it("renders the chat-first workspace shell", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain('data-page="chat"')
     expect(markup).toContain("Open Project")
   })
 
-  it("renders the title bar with terminal toggle and sandbox selector", () => {
-    const markup = renderShell()
+  it("renders the title bar with terminal toggle and sandbox selector", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain("title-bar")
     expect(markup).toContain("title-bar__terminal-toggle")
     expect(markup).toContain("sandbox-selector")
   })
 
-  it("renders the connected-panel chat frame with sidebar, main, and side panes", () => {
-    const markup = renderShell()
+  it("renders the connected-panel chat frame with sidebar, main, and side panes", async () => {
+    const markup = await renderShell()
 
     expect(markup).toContain("chat-frame")
     expect(markup).toContain("chat-frame__rail")
     expect(markup).toContain("chat-frame__main")
+    expect(markup).toContain("active-chat-pane")
     expect(markup).toContain("chat-frame__side")
   })
 })
@@ -418,6 +436,134 @@ describe("sidebar slice", () => {
     expect(store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.id).toBe(
       "c2",
     )
+  })
+})
+
+describe("chat message slice", () => {
+  it("setMessagesForChat stores transcript history and marks fetch idle", () => {
+    const store = createAppStore()
+    const messages = [
+      makeChatMessage("chat_msg_1", "chat_1", { role: "user" }),
+      makeChatMessage("chat_msg_2", "chat_1", { role: "assistant" }),
+    ]
+
+    store.getState().actions.setMessagesForChat("chat_1", messages)
+
+    expect(store.getState().chatMessages.messagesByChatId.chat_1).toEqual(
+      messages,
+    )
+    expect(store.getState().chatMessages.fetchStatusByChatId.chat_1).toBe(
+      "idle",
+    )
+  })
+
+  it("upsertChatMessage de-duplicates by message id", () => {
+    const store = createAppStore()
+    const message = makeChatMessage("chat_msg_1", "chat_1")
+
+    store.getState().actions.upsertChatMessage("chat_1", message)
+    store.getState().actions.upsertChatMessage("chat_1", message)
+
+    expect(store.getState().chatMessages.messagesByChatId.chat_1).toHaveLength(
+      1,
+    )
+  })
+})
+
+describe("chat turn slice", () => {
+  it("setTurnsForChat stores turn snapshots and selects in-flight turn", () => {
+    const store = createAppStore()
+    const turns = [
+      {
+        turnId: "chat_turn_done",
+        chatId: "chat_1",
+        sessionId: "chat_sess_1",
+        clientTurnId: null,
+        userMessageId: "chat_msg_user_1",
+        assistantMessageId: "chat_msg_assistant_1",
+        status: "succeeded" as const,
+        provider: "claude" as const,
+        model: "claude-sonnet-4-6",
+        vendorSessionId: null,
+        startedAt: "2026-03-19T12:00:00.000Z",
+        updatedAt: "2026-03-19T12:00:10.000Z",
+        completedAt: "2026-03-19T12:00:10.000Z",
+        failureCode: null,
+        failureMessage: null,
+        cancelRequestedAt: null,
+      },
+      {
+        turnId: "chat_turn_running",
+        chatId: "chat_1",
+        sessionId: "chat_sess_1",
+        clientTurnId: null,
+        userMessageId: "chat_msg_user_2",
+        assistantMessageId: null,
+        status: "running" as const,
+        provider: "claude" as const,
+        model: "claude-sonnet-4-6",
+        vendorSessionId: null,
+        startedAt: "2026-03-19T12:00:20.000Z",
+        updatedAt: "2026-03-19T12:00:22.000Z",
+        completedAt: null,
+        failureCode: null,
+        failureMessage: null,
+        cancelRequestedAt: null,
+      },
+    ]
+
+    store.getState().actions.setTurnsForChat("chat_1", turns)
+
+    expect(store.getState().chatTurns.turnsByChatId.chat_1).toEqual(turns)
+    expect(store.getState().chatTurns.activeTurnIdByChatId.chat_1).toBe(
+      "chat_turn_running",
+    )
+    expect(store.getState().chatTurns.fetchStatusByChatId.chat_1).toBe("idle")
+  })
+
+  it("appendChatTurnEvent de-duplicates and keeps event order by sequence", () => {
+    const store = createAppStore()
+    const event2 = {
+      eventId: "chat_turn_event_2",
+      chatId: "chat_1",
+      turnId: "chat_turn_1",
+      sequenceNumber: 2,
+      eventType: "chat.turn_progress",
+      source: "runtime",
+      actorType: "system",
+      actorId: null,
+      payload: { stage: "running" },
+      occurredAt: "2026-03-19T12:00:02.000Z",
+      recordedAt: "2026-03-19T12:00:02.000Z",
+    }
+    const event1 = {
+      ...event2,
+      eventId: "chat_turn_event_1",
+      sequenceNumber: 1,
+      occurredAt: "2026-03-19T12:00:01.000Z",
+      recordedAt: "2026-03-19T12:00:01.000Z",
+    }
+
+    store.getState().actions.appendChatTurnEvent(event2)
+    store.getState().actions.appendChatTurnEvent(event1)
+    store.getState().actions.appendChatTurnEvent(event2)
+
+    expect(store.getState().chatTurns.eventsByTurnId.chat_turn_1).toEqual([
+      event1,
+      event2,
+    ])
+  })
+
+  it("setChatTurnSendState tracks errors and clears error when state returns idle", () => {
+    const store = createAppStore()
+
+    store.getState().actions.setChatTurnSendState("chat_1", "error", "conflict")
+    expect(store.getState().chatTurns.sendStatusByChatId.chat_1).toBe("error")
+    expect(store.getState().chatTurns.sendErrorByChatId.chat_1).toBe("conflict")
+
+    store.getState().actions.setChatTurnSendState("chat_1", "idle")
+    expect(store.getState().chatTurns.sendStatusByChatId.chat_1).toBe("idle")
+    expect(store.getState().chatTurns.sendErrorByChatId.chat_1).toBeNull()
   })
 })
 

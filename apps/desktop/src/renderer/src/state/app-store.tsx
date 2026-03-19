@@ -1,6 +1,9 @@
 import type {
   BackendCapabilities,
+  ChatMessageSnapshot,
   ChatSummary,
+  ChatTurnEventSnapshot,
+  ChatTurnSnapshot,
   ConnectionStatus,
   EnvironmentReadinessSnapshot,
   ProjectLayoutState,
@@ -61,6 +64,20 @@ type SidebarSlice = {
   expandedProjectIds: string[]
   chatsByProjectId: Record<string, ChatSummary[]>
   chatsFetchStatus: Record<string, "idle" | "loading" | "error">
+}
+
+type ChatMessagesSlice = {
+  messagesByChatId: Record<string, ChatMessageSnapshot[]>
+  fetchStatusByChatId: Record<string, "idle" | "loading" | "error">
+}
+
+type ChatTurnsSlice = {
+  turnsByChatId: Record<string, ChatTurnSnapshot[]>
+  eventsByTurnId: Record<string, ChatTurnEventSnapshot[]>
+  activeTurnIdByChatId: Record<string, string | null>
+  fetchStatusByChatId: Record<string, "idle" | "loading" | "error">
+  sendStatusByChatId: Record<string, "idle" | "starting" | "error">
+  sendErrorByChatId: Record<string, string | null>
 }
 
 type SandboxSlice = {
@@ -147,6 +164,29 @@ type AppActions = {
   resetReadiness: () => void
   setSystemToolsOpen: (open: boolean) => void
   setThreadsForProject: (projectId: string, threads: ThreadSnapshot[]) => void
+  setMessagesForChat: (chatId: string, messages: ChatMessageSnapshot[]) => void
+  upsertChatMessage: (chatId: string, message: ChatMessageSnapshot) => void
+  setChatMessagesFetchStatus: (
+    chatId: string,
+    status: "idle" | "loading" | "error",
+  ) => void
+  setChatTurnsFetchStatus: (
+    chatId: string,
+    status: "idle" | "loading" | "error",
+  ) => void
+  setTurnsForChat: (chatId: string, turns: ChatTurnSnapshot[]) => void
+  upsertChatTurn: (chatId: string, turn: ChatTurnSnapshot) => void
+  setActiveChatTurn: (chatId: string, turnId: string | null) => void
+  setTurnEventsForTurn: (
+    turnId: string,
+    events: ChatTurnEventSnapshot[],
+  ) => void
+  appendChatTurnEvent: (event: ChatTurnEventSnapshot) => void
+  setChatTurnSendState: (
+    chatId: string,
+    status: "idle" | "starting" | "error",
+    error?: string | null,
+  ) => void
   setMessagesForThread: (
     threadId: string,
     messages: ThreadMessageSnapshot[],
@@ -164,6 +204,8 @@ export type AppStoreState = {
   projects: ProjectsSlice
   layout: LayoutSlice
   sidebar: SidebarSlice
+  chatMessages: ChatMessagesSlice
+  chatTurns: ChatTurnsSlice
   sandboxes: SandboxSlice
   terminal: TerminalSlice
   threads: ThreadsSlice
@@ -202,6 +244,20 @@ const defaultSidebarState: SidebarSlice = {
   expandedProjectIds: [],
   chatsByProjectId: {},
   chatsFetchStatus: {},
+}
+
+const defaultChatMessagesState: ChatMessagesSlice = {
+  messagesByChatId: {},
+  fetchStatusByChatId: {},
+}
+
+const defaultChatTurnsState: ChatTurnsSlice = {
+  turnsByChatId: {},
+  eventsByTurnId: {},
+  activeTurnIdByChatId: {},
+  fetchStatusByChatId: {},
+  sendStatusByChatId: {},
+  sendErrorByChatId: {},
 }
 
 const defaultSandboxState: SandboxSlice = {
@@ -289,6 +345,8 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
     projects: { ...defaultProjectsState },
     layout: { ...defaultLayoutState },
     sidebar: { ...defaultSidebarState },
+    chatMessages: { ...defaultChatMessagesState },
+    chatTurns: { ...defaultChatTurnsState },
     sandboxes: { ...defaultSandboxState },
     terminal: { ...defaultTerminalState },
     threads: { ...defaultThreadsState },
@@ -324,11 +382,47 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       resetReadiness: () => undefined,
       setSystemToolsOpen: () => undefined,
       setThreadsForProject: () => undefined,
+      setMessagesForChat: () => undefined,
+      upsertChatMessage: () => undefined,
+      setChatMessagesFetchStatus: () => undefined,
+      setChatTurnsFetchStatus: () => undefined,
+      setTurnsForChat: () => undefined,
+      upsertChatTurn: () => undefined,
+      setActiveChatTurn: () => undefined,
+      setTurnEventsForTurn: () => undefined,
+      appendChatTurnEvent: () => undefined,
+      setChatTurnSendState: () => undefined,
       setMessagesForThread: () => undefined,
       appendMessage: () => undefined,
       setThreadFetchStatus: () => undefined,
     },
   }
+}
+
+function normalizeTurnEvents(
+  events: ChatTurnEventSnapshot[],
+): ChatTurnEventSnapshot[] {
+  const byId = new Map<string, ChatTurnEventSnapshot>()
+
+  for (const event of events) {
+    byId.set(event.eventId, event)
+  }
+
+  return [...byId.values()].sort((a, b) => a.sequenceNumber - b.sequenceNumber)
+}
+
+function pickActiveTurnId(
+  turns: ChatTurnSnapshot[],
+  currentTurnId: string | null,
+): string | null {
+  if (currentTurnId && turns.some((turn) => turn.turnId === currentTurnId)) {
+    return currentTurnId
+  }
+
+  const inFlight = turns.find(
+    (turn) => turn.status === "queued" || turn.status === "running",
+  )
+  return inFlight?.turnId ?? turns[0]?.turnId ?? null
 }
 
 function normalizeProjects(projects: ProjectSnapshot[]): ProjectsSlice {
@@ -703,6 +797,175 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             threadFetchStatus: {
               ...state.threads.threadFetchStatus,
               [projectId]: "idle",
+            },
+          },
+        })),
+      setMessagesForChat: (chatId, messages) =>
+        set((state) => ({
+          ...state,
+          chatMessages: {
+            ...state.chatMessages,
+            messagesByChatId: {
+              ...state.chatMessages.messagesByChatId,
+              [chatId]: messages,
+            },
+            fetchStatusByChatId: {
+              ...state.chatMessages.fetchStatusByChatId,
+              [chatId]: "idle",
+            },
+          },
+        })),
+      upsertChatMessage: (chatId, message) =>
+        set((state) => {
+          const existing = state.chatMessages.messagesByChatId[chatId] ?? []
+          const alreadyPresent = existing.some(
+            (entry) => entry.id === message.id,
+          )
+          const nextMessages = alreadyPresent
+            ? existing
+            : [...existing, message]
+
+          return {
+            ...state,
+            chatMessages: {
+              ...state.chatMessages,
+              messagesByChatId: {
+                ...state.chatMessages.messagesByChatId,
+                [chatId]: nextMessages,
+              },
+            },
+          }
+        }),
+      setChatMessagesFetchStatus: (chatId, status) =>
+        set((state) => ({
+          ...state,
+          chatMessages: {
+            ...state.chatMessages,
+            fetchStatusByChatId: {
+              ...state.chatMessages.fetchStatusByChatId,
+              [chatId]: status,
+            },
+          },
+        })),
+      setChatTurnsFetchStatus: (chatId, status) =>
+        set((state) => ({
+          ...state,
+          chatTurns: {
+            ...state.chatTurns,
+            fetchStatusByChatId: {
+              ...state.chatTurns.fetchStatusByChatId,
+              [chatId]: status,
+            },
+          },
+        })),
+      setTurnsForChat: (chatId, turns) =>
+        set((state) => ({
+          ...state,
+          chatTurns: {
+            ...state.chatTurns,
+            turnsByChatId: {
+              ...state.chatTurns.turnsByChatId,
+              [chatId]: turns,
+            },
+            activeTurnIdByChatId: {
+              ...state.chatTurns.activeTurnIdByChatId,
+              [chatId]: pickActiveTurnId(
+                turns,
+                state.chatTurns.activeTurnIdByChatId[chatId] ?? null,
+              ),
+            },
+            fetchStatusByChatId: {
+              ...state.chatTurns.fetchStatusByChatId,
+              [chatId]: "idle",
+            },
+          },
+        })),
+      upsertChatTurn: (chatId, turn) =>
+        set((state) => {
+          const existing = state.chatTurns.turnsByChatId[chatId] ?? []
+          const index = existing.findIndex(
+            (entry) => entry.turnId === turn.turnId,
+          )
+          const updated =
+            index >= 0
+              ? existing.map((entry) =>
+                  entry.turnId === turn.turnId ? turn : entry,
+                )
+              : [turn, ...existing]
+          const sorted = [...updated].sort(
+            (a, b) =>
+              b.startedAt.localeCompare(a.startedAt) ||
+              b.turnId.localeCompare(a.turnId),
+          )
+
+          return {
+            ...state,
+            chatTurns: {
+              ...state.chatTurns,
+              turnsByChatId: {
+                ...state.chatTurns.turnsByChatId,
+                [chatId]: sorted,
+              },
+              activeTurnIdByChatId: {
+                ...state.chatTurns.activeTurnIdByChatId,
+                [chatId]: pickActiveTurnId(
+                  sorted,
+                  state.chatTurns.activeTurnIdByChatId[chatId] ?? null,
+                ),
+              },
+            },
+          }
+        }),
+      setActiveChatTurn: (chatId, turnId) =>
+        set((state) => ({
+          ...state,
+          chatTurns: {
+            ...state.chatTurns,
+            activeTurnIdByChatId: {
+              ...state.chatTurns.activeTurnIdByChatId,
+              [chatId]: turnId,
+            },
+          },
+        })),
+      setTurnEventsForTurn: (turnId, events) =>
+        set((state) => ({
+          ...state,
+          chatTurns: {
+            ...state.chatTurns,
+            eventsByTurnId: {
+              ...state.chatTurns.eventsByTurnId,
+              [turnId]: normalizeTurnEvents(events),
+            },
+          },
+        })),
+      appendChatTurnEvent: (event) =>
+        set((state) => {
+          const existing = state.chatTurns.eventsByTurnId[event.turnId] ?? []
+          const nextEvents = normalizeTurnEvents([...existing, event])
+
+          return {
+            ...state,
+            chatTurns: {
+              ...state.chatTurns,
+              eventsByTurnId: {
+                ...state.chatTurns.eventsByTurnId,
+                [event.turnId]: nextEvents,
+              },
+            },
+          }
+        }),
+      setChatTurnSendState: (chatId, status, error = null) =>
+        set((state) => ({
+          ...state,
+          chatTurns: {
+            ...state.chatTurns,
+            sendStatusByChatId: {
+              ...state.chatTurns.sendStatusByChatId,
+              [chatId]: status,
+            },
+            sendErrorByChatId: {
+              ...state.chatTurns.sendErrorByChatId,
+              [chatId]: status === "error" ? error : null,
             },
           },
         })),

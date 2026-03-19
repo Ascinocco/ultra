@@ -50,6 +50,7 @@ describe("migration runner", () => {
       "0008_artifacts_and_sharing",
       "0009_layout_sidebar_and_split_ratio",
       "0010_thread_agents_events_and_approvals",
+      "0011_chat_turn_persistence",
     ])
     expect(rows).toEqual([
       {
@@ -92,6 +93,10 @@ describe("migration runner", () => {
         id: "0010_thread_agents_events_and_approvals",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
+      {
+        id: "0011_chat_turn_persistence",
+        applied_at: "2026-03-14T00:00:00.000Z",
+      },
     ])
 
     database.close()
@@ -132,7 +137,7 @@ describe("migration runner", () => {
     database.close()
   })
 
-  it("applies 0005_thread_core through 0010_thread_agents_events_and_approvals on a fresh database", () => {
+  it("applies 0005_thread_core through 0011_chat_turn_persistence on a fresh database", () => {
     const database = createDatabase()
     const result = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
@@ -150,7 +155,8 @@ describe("migration runner", () => {
       "0009_layout_sidebar_and_split_ratio",
     )
     expect(result.appliedMigrationIds).toContain("0010_thread_agents_events_and_approvals")
-    expect(result.totalMigrationCount).toBe(10)
+    expect(result.appliedMigrationIds).toContain("0011_chat_turn_persistence")
+    expect(result.totalMigrationCount).toBe(11)
 
     // Verify threads table exists with correct columns
     const threadColumns = database
@@ -256,6 +262,45 @@ describe("migration runner", () => {
     expect(artifactIndexes).toEqual([
       { name: "idx_artifact_shares_destination" },
       { name: "idx_artifacts_thread_created" },
+    ])
+
+    const chatTurnColumns = database
+      .prepare("PRAGMA table_info(chat_turns)")
+      .all() as Array<{ name: string }>
+    expect(chatTurnColumns.map((c) => c.name)).toContain("turn_id")
+    expect(chatTurnColumns.map((c) => c.name)).toContain("chat_id")
+    expect(chatTurnColumns.map((c) => c.name)).toContain("status")
+
+    const chatTurnEventColumns = database
+      .prepare("PRAGMA table_info(chat_turn_events)")
+      .all() as Array<{ name: string }>
+    expect(chatTurnEventColumns.map((c) => c.name)).toContain("event_id")
+    expect(chatTurnEventColumns.map((c) => c.name)).toContain("turn_id")
+    expect(chatTurnEventColumns.map((c) => c.name)).toContain("sequence_number")
+
+    const chatTurnIndexes = database
+      .prepare(
+        `
+          SELECT name
+          FROM sqlite_master
+          WHERE type = 'index'
+            AND name IN (
+              'idx_chat_turns_chat_client_turn',
+              'idx_chat_turns_chat_started',
+              'idx_chat_turns_chat_status',
+              'idx_chat_turn_events_turn_sequence',
+              'idx_chat_turn_events_chat_recorded'
+            )
+          ORDER BY name ASC
+        `,
+      )
+      .all() as Array<{ name: string }>
+    expect(chatTurnIndexes).toEqual([
+      { name: "idx_chat_turn_events_chat_recorded" },
+      { name: "idx_chat_turn_events_turn_sequence" },
+      { name: "idx_chat_turns_chat_client_turn" },
+      { name: "idx_chat_turns_chat_started" },
+      { name: "idx_chat_turns_chat_status" },
     ])
 
     // Verify thread_event_logs table
@@ -712,7 +757,7 @@ describe("thread core FK constraints", () => {
     database.close()
   })
 
-  it("incremental apply on DB with 0001-0007 applies 0008, 0009, and 0010", () => {
+  it("incremental apply on DB with 0001-0007 applies 0008 through 0011", () => {
     const database = createDatabase()
 
     // Apply only 0001-0007 first
@@ -722,7 +767,7 @@ describe("thread core FK constraints", () => {
     })
     expect(firstResult.appliedMigrationIds).toHaveLength(7)
 
-    // Now run full migrations — only 0008, 0009, and 0010 should apply
+    // Now run full migrations — only 0008 onward should apply
     const secondResult = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
     })
@@ -731,8 +776,9 @@ describe("thread core FK constraints", () => {
       "0008_artifacts_and_sharing",
       "0009_layout_sidebar_and_split_ratio",
       "0010_thread_agents_events_and_approvals",
+      "0011_chat_turn_persistence",
     ])
-    expect(secondResult.totalMigrationCount).toBe(10)
+    expect(secondResult.totalMigrationCount).toBe(11)
 
     database.close()
   })
@@ -882,7 +928,7 @@ describe("thread core FK constraints", () => {
     })
 
     expect(result.appliedMigrationIds).toEqual([])
-    expect(result.totalMigrationCount).toBe(10)
+    expect(result.totalMigrationCount).toBe(11)
 
     database.close()
   })
