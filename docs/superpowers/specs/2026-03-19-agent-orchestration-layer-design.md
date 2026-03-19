@@ -75,12 +75,27 @@ Ultra backend (IS the coordinator)
 
 ### What Gets Kept
 
-- `RuntimeSupervisor` — still supervises agent child processes
+- `RuntimeSupervisor` — still supervises agent child processes (with new `restartPolicy: "never"` option for agents — see below)
 - `RuntimeRegistry` — still tracks component state
 - `SupervisedProcessAdapter` — still the process abstraction
-- Thread event schema — unchanged
-- All IPC contracts — unchanged
+- Thread event schema — updated with new source values (see below)
+- Frontend-backend IPC contracts — unchanged (thread subscriptions, queries, commands)
 - `WatchdogService` — rewritten as AgentHealthMonitor with ZFC health monitoring
+
+### Shared Contract Changes Required
+
+**`runtimeComponentTypeSchema`** must be extended to include `"agent"` alongside existing `"coordinator" | "watchdog" | "ov_watch"`. The `ov_watch` type should be deprecated. Each spawned agent registers as a runtime component of type `"agent"`.
+
+**`RuntimeSupervisor` restart policy** must support `restartPolicy: "never"` on `SupervisedProcessSpec`. Agents are short-lived — when they exit (code 0 or otherwise), the OrchestrationService handles next steps (merge, cleanup, failure). The supervisor's existing auto-restart with backoff is correct for long-lived processes but must be suppressible for agents. Without this, every completed agent would be restarted up to 3 times.
+
+**Thread event source values** change from `ov.coordinator` and `ov.worker` to:
+- `ultra.orchestration` — events from the OrchestrationService itself
+- `ultra.agent.lead` — events from lead agents
+- `ultra.agent.builder` — events from builder agents
+- `ultra.agent.scout` — events from scout agents
+- `ultra.agent.reviewer` — events from reviewer agents
+
+**Coordinator NDJSON protocol is retired.** The existing coordinator transport (command/response/event envelopes with `protocol_version`, `request_id`, `sequence_number`) is replaced by the simpler agent NDJSON protocol defined in this spec. The OrchestrationService produces thread events directly — no intermediate coordinator envelope translation.
 
 ## User Interaction Model
 
@@ -123,22 +138,30 @@ Example: `ultra/thr_abc123/builder-agt_def456`
 
 Leads get: `ultra/{thread-id}/lead`
 
-### Agent Lifecycle States
+### Agent State Model
+
+There is one unified state machine for each agent, tracked by the AgentRegistry. The health monitor reads and transitions health-related states within this same model.
 
 ```
-pending → spawning → running → completing → completed
-                  ↘ failed                ↗
-                    stalled → terminated ─┘
+pending → spawning → booting → running → completing → completed
+                           ↘ failed                 ↗
+                             stalled → zombie → terminated
+                               ↑          ↗
+                             (recovery: stalled → running if output resumes)
 ```
 
 - **pending** — spawn requested, worktree not yet created
 - **spawning** — worktree created, hooks deployed, process starting
-- **running** — process alive, producing output
+- **booting** — process launched, waiting for first stdout output
+- **running** — process alive, producing output within thresholds
 - **completing** — agent reported done, merge pending
 - **completed** — branch merged (or no changes), worktree cleaned up
 - **failed** — agent errored out, worktree preserved for inspection
-- **stalled** — health monitor detected inactivity, escalation in progress
+- **stalled** — no output for `staleMs` (default: 5 minutes), escalation in progress
+- **zombie** — no output for `zombieMs` (default: 15 minutes), likely stuck
 - **terminated** — killed by health monitor after escalation exhausted
+
+The OrchestrationService manages `pending → spawning → booting` and `completing → completed/failed`. The health monitor manages `running → stalled → zombie → terminated` transitions. Recovery: a stalled agent that resumes output transitions back to running.
 
 ### Thread Execution Flow
 
@@ -280,7 +303,8 @@ After resolving all conflicted files: `git add .` then `git commit --no-edit`.
 If tier 2 can't safely resolve (contentful canonical, complex multi-way conflicts):
 
 - Extract the conflicted file content (with markers)
-- Send to Claude via `claude --print` with prompt: "Resolve these merge conflicts. Return only the resolved file content, no explanation."
+- Send to an AI model for resolution with prompt: "Resolve these merge conflicts. Return only the resolved file content, no explanation."
+- **Provider selection**: Use the thread's chat provider. For Claude: `claude --print`. For other providers: equivalent CLI or API call. The merge resolver takes a provider-agnostic `resolveWithAI(prompt, context)` callback configured at initialization based on the thread's provider.
 - **`looksLikeProse(output)`** — safety validator that catches when the LLM returns explanation instead of code. Checks for patterns like "Here's the resolved...", paragraph-length lines without code characters.
 - If validation passes: write resolved content, `git add`, `git commit`
 - If validation fails: escalate to tier 4
@@ -291,7 +315,7 @@ When tiers 1-3 fail — conflicts are too tangled to merge mechanically or with 
 
 - Abort the merge (`git merge --abort`)
 - Fetch both versions: the canonical (target branch) file and the incoming (agent branch) file
-- Send both complete files to Claude with the original task context: "Here is the current state of the file on the target branch, and here is the agent's version. The agent was tasked with: {task summary}. Reimplement the agent's changes on top of the canonical version."
+- Send both complete files to the AI model (via same provider-agnostic callback as tier 3) with the original task context: "Here is the current state of the file on the target branch, and here is the agent's version. The agent was tasked with: {task summary}. Reimplement the agent's changes on top of the canonical version."
 - Full reimplementation — the AI sees clean files, not merge artifacts
 - Apply the reimplemented content, `git add`, `git commit`
 - Same `looksLikeProse()` validation as tier 3
@@ -403,26 +427,15 @@ Signal priority:
 
 If the process is dead but the registry says "running" → the process is dead. Trust the observation.
 
-### Health State Machine
+### Health Monitoring Within the Unified State Machine
 
-Forward-only transitions (with recovery exception):
+The health monitor operates on the unified agent state model defined in the Agent Hierarchy section. It is responsible for transitioning agents between `running`, `stalled`, `zombie`, and `terminated` states. It does not own a separate state machine — it reads and writes the same `AgentNode.state` field in the AgentRegistry.
 
-```
-booting → running → completed
-              ↓         ↑
-           stalled → terminated
-              ↓
-            zombie → terminated
-```
-
-- **booting**: process spawned, waiting for first stdout
-- **running**: process alive, producing output within thresholds
-- **completed**: agent emitted `agent_done`, normal exit
-- **stalled**: no output for `staleMs` (default: 5 minutes)
-- **zombie**: no output for `zombieMs` (default: 15 minutes)
-- **terminated**: killed by health monitor
-
-Recovery exception: a stalled agent that resumes output transitions back to running.
+Health monitor transitions:
+- `running → stalled`: no output for `staleMs` (default: 5 minutes)
+- `stalled → zombie`: no output for `zombieMs` (default: 15 minutes)
+- `stalled/zombie → terminated`: escalation exhausted
+- `stalled → running`: agent resumes output (recovery)
 
 ### Progressive Escalation
 
@@ -543,7 +556,7 @@ OrchestrationService
 - `agent_done` → call `completeAgent()`
 
 **`spawnSubAgent(threadId, parentAgentId, request)`**
-1. Check thread agent count < 8
+1. Check active agent count < 8 (agents in `pending`, `spawning`, `booting`, or `running` state — completed, failed, and terminated agents do not count toward the limit; if the limit is reached, the spawn request is rejected and the lead is notified via an error event on its stdin)
 2. Create sub-agent worktree branched from parent's branch
 3. Generate CLAUDE.md with task from spawn request
 4. Deploy hooks (capability-based on agent type)
@@ -606,6 +619,22 @@ Agents can freely mix structured events with regular stdout output.
 - `RuntimeSupervisor` → **kept**, used by OrchestrationService
 - `RuntimeRegistry` → **kept**, used for component tracking
 
+## Backend Restart & Crash Recovery
+
+When the Ultra backend restarts (crash, update, or manual restart):
+
+1. **Rebuild AgentRegistry from thread state** — scan all threads with `execution_state = "running"`. For each, reconstruct the agent tree from persisted `thread_agent_started`/`thread_agent_finished`/`thread_agent_failed` events.
+
+2. **Check PID liveness for each agent** — `process.kill(pid, 0)`. Agents that survived the backend restart (still running as child processes) can be re-attached by re-opening their stdout for NDJSON parsing.
+
+3. **Mark dead agents** — agents whose PIDs are gone are marked `failed` with reason `"backend_restart_orphaned"`. Their worktrees are preserved for inspection.
+
+4. **Handle in-progress merges** — if a merge was in progress when the backend crashed, the worktree may be in a dirty merge state. On recovery, detect this (`git status` in the target worktree) and run `git merge --abort` to restore a clean state. The merge can be re-attempted when the sub-agent's branch is re-enqueued.
+
+5. **Emit recovery events** — for each affected thread, emit `thread_execution_state_changed` or `thread_agent_failed` as appropriate so the UI reflects the current state.
+
+6. **Do not auto-restart agents** — failed agents from a backend crash are surfaced to the user. The user decides whether to retry the thread.
+
 ## Secret Redaction
 
 Ported from `vendor/overstory/src/logging/sanitizer.ts` (57 lines).
@@ -622,10 +651,14 @@ Simple `sanitize(string)` and `sanitizeObject(obj)` functions. Applied to all ag
 
 ### Specs to Update
 
-**`docs/coordinator-runtime.md`** → v0.3
-- Strip: external process model, NDJSON coordinator transport, `ov watch` sections
-- Keep: thread event payload definitions (unchanged), persistence rules, health/recovery rules
-- Add: reference to this spec for orchestration layer details
+**`docs/coordinator-runtime.md`** → retire and replace
+- The entire external coordinator model (transport contract, envelope shapes, command surface, ordering rules, `ov watch` section) is replaced by this spec. Rather than surgically editing, retire coordinator-runtime.md with a deprecation header pointing to this spec.
+- Sections worth preserving as standalone references: the v1 event payload definitions (heartbeat, thread_agent_started, etc.) and the persistence rules. These should be absorbed into `thread-event-schema.md` and this spec respectively.
+
+**`docs/thread-event-schema.md`** → update source values and add new event types
+- Replace `ov.coordinator` and `ov.worker` source values with `ultra.orchestration`, `ultra.agent.lead`, `ultra.agent.builder`, `ultra.agent.scout`, `ultra.agent.reviewer`
+- Deprecate `ov_coordinator_id` and `ov_thread_key` identity fields
+- Add event types for merge resolution outcomes and agent escalation
 
 **`docs/product-spec.md`** → minor
 - Replace "Overstory/Seeds mechanics" → "internal orchestration mechanics"
@@ -633,6 +666,7 @@ Simple `sanitize(string)` and `sanitizeObject(obj)` functions. Applied to all ag
 **`docs/thread-contract.md`** → minor
 - Replace "Overstory internals" → "Ultra's orchestration layer"
 - Replace "Overstory workers" → "sub-agents"
+- Deprecate `ov_project_id`, `ov_coordinator_id`, `ov_thread_key` identity fields
 
 **`docs/implementation-plan/04-runtime-supervision*.md`** → major rewrite
 - New milestone scope: build orchestration layer
