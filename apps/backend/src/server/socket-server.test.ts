@@ -770,12 +770,22 @@ describe("socket server", () => {
       throw new Error("Expected chats.start_turn to succeed")
     }
     const startResult = parseChatsStartTurnResult(startTurnResponse.result)
-
-    const queuedEvent = parseChatsTurnEventsEvent(
-      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    const receivedTurnEventTypes: string[] = []
+    while (!receivedTurnEventTypes.includes("chat.turn_completed")) {
+      const turnEvent = parseChatsTurnEventsEvent(
+        parseSubscriptionEventEnvelope(await connection.nextMessage()),
+      )
+      expect(turnEvent.payload.turnId).toBe(startResult.turn.turnId)
+      receivedTurnEventTypes.push(turnEvent.payload.eventType)
+    }
+    expect(receivedTurnEventTypes).toEqual(
+      expect.arrayContaining([
+        "chat.turn_queued",
+        "chat.turn_started",
+        "chat.turn_progress",
+        "chat.turn_completed",
+      ]),
     )
-    expect(queuedEvent.payload.turnId).toBe(startResult.turn.turnId)
-    expect(queuedEvent.payload.eventType).toBe("chat.turn_queued")
 
     const getTurnRaw = await request(socketPath, {
       protocol_version: IPC_PROTOCOL_VERSION,
@@ -793,6 +803,7 @@ describe("socket server", () => {
       throw new Error("Expected chats.get_turn to succeed")
     }
     expect(getTurnResponse.result.turnId).toBe(startResult.turn.turnId)
+    expect(getTurnResponse.result.status).toBe("succeeded")
 
     const listTurnsRaw = await request(socketPath, {
       protocol_version: IPC_PROTOCOL_VERSION,
@@ -832,56 +843,42 @@ describe("socket server", () => {
     const initialEvents = parseChatsGetTurnEventsResult(
       getTurnEventsResponse.result,
     )
-    expect(initialEvents.events.map((event) => event.sequenceNumber)).toEqual([
-      1,
-    ])
-
-    const cancelTurnRaw = await request(socketPath, {
-      protocol_version: IPC_PROTOCOL_VERSION,
-      request_id: "req_chat_cancel_turn",
-      type: "command",
-      name: "chats.cancel_turn",
-      payload: {
-        chat_id: chatId,
-        turn_id: startResult.turn.turnId,
-      },
-    })
-    const cancelTurnResponse = parseIpcResponseEnvelope(cancelTurnRaw)
-    expect(cancelTurnResponse.ok).toBe(true)
-    if (!cancelTurnResponse.ok) {
-      throw new Error("Expected chats.cancel_turn to succeed")
-    }
-    expect(cancelTurnResponse.result.status).toBe("canceled")
-
-    const canceledEvent = parseChatsTurnEventsEvent(
-      parseSubscriptionEventEnvelope(await connection.nextMessage()),
+    expect(initialEvents.events.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining([
+        "chat.turn_queued",
+        "chat.turn_started",
+        "chat.turn_progress",
+        "chat.turn_completed",
+      ]),
     )
-    expect(canceledEvent.payload.eventType).toBe("chat.turn_canceled")
-
-    const getTurnEventsAfterCancelRaw = await request(socketPath, {
+    const fromSequence = initialEvents.events[1]?.sequenceNumber ?? 1
+    const replayFromSequenceRaw = await request(socketPath, {
       protocol_version: IPC_PROTOCOL_VERSION,
-      request_id: "req_chat_get_turn_events_after_cancel",
+      request_id: "req_chat_get_turn_events_from_sequence",
       type: "query",
       name: "chats.get_turn_events",
       payload: {
         chat_id: chatId,
         turn_id: startResult.turn.turnId,
+        from_sequence: fromSequence,
       },
     })
-    const getTurnEventsAfterCancelResponse = parseIpcResponseEnvelope(
-      getTurnEventsAfterCancelRaw,
+    const replayFromSequenceResponse = parseIpcResponseEnvelope(
+      replayFromSequenceRaw,
     )
-    expect(getTurnEventsAfterCancelResponse.ok).toBe(true)
-    if (!getTurnEventsAfterCancelResponse.ok) {
-      throw new Error("Expected chats.get_turn_events after cancel to succeed")
+    expect(replayFromSequenceResponse.ok).toBe(true)
+    if (!replayFromSequenceResponse.ok) {
+      throw new Error("Expected chats.get_turn_events from sequence to succeed")
     }
-    const eventsAfterCancel = parseChatsGetTurnEventsResult(
-      getTurnEventsAfterCancelResponse.result,
+    const replayFromSequence = parseChatsGetTurnEventsResult(
+      replayFromSequenceResponse.result,
     )
-    expect(eventsAfterCancel.events.map((event) => event.eventType)).toEqual([
-      "chat.turn_queued",
-      "chat.turn_canceled",
-    ])
+    expect(
+      replayFromSequence.events.every(
+        (event) => event.sequenceNumber > fromSequence,
+      ),
+    ).toBe(true)
+    expect(replayFromSequence.events.length).toBeGreaterThan(0)
 
     await connection.close()
     await runtime.close()

@@ -21,7 +21,9 @@ import { buildContinuationPromptFromMessages } from "./runtime/runtime-helpers.j
 import type { ChatRuntimeSessionManager } from "./runtime/runtime-session-manager.js"
 import type {
   ChatRuntimeCheckpointCandidate,
+  ChatRuntimeEvent,
   ChatRuntimeError,
+  ChatRuntimeTurnResult,
 } from "./runtime/types.js"
 
 type ChatTurnRow = {
@@ -60,6 +62,22 @@ type ChatTurnEventRow = {
 type ChatTurnEventListener = {
   listener: (event: ChatTurnEventSnapshot) => void
   turnId: ChatTurnId | null
+}
+
+type ActiveTurnRow = {
+  turn_id: string
+  status: ChatTurnStatus
+}
+
+type QueuedTurnRow = {
+  turn_id: string
+  prompt: string
+}
+
+type ClaimedTurn = {
+  turnId: ChatTurnId
+  prompt: string
+  events: ChatTurnEventSnapshot[]
 }
 
 export type ChatTurnResult = {
@@ -140,13 +158,21 @@ export class ChatTurnService {
     ChatId,
     Set<ChatTurnEventListener>
   >()
+  private readonly processingChatIds = new Set<ChatId>()
 
   constructor(
     private readonly chatService: ChatService,
     private readonly runtimeRegistry: ChatRuntimeRegistry,
     private readonly sessionManager: ChatRuntimeSessionManager,
     private readonly now: () => string = () => new Date().toISOString(),
-  ) {}
+  ) {
+    const recoveredEvents = this.failStaleRunningTurns()
+    this.notifyTurnEvents(recoveredEvents)
+
+    for (const chatId of this.listQueuedChatIds()) {
+      this.scheduleTurnProcessing(chatId)
+    }
+  }
 
   startTurn(input: {
     chatId: ChatId
@@ -195,6 +221,9 @@ export class ChatTurnService {
       )
 
       if (existing) {
+        if (existing.status === "queued") {
+          this.scheduleTurnProcessing(input.chatId)
+        }
         return {
           accepted: true,
           turn: mapChatTurnRow(existing),
@@ -208,6 +237,8 @@ export class ChatTurnService {
 
     database.exec("BEGIN")
     try {
+      this.assertNoActiveTurnForChat(input.chatId, database)
+
       const userMessage = this.chatService.appendMessage({
         chatId: input.chatId,
         role: "user",
@@ -271,6 +302,7 @@ export class ChatTurnService {
     }
 
     this.notifyTurnEventListeners(queuedEvent)
+    this.scheduleTurnProcessing(input.chatId)
 
     return {
       accepted: true,
@@ -287,45 +319,78 @@ export class ChatTurnService {
     ) {
       return current
     }
+    if (current.status === "running" && current.cancelRequestedAt) {
+      return current
+    }
 
     const database = this.chatService.getDatabase()
     const timestamp = this.now()
-    let canceledEvent: ChatTurnEventSnapshot
+    const eventsToNotify: ChatTurnEventSnapshot[] = []
 
     database.exec("BEGIN")
     try {
-      database
-        .prepare(
-          `
-            UPDATE chat_turns
-            SET
-              status = 'canceled',
-              cancel_requested_at = COALESCE(cancel_requested_at, ?),
-              completed_at = COALESCE(completed_at, ?),
-              updated_at = ?
-            WHERE turn_id = ? AND chat_id = ?
-          `,
-        )
-        .run(timestamp, timestamp, timestamp, turnId, chatId)
+      if (current.status === "queued") {
+        database
+          .prepare(
+            `
+              UPDATE chat_turns
+              SET
+                status = 'canceled',
+                cancel_requested_at = COALESCE(cancel_requested_at, ?),
+                completed_at = COALESCE(completed_at, ?),
+                updated_at = ?
+              WHERE turn_id = ? AND chat_id = ?
+            `,
+          )
+          .run(timestamp, timestamp, timestamp, turnId, chatId)
 
-      canceledEvent = this.appendTurnEventInternal({
-        chatId,
-        turnId,
-        eventType: "chat.turn_canceled",
-        source: "api",
-        actorType: "user",
-        actorId: null,
-        payload: { reason: "cancel_requested" },
-        occurredAt: timestamp,
-        recordedAt: timestamp,
-      })
+        eventsToNotify.push(
+          this.appendTurnEventInternal({
+            chatId,
+            turnId,
+            eventType: "chat.turn_canceled",
+            source: "api",
+            actorType: "user",
+            actorId: null,
+            payload: { reason: "cancel_requested" },
+            occurredAt: timestamp,
+            recordedAt: timestamp,
+          }),
+        )
+      } else {
+        database
+          .prepare(
+            `
+              UPDATE chat_turns
+              SET
+                cancel_requested_at = COALESCE(cancel_requested_at, ?),
+                updated_at = ?
+              WHERE turn_id = ? AND chat_id = ? AND status = 'running'
+            `,
+          )
+          .run(timestamp, timestamp, turnId, chatId)
+
+        eventsToNotify.push(
+          this.appendTurnEventInternal({
+            chatId,
+            turnId,
+            eventType: "chat.turn_progress",
+            source: "api",
+            actorType: "user",
+            actorId: null,
+            payload: { stage: "cancel_requested" },
+            occurredAt: timestamp,
+            recordedAt: timestamp,
+          }),
+        )
+      }
       database.exec("COMMIT")
     } catch (error) {
       database.exec("ROLLBACK")
       throw error
     }
 
-    this.notifyTurnEventListeners(canceledEvent)
+    this.notifyTurnEvents(eventsToNotify)
     return this.getTurn(chatId, turnId)
   }
 
@@ -666,6 +731,686 @@ export class ChatTurnService {
       }
 
       throw error
+    }
+  }
+
+  private assertNoActiveTurnForChat(
+    chatId: ChatId,
+    database = this.chatService.getDatabase(),
+  ): void {
+    const activeTurn = this.findActiveTurnForChat(chatId, database)
+    if (!activeTurn) {
+      return
+    }
+
+    throw new IpcProtocolError(
+      "conflict",
+      `Chat ${chatId} already has an active turn (${activeTurn.turn_id}) with status ${activeTurn.status}.`,
+    )
+  }
+
+  private findActiveTurnForChat(
+    chatId: ChatId,
+    database = this.chatService.getDatabase(),
+  ): ActiveTurnRow | null {
+    const active = database
+      .prepare(
+        `
+          SELECT turn_id, status
+          FROM chat_turns
+          WHERE chat_id = ? AND status IN ('queued', 'running')
+          ORDER BY started_at ASC, turn_id ASC
+          LIMIT 1
+        `,
+      )
+      .get(chatId)
+
+    if (!active || typeof active !== "object") {
+      return null
+    }
+
+    return active as ActiveTurnRow
+  }
+
+  private scheduleTurnProcessing(chatId: ChatId): void {
+    if (this.processingChatIds.has(chatId)) {
+      return
+    }
+
+    this.processingChatIds.add(chatId)
+    queueMicrotask(() => {
+      void this.processTurnQueue(chatId)
+    })
+  }
+
+  private async processTurnQueue(chatId: ChatId): Promise<void> {
+    try {
+      while (true) {
+        const claimed = this.claimNextQueuedTurn(chatId)
+        if (!claimed) {
+          break
+        }
+
+        this.notifyTurnEvents(claimed.events)
+        await this.executeClaimedTurn(chatId, claimed)
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      console.error(
+        `[backend] chat turn orchestrator failed for chat ${chatId}: ${reason}`,
+      )
+    } finally {
+      this.processingChatIds.delete(chatId)
+      if (this.hasQueuedTurns(chatId) && !this.hasRunningTurn(chatId)) {
+        this.scheduleTurnProcessing(chatId)
+      }
+    }
+  }
+
+  private claimNextQueuedTurn(chatId: ChatId): ClaimedTurn | null {
+    const database = this.chatService.getDatabase()
+    const runningTurn = this.findActiveTurnForChat(chatId, database)
+    if (runningTurn && runningTurn.status === "running") {
+      return null
+    }
+
+    database.exec("BEGIN")
+    try {
+      const nextQueued = database
+        .prepare(
+          `
+            SELECT
+              turns.turn_id,
+              COALESCE(messages.content_markdown, '') AS prompt
+            FROM chat_turns AS turns
+            INNER JOIN chat_messages AS messages
+              ON messages.id = turns.user_message_id
+            WHERE turns.chat_id = ? AND turns.status = 'queued'
+            ORDER BY turns.started_at ASC, turns.turn_id ASC
+            LIMIT 1
+          `,
+        )
+        .get(chatId) as QueuedTurnRow | undefined
+
+      if (!nextQueued) {
+        database.exec("COMMIT")
+        return null
+      }
+
+      const timestamp = this.now()
+      const updateResult = database
+        .prepare(
+          `
+            UPDATE chat_turns
+            SET status = 'running', updated_at = ?
+            WHERE turn_id = ? AND chat_id = ? AND status = 'queued'
+          `,
+        )
+        .run(timestamp, nextQueued.turn_id, chatId) as { changes: number }
+
+      if (updateResult.changes === 0) {
+        database.exec("ROLLBACK")
+        return null
+      }
+
+      const startedEvent = this.appendTurnEventInternal({
+        chatId,
+        turnId: nextQueued.turn_id,
+        eventType: "chat.turn_started",
+        source: "system",
+        actorType: "system",
+        actorId: null,
+        payload: {
+          status: "running",
+        },
+        occurredAt: timestamp,
+        recordedAt: timestamp,
+      })
+      const progressEvent = this.appendTurnEventInternal({
+        chatId,
+        turnId: nextQueued.turn_id,
+        eventType: "chat.turn_progress",
+        source: "system",
+        actorType: "system",
+        actorId: null,
+        payload: {
+          stage: "runtime_started",
+        },
+        occurredAt: timestamp,
+        recordedAt: timestamp,
+      })
+      database.exec("COMMIT")
+
+      return {
+        turnId: nextQueued.turn_id,
+        prompt: nextQueued.prompt,
+        events: [startedEvent, progressEvent],
+      }
+    } catch (error) {
+      database.exec("ROLLBACK")
+      throw error
+    }
+  }
+
+  private async executeClaimedTurn(
+    chatId: ChatId,
+    claimed: ClaimedTurn,
+  ): Promise<void> {
+    const runtimeContext = this.chatService.getRuntimeContext(chatId)
+    const session = this.sessionManager.getSession(
+      chatId,
+      runtimeContext.chatSessionId,
+      this.extractConfig(runtimeContext.chat),
+      runtimeContext.rootPath,
+    )
+    const seedMessages = this.chatService.listMessages(chatId)
+
+    try {
+      const result = await this.runTurnWithRecovery(
+        runtimeContext.chat,
+        runtimeContext.rootPath,
+        runtimeContext.chatSessionId,
+        claimed.prompt,
+        runtimeContext.continuationPrompt,
+        seedMessages,
+        session?.vendorSessionId ?? null,
+      )
+
+      this.notifyTurnEvents(
+        this.finalizeSucceededTurn({
+          chatId,
+          turnId: claimed.turnId,
+          runtimeContext,
+          result,
+        }),
+      )
+    } catch (error) {
+      this.notifyTurnEvents(this.finalizeFailedTurn(chatId, claimed.turnId, error))
+    }
+  }
+
+  private finalizeSucceededTurn(input: {
+    chatId: ChatId
+    turnId: ChatTurnId
+    runtimeContext: ReturnType<ChatService["getRuntimeContext"]>
+    result: ChatRuntimeTurnResult
+  }): ChatTurnEventSnapshot[] {
+    const current = this.getTurn(input.chatId, input.turnId)
+    if (current.status !== "running") {
+      return []
+    }
+
+    if (current.cancelRequestedAt) {
+      return this.finalizeCanceledRunningTurn(
+        input.chatId,
+        input.turnId,
+        "cancel_requested",
+      )
+    }
+
+    const database = this.chatService.getDatabase()
+    const timestamp = this.now()
+    const eventsToNotify: ChatTurnEventSnapshot[] = []
+
+    database.exec("BEGIN")
+    try {
+      eventsToNotify.push(
+        ...this.appendRuntimeEvents(
+          input.chatId,
+          input.turnId,
+          input.result.events,
+          timestamp,
+        ),
+      )
+
+      const assistantMessage = this.chatService.appendMessage({
+        chatId: input.chatId,
+        role: "assistant",
+        messageType: "assistant_text",
+        contentMarkdown: input.result.finalText,
+        providerMessageId: input.result.vendorSessionId,
+      })
+
+      this.sessionManager.saveSession({
+        chatId: input.chatId,
+        chatSessionId: input.runtimeContext.chatSessionId,
+        provider: input.runtimeContext.chat.provider,
+        model: input.runtimeContext.chat.model,
+        thinkingLevel: input.runtimeContext.chat.thinkingLevel,
+        permissionLevel: input.runtimeContext.chat.permissionLevel,
+        cwd: input.runtimeContext.rootPath,
+        vendorSessionId: input.result.vendorSessionId,
+        lastActivityAt: this.now(),
+      })
+
+      const checkpointIds = this.persistCheckpointCandidates(
+        input.chatId,
+        input.result.events
+          .filter((event) => event.type === "checkpoint_candidate")
+          .map((event) => event.checkpoint),
+      )
+      const continuationPrompt = buildContinuationPromptFromMessages(
+        this.chatService.listMessages(input.chatId),
+      )
+
+      this.chatService.updateSessionContinuationPrompt(
+        input.runtimeContext.chatSessionId,
+        continuationPrompt,
+      )
+      this.chatService.touch(input.chatId, this.now())
+
+      const updateResult = database
+        .prepare(
+          `
+            UPDATE chat_turns
+            SET
+              status = 'succeeded',
+              assistant_message_id = ?,
+              vendor_session_id = ?,
+              completed_at = ?,
+              updated_at = ?,
+              failure_code = NULL,
+              failure_message = NULL
+            WHERE turn_id = ? AND chat_id = ? AND status = 'running'
+          `,
+        )
+        .run(
+          assistantMessage.id,
+          input.result.vendorSessionId,
+          timestamp,
+          timestamp,
+          input.turnId,
+          input.chatId,
+        ) as { changes: number }
+
+      if (updateResult.changes === 0) {
+        database.exec("ROLLBACK")
+        return []
+      }
+
+      eventsToNotify.push(
+        this.appendTurnEventInternal({
+          chatId: input.chatId,
+          turnId: input.turnId,
+          eventType: "chat.turn_completed",
+          source: "runtime",
+          actorType: "assistant",
+          actorId: null,
+          payload: {
+            assistant_message_id: assistantMessage.id,
+            checkpoint_ids: checkpointIds,
+            vendor_session_id: input.result.vendorSessionId,
+            finished_reason: "runtime_completed",
+            resumed: input.result.resumed,
+          },
+          occurredAt: timestamp,
+          recordedAt: timestamp,
+        }),
+      )
+
+      database.exec("COMMIT")
+    } catch (error) {
+      database.exec("ROLLBACK")
+      throw error
+    }
+
+    return eventsToNotify
+  }
+
+  private finalizeCanceledRunningTurn(
+    chatId: ChatId,
+    turnId: ChatTurnId,
+    reason: string,
+  ): ChatTurnEventSnapshot[] {
+    const database = this.chatService.getDatabase()
+    const timestamp = this.now()
+
+    database.exec("BEGIN")
+    try {
+      const updateResult = database
+        .prepare(
+          `
+            UPDATE chat_turns
+            SET
+              status = 'canceled',
+              cancel_requested_at = COALESCE(cancel_requested_at, ?),
+              completed_at = COALESCE(completed_at, ?),
+              updated_at = ?,
+              failure_code = NULL,
+              failure_message = NULL
+            WHERE turn_id = ? AND chat_id = ? AND status = 'running'
+          `,
+        )
+        .run(timestamp, timestamp, timestamp, turnId, chatId) as {
+        changes: number
+      }
+
+      if (updateResult.changes === 0) {
+        database.exec("ROLLBACK")
+        return []
+      }
+
+      const canceledEvent = this.appendTurnEventInternal({
+        chatId,
+        turnId,
+        eventType: "chat.turn_canceled",
+        source: "runtime",
+        actorType: "system",
+        actorId: null,
+        payload: { reason },
+        occurredAt: timestamp,
+        recordedAt: timestamp,
+      })
+      database.exec("COMMIT")
+      return [canceledEvent]
+    } catch (error) {
+      database.exec("ROLLBACK")
+      throw error
+    }
+  }
+
+  private finalizeFailedTurn(
+    chatId: ChatId,
+    turnId: ChatTurnId,
+    error: unknown,
+  ): ChatTurnEventSnapshot[] {
+    const current = this.getTurn(chatId, turnId)
+    if (current.status !== "running") {
+      return []
+    }
+    if (current.cancelRequestedAt) {
+      return this.finalizeCanceledRunningTurn(chatId, turnId, "cancel_requested")
+    }
+
+    const database = this.chatService.getDatabase()
+    const timestamp = this.now()
+    const failure = this.mapTurnFailure(error)
+
+    database.exec("BEGIN")
+    try {
+      const updateResult = database
+        .prepare(
+          `
+            UPDATE chat_turns
+            SET
+              status = 'failed',
+              failure_code = ?,
+              failure_message = ?,
+              completed_at = ?,
+              updated_at = ?
+            WHERE turn_id = ? AND chat_id = ? AND status = 'running'
+          `,
+        )
+        .run(
+          failure.code,
+          failure.message,
+          timestamp,
+          timestamp,
+          turnId,
+          chatId,
+        ) as { changes: number }
+
+      if (updateResult.changes === 0) {
+        database.exec("ROLLBACK")
+        return []
+      }
+
+      const failedEvent = this.appendTurnEventInternal({
+        chatId,
+        turnId,
+        eventType: "chat.turn_failed",
+        source: "runtime",
+        actorType: "system",
+        actorId: null,
+        payload: {
+          code: failure.code,
+          message: failure.message,
+          details: failure.details ?? null,
+        },
+        occurredAt: timestamp,
+        recordedAt: timestamp,
+      })
+
+      database.exec("COMMIT")
+      return [failedEvent]
+    } catch (finalizeError) {
+      database.exec("ROLLBACK")
+      throw finalizeError
+    }
+  }
+
+  private appendRuntimeEvents(
+    chatId: ChatId,
+    turnId: ChatTurnId,
+    runtimeEvents: ChatRuntimeEvent[],
+    occurredAt: string,
+  ): ChatTurnEventSnapshot[] {
+    const turnEvents: ChatTurnEventSnapshot[] = []
+    for (const runtimeEvent of runtimeEvents) {
+      const mapped = this.mapRuntimeEventToTurnEvent(runtimeEvent)
+      turnEvents.push(
+        this.appendTurnEventInternal({
+          chatId,
+          turnId,
+          eventType: mapped.eventType,
+          source: "runtime",
+          actorType: "assistant",
+          actorId: null,
+          payload: mapped.payload,
+          occurredAt,
+          recordedAt: occurredAt,
+        }),
+      )
+    }
+
+    return turnEvents
+  }
+
+  private mapRuntimeEventToTurnEvent(event: ChatRuntimeEvent): {
+    eventType: string
+    payload: Record<string, unknown>
+  } {
+    switch (event.type) {
+      case "assistant_delta":
+        return {
+          eventType: "chat.turn_assistant_delta",
+          payload: { text: event.text },
+        }
+      case "assistant_final":
+        return {
+          eventType: "chat.turn_progress",
+          payload: { stage: "assistant_final", text: event.text },
+        }
+      case "tool_activity":
+        return {
+          eventType: "chat.turn_progress",
+          payload: {
+            stage: "tool_activity",
+            label: event.label,
+            metadata: event.metadata ?? null,
+          },
+        }
+      case "checkpoint_candidate":
+        return {
+          eventType: "chat.turn_checkpoint_candidate",
+          payload: {
+            checkpoint: event.checkpoint,
+          },
+        }
+      case "runtime_notice":
+        return {
+          eventType: "chat.turn_progress",
+          payload: {
+            stage: "runtime_notice",
+            message: event.message,
+          },
+        }
+      case "runtime_error":
+        return {
+          eventType: "chat.turn_progress",
+          payload: {
+            stage: "runtime_error",
+            message: event.message,
+          },
+        }
+    }
+  }
+
+  private mapTurnFailure(error: unknown): {
+    code: string
+    message: string
+    details?: unknown
+  } {
+    if (this.isRuntimeError(error)) {
+      const mapped = this.mapRuntimeError(error)
+      return {
+        code: mapped.code,
+        message: mapped.message,
+        details: mapped.details,
+      }
+    }
+
+    if (error instanceof IpcProtocolError) {
+      return {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      }
+    }
+
+    if (error instanceof Error) {
+      return {
+        code: "internal_error",
+        message: error.message,
+      }
+    }
+
+    return {
+      code: "internal_error",
+      message: String(error),
+    }
+  }
+
+  private failStaleRunningTurns(): ChatTurnEventSnapshot[] {
+    const database = this.chatService.getDatabase()
+    const runningTurns = database
+      .prepare(
+        `
+          SELECT chat_id, turn_id
+          FROM chat_turns
+          WHERE status = 'running'
+          ORDER BY started_at ASC, turn_id ASC
+        `,
+      )
+      .all() as Array<{ chat_id: string; turn_id: string }>
+
+    const recoveredEvents: ChatTurnEventSnapshot[] = []
+    for (const runningTurn of runningTurns) {
+      const timestamp = this.now()
+      database.exec("BEGIN")
+      try {
+        const updateResult = database
+          .prepare(
+            `
+              UPDATE chat_turns
+              SET
+                status = 'failed',
+                failure_code = 'backend_restart',
+                failure_message = 'Chat turn interrupted by backend restart before completion.',
+                completed_at = COALESCE(completed_at, ?),
+                updated_at = ?
+              WHERE turn_id = ? AND chat_id = ? AND status = 'running'
+            `,
+          )
+          .run(
+            timestamp,
+            timestamp,
+            runningTurn.turn_id,
+            runningTurn.chat_id,
+          ) as { changes: number }
+
+        if (updateResult.changes === 0) {
+          database.exec("ROLLBACK")
+          continue
+        }
+
+        recoveredEvents.push(
+          this.appendTurnEventInternal({
+            chatId: runningTurn.chat_id,
+            turnId: runningTurn.turn_id,
+            eventType: "chat.turn_failed",
+            source: "system",
+            actorType: "system",
+            actorId: null,
+            payload: {
+              code: "backend_restart",
+              message:
+                "Chat turn interrupted by backend restart before completion.",
+            },
+            occurredAt: timestamp,
+            recordedAt: timestamp,
+          }),
+        )
+        database.exec("COMMIT")
+      } catch (error) {
+        database.exec("ROLLBACK")
+        throw error
+      }
+    }
+
+    return recoveredEvents
+  }
+
+  private listQueuedChatIds(): ChatId[] {
+    const database = this.chatService.getDatabase()
+    return (
+      database
+        .prepare(
+          `
+            SELECT DISTINCT chat_id
+            FROM chat_turns
+            WHERE status = 'queued'
+          `,
+        )
+        .all() as Array<{ chat_id: string }>
+    ).map((row) => row.chat_id)
+  }
+
+  private hasQueuedTurns(chatId: ChatId): boolean {
+    const database = this.chatService.getDatabase()
+    const row = database
+      .prepare(
+        `
+          SELECT 1 AS present
+          FROM chat_turns
+          WHERE chat_id = ? AND status = 'queued'
+          LIMIT 1
+        `,
+      )
+      .get(chatId) as { present: number } | undefined
+
+    return typeof row?.present === "number"
+  }
+
+  private hasRunningTurn(chatId: ChatId): boolean {
+    const database = this.chatService.getDatabase()
+    const row = database
+      .prepare(
+        `
+          SELECT 1 AS present
+          FROM chat_turns
+          WHERE chat_id = ? AND status = 'running'
+          LIMIT 1
+        `,
+      )
+      .get(chatId) as { present: number } | undefined
+
+    return typeof row?.present === "number"
+  }
+
+  private notifyTurnEvents(events: ChatTurnEventSnapshot[]): void {
+    for (const event of events) {
+      this.notifyTurnEventListeners(event)
     }
   }
 

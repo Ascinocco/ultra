@@ -42,6 +42,33 @@ function createAdapter(
   }
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+async function waitForTurnStatus(
+  service: ChatTurnService,
+  chatId: string,
+  turnId: string,
+  statuses: string[],
+  timeoutMs = 2_000,
+): Promise<ReturnType<ChatTurnService["getTurn"]>> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const turn = service.getTurn(chatId, turnId)
+    if (statuses.includes(turn.status)) {
+      return turn
+    }
+    await sleep(10)
+  }
+
+  throw new Error(
+    `Timed out waiting for turn ${turnId} in chat ${chatId} to reach one of: ${statuses.join(", ")}`,
+  )
+}
+
 afterEach(() => {
   while (temporaryDirectories.length > 0) {
     const directory = temporaryDirectories.pop()
@@ -53,7 +80,7 @@ afterEach(() => {
 })
 
 describe("ChatTurnService", () => {
-  it("creates durable queued turns with idempotent client turn ids and event history", () => {
+  it("runs queued turns asynchronously and preserves idempotent client turn ids", async () => {
     const { databasePath, projectPath } = createWorkspace()
     let tick = 0
     const now = () => {
@@ -66,8 +93,27 @@ describe("ChatTurnService", () => {
     const service = new ChatTurnService(
       chatService,
       new ChatRuntimeRegistry([
-        createAdapter("codex", async () => {
-          throw new Error("runtime should not be used for startTurn tests")
+        createAdapter("codex", async (request) => {
+          return {
+            events: [
+              {
+                type: "assistant_final",
+                text: `Ack: ${request.prompt}`,
+              },
+            ],
+            finalText: `Ack: ${request.prompt}`,
+            vendorSessionId: "vendor_codex_async_1",
+            diagnostics: {
+              exitCode: 0,
+              signal: null,
+              stdout: "",
+              stderr: "",
+              stdoutLines: [],
+              stderrLines: [],
+              timedOut: false,
+            },
+            resumed: request.vendorSessionId !== null,
+          }
         }),
       ]),
       new ChatRuntimeSessionManager(),
@@ -75,6 +121,11 @@ describe("ChatTurnService", () => {
     )
     const project = projectService.open({ path: projectPath })
     const chat = chatService.create(project.id)
+    const eventTypes: string[] = []
+
+    const unsubscribe = service.subscribeToTurnEvents({ chatId: chat.id }, (event) => {
+      eventTypes.push(event.eventType)
+    })
 
     const first = service.startTurn({
       chatId: chat.id,
@@ -87,6 +138,9 @@ describe("ChatTurnService", () => {
       clientTurnId: "client_turn_1",
     })
 
+    const completed = await waitForTurnStatus(service, chat.id, first.turn.turnId, [
+      "succeeded",
+    ])
     const loaded = service.getTurn(chat.id, first.turn.turnId)
     const listed = service.listTurns({ chatId: chat.id, limit: 20 })
     const events = service.getTurnEvents(chat.id, first.turn.turnId)
@@ -101,24 +155,37 @@ describe("ChatTurnService", () => {
       )
       .get(chat.id)?.count
 
+    unsubscribe()
+
     expect(first.accepted).toBe(true)
-    expect(first.turn.status).toBe("queued")
     expect(second.turn.turnId).toBe(first.turn.turnId)
     expect(loaded.turnId).toBe(first.turn.turnId)
+    expect(completed.status).toBe("succeeded")
     expect(turnCount).toBe(1)
-    expect(messageCount).toBe(1)
+    expect(messageCount).toBe(2)
     expect(listed.turns.map((turn) => turn.turnId)).toEqual([first.turn.turnId])
     expect(listed.nextCursor).toBeNull()
-    expect(events.events).toHaveLength(1)
-    expect(events.events[0]).toMatchObject({
-      sequenceNumber: 1,
-      eventType: "chat.turn_queued",
-    })
+    expect(events.events.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining([
+        "chat.turn_queued",
+        "chat.turn_started",
+        "chat.turn_progress",
+        "chat.turn_completed",
+      ]),
+    )
+    expect(eventTypes).toEqual(
+      expect.arrayContaining([
+        "chat.turn_queued",
+        "chat.turn_started",
+        "chat.turn_progress",
+        "chat.turn_completed",
+      ]),
+    )
 
     runtime.close()
   })
 
-  it("cancels queued turns and publishes turn lifecycle events to subscribers", () => {
+  it("enforces one active turn per chat", async () => {
     const { databasePath, projectPath } = createWorkspace()
     let tick = 0
     const now = () => {
@@ -128,11 +195,30 @@ describe("ChatTurnService", () => {
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database, now)
     const chatService = new ChatService(runtime.database, now)
+    let releaseRuntime: (() => void) | null = null
+    const runtimeBlocked = new Promise<void>((resolve) => {
+      releaseRuntime = resolve
+    })
     const service = new ChatTurnService(
       chatService,
       new ChatRuntimeRegistry([
-        createAdapter("codex", async () => {
-          throw new Error("runtime should not be used for cancel tests")
+        createAdapter("codex", async (request) => {
+          await runtimeBlocked
+          return {
+            events: [{ type: "assistant_final", text: `Ack: ${request.prompt}` }],
+            finalText: `Ack: ${request.prompt}`,
+            vendorSessionId: "vendor_codex_guard_1",
+            diagnostics: {
+              exitCode: 0,
+              signal: null,
+              stdout: "",
+              stderr: "",
+              stdoutLines: [],
+              stderrLines: [],
+              timedOut: false,
+            },
+            resumed: false,
+          }
         }),
       ]),
       new ChatRuntimeSessionManager(),
@@ -140,30 +226,159 @@ describe("ChatTurnService", () => {
     )
     const project = projectService.open({ path: projectPath })
     const chat = chatService.create(project.id)
-    const receivedTypes: string[] = []
-
-    const unsubscribe = service.subscribeToTurnEvents({ chatId: chat.id }, (e) => {
-      receivedTypes.push(e.eventType)
-    })
 
     const started = service.startTurn({
       chatId: chat.id,
-      prompt: "Start and then cancel",
+      prompt: "Start first turn",
     })
-    const canceled = service.cancelTurn(chat.id, started.turn.turnId)
+
+    let conflict: unknown
+    try {
+      service.startTurn({
+        chatId: chat.id,
+        prompt: "Start conflicting turn",
+      })
+    } catch (error) {
+      conflict = error
+    }
+
+    expect(conflict).toBeInstanceOf(IpcProtocolError)
+    if (conflict instanceof IpcProtocolError) {
+      expect(conflict.code).toBe("conflict")
+    }
+
+    service.cancelTurn(chat.id, started.turn.turnId)
+    releaseRuntime?.()
+    await waitForTurnStatus(service, chat.id, started.turn.turnId, ["canceled"])
+
+    runtime.close()
+  })
+
+  it("cancels running turns and publishes terminal canceled events", async () => {
+    const { databasePath, projectPath } = createWorkspace()
+    let tick = 0
+    const now = () => {
+      tick += 1
+      return `2026-03-18T13:30:${String(tick).padStart(2, "0")}Z`
+    }
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database, now)
+    const chatService = new ChatService(runtime.database, now)
+    let releaseRuntime: (() => void) | null = null
+    const runtimeBlocked = new Promise<void>((resolve) => {
+      releaseRuntime = resolve
+    })
+    const service = new ChatTurnService(
+      chatService,
+      new ChatRuntimeRegistry([
+        createAdapter("codex", async (request) => {
+          await runtimeBlocked
+          return {
+            events: [{ type: "assistant_final", text: `Ack: ${request.prompt}` }],
+            finalText: `Ack: ${request.prompt}`,
+            vendorSessionId: "vendor_codex_cancel_1",
+            diagnostics: {
+              exitCode: 0,
+              signal: null,
+              stdout: "",
+              stderr: "",
+              stdoutLines: [],
+              stderrLines: [],
+              timedOut: false,
+            },
+            resumed: false,
+          }
+        }),
+      ]),
+      new ChatRuntimeSessionManager(),
+      now,
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+    const eventTypes: string[] = []
+
+    const unsubscribe = service.subscribeToTurnEvents({ chatId: chat.id }, (event) => {
+      eventTypes.push(event.eventType)
+    })
+    const started = service.startTurn({
+      chatId: chat.id,
+      prompt: "Run and then cancel",
+    })
+
+    await waitForTurnStatus(service, chat.id, started.turn.turnId, ["running"])
+    const cancelRequested = service.cancelTurn(chat.id, started.turn.turnId)
+    expect(cancelRequested.status).toBe("running")
+    expect(cancelRequested.cancelRequestedAt).not.toBeNull()
+
+    releaseRuntime?.()
+    const canceled = await waitForTurnStatus(service, chat.id, started.turn.turnId, [
+      "canceled",
+    ])
     const events = service.getTurnEvents(chat.id, started.turn.turnId)
 
     unsubscribe()
 
-    expect(receivedTypes).toEqual(["chat.turn_queued", "chat.turn_canceled"])
     expect(canceled.status).toBe("canceled")
-    expect(canceled.cancelRequestedAt).not.toBeNull()
-    expect(canceled.completedAt).not.toBeNull()
-    expect(events.events.map((event) => event.sequenceNumber)).toEqual([1, 2])
-    expect(events.events.map((event) => event.eventType)).toEqual([
-      "chat.turn_queued",
-      "chat.turn_canceled",
+    expect(events.events.at(-1)?.eventType).toBe("chat.turn_canceled")
+    expect(events.events.map((event) => event.eventType)).toEqual(
+      expect.arrayContaining([
+        "chat.turn_queued",
+        "chat.turn_started",
+        "chat.turn_progress",
+        "chat.turn_canceled",
+      ]),
+    )
+    expect(eventTypes).toEqual(
+      expect.arrayContaining([
+        "chat.turn_queued",
+        "chat.turn_started",
+        "chat.turn_progress",
+        "chat.turn_canceled",
+      ]),
+    )
+
+    runtime.close()
+  })
+
+  it("marks orchestrated turns as failed when runtime execution errors", async () => {
+    const { databasePath, projectPath } = createWorkspace()
+    let tick = 0
+    const now = () => {
+      tick += 1
+      return `2026-03-18T14:00:${String(tick).padStart(2, "0")}Z`
+    }
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database, now)
+    const chatService = new ChatService(runtime.database, now)
+    const service = new ChatTurnService(
+      chatService,
+      new ChatRuntimeRegistry([
+        createAdapter("codex", async () => {
+          throw new ChatRuntimeError("launch_failed", "runtime unavailable")
+        }),
+      ]),
+      new ChatRuntimeSessionManager(),
+      now,
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+
+    const started = service.startTurn({
+      chatId: chat.id,
+      prompt: "This should fail",
+    })
+    const failed = await waitForTurnStatus(service, chat.id, started.turn.turnId, [
+      "failed",
     ])
+    const events = service.getTurnEvents(chat.id, started.turn.turnId)
+
+    expect(failed.status).toBe("failed")
+    expect(failed.failureCode).toBe("runtime_unavailable")
+    expect(events.events.at(-1)?.eventType).toBe("chat.turn_failed")
+    expect(events.events.at(-1)?.payload).toMatchObject({
+      code: "runtime_unavailable",
+      message: "runtime unavailable",
+    })
 
     runtime.close()
   })
