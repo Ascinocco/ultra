@@ -5,6 +5,7 @@ import type {
 } from "@ultra/shared"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
+import { ChatMessage } from "../chat-message/ChatMessage"
 
 import {
   fetchChatMessages,
@@ -743,19 +744,15 @@ export function ChatPageShell({
                       </p>
                     ) : null}
                     {activeChatMessages.map((message) => (
-                      <article
+                      <ChatMessage
                         key={message.id}
-                        className={`active-chat-pane__message active-chat-pane__message--${message.role}`}
-                      >
-                        <span className="active-chat-pane__message-role">
-                          {message.role}
-                        </span>
-                        <p className="active-chat-pane__message-text">
-                          {message.contentMarkdown ??
-                            message.structuredPayloadJson ??
-                            "No text content."}
-                        </p>
-                      </article>
+                        role={message.role as "user" | "assistant" | "system"}
+                        content={
+                          message.contentMarkdown ??
+                          message.structuredPayloadJson ??
+                          "No text content."
+                        }
+                      />
                     ))}
                   </div>
                 </section>
