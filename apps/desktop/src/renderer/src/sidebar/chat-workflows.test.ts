@@ -9,6 +9,7 @@ import {
   pinChat,
   renameChat,
   unpinChat,
+  updateChatRuntimeConfig,
 } from "./chat-workflows.js"
 
 describe("loadChatsForProject", () => {
@@ -100,6 +101,59 @@ describe("renameChat", () => {
     expect(
       store.getState().sidebar.chatsByProjectId["proj-1"]?.[0]?.title,
     ).toBe("New")
+  })
+})
+
+describe("updateChatRuntimeConfig", () => {
+  it("updates chat runtime config and upserts the returned snapshot", async () => {
+    const store = createAppStore()
+    const original = makeChat("c1", "proj-1", {
+      provider: "codex",
+      model: "gpt-5.4",
+      thinkingLevel: "default",
+      permissionLevel: "supervised",
+    })
+    store.getState().actions.setChatsForProject("proj-1", [original])
+    const updated = {
+      ...original,
+      provider: "claude" as const,
+      model: "claude-sonnet-4-6",
+      thinkingLevel: "high",
+      permissionLevel: "full_access" as const,
+    }
+    const client = {
+      query: vi.fn(),
+      command: vi.fn().mockResolvedValue(updated),
+    }
+
+    const result = await updateChatRuntimeConfig(
+      "c1",
+      {
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+        thinkingLevel: "high",
+        permissionLevel: "full_access",
+      },
+      store.getState().actions,
+      client,
+    )
+
+    expect(client.command).toHaveBeenCalledWith("chats.update_runtime_config", {
+      chat_id: "c1",
+      provider: "claude",
+      model: "claude-sonnet-4-6",
+      thinking_level: "high",
+      permission_level: "full_access",
+    })
+    expect(
+      store.getState().sidebar.chatsByProjectId["proj-1"]?.[0],
+    ).toMatchObject({
+      provider: "claude",
+      model: "claude-sonnet-4-6",
+      thinkingLevel: "high",
+      permissionLevel: "full_access",
+    })
+    expect(result).toEqual(updated)
   })
 })
 

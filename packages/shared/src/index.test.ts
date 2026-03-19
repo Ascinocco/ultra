@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   APP_NAME,
   buildPlaceholderProjectLabel,
+  chatsUpdateRuntimeConfigInputSchema,
   IPC_PROTOCOL_VERSION,
   parseApprovalSnapshot,
   parseArtifactBundle,
@@ -120,6 +121,45 @@ describe("shared contracts", () => {
     })
 
     expect(command.name).toBe("chats.create")
+  })
+
+  it("parses a valid command envelope for chats.update_runtime_config", () => {
+    const command = parseCommandRequest({
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_update_runtime",
+      type: "command",
+      name: "chats.update_runtime_config",
+      payload: {
+        chat_id: "chat_123",
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+        thinking_level: "default",
+        permission_level: "supervised",
+      },
+    })
+
+    expect(command.name).toBe("chats.update_runtime_config")
+  })
+
+  it("validates chats.update_runtime_config payload schema", () => {
+    const parsed = chatsUpdateRuntimeConfigInputSchema.parse({
+      chat_id: "chat_123",
+      provider: "codex",
+      model: "gpt-5.4",
+      thinking_level: "default",
+      permission_level: "supervised",
+    })
+
+    expect(parsed.provider).toBe("codex")
+    expect(() =>
+      chatsUpdateRuntimeConfigInputSchema.parse({
+        chat_id: "chat_123",
+        provider: "openai",
+        model: "gpt-5.4",
+        thinking_level: "default",
+        permission_level: "supervised",
+      }),
+    ).toThrow()
   })
 
   it("parses a valid command envelope for sandboxes.set_active", () => {

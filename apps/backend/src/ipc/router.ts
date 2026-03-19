@@ -21,9 +21,10 @@ import {
   chatsRenameInputSchema,
   chatsRestoreInputSchema,
   chatsSendMessageInputSchema,
-  chatsStartTurnInputSchema,
   chatsStartThreadInputSchema,
+  chatsStartTurnInputSchema,
   chatsUnpinInputSchema,
+  chatsUpdateRuntimeConfigInputSchema,
   IPC_PROTOCOL_VERSION,
   parseEnvironmentReadinessSnapshot,
   parseIpcRequestEnvelope,
@@ -396,6 +397,22 @@ export async function routeIpcRequest(
           services.chatService.rename(chat_id, title),
         )
       }
+      case "chats.update_runtime_config": {
+        const updateRuntimeConfigCommand = assertCommandRequest(request)
+        const { chat_id, provider, model, thinking_level, permission_level } =
+          chatsUpdateRuntimeConfigInputSchema.parse(
+            updateRuntimeConfigCommand.payload,
+          )
+        return createSuccessResponse(
+          updateRuntimeConfigCommand.request_id,
+          services.chatService.updateRuntimeConfig(chat_id, {
+            provider,
+            model,
+            thinkingLevel: thinking_level,
+            permissionLevel: permission_level,
+          }),
+        )
+      }
       case "chats.pin": {
         const pinCommand = assertCommandRequest(request)
         return createSuccessResponse(
@@ -639,24 +656,20 @@ export async function routeIpcRequest(
             )
           }
 
-          const startConfirmationMessage = services.chatService.confirmStartWork(
-            parsedInput.chat_id,
-            {
+          const startConfirmationMessage =
+            services.chatService.confirmStartWork(parsedInput.chat_id, {
               threadTitle: parsedInput.title,
               threadSummary: parsedInput.summary ?? null,
-            },
-          )
+            })
           startRequestMessageId = startConfirmationMessage.id
         }
 
         return createSuccessResponse(
           startThreadCommand.request_id,
-          services.threadService.startThread(
-            {
-              ...parsedInput,
-              start_request_message_id: startRequestMessageId,
-            },
-          ),
+          services.threadService.startThread({
+            ...parsedInput,
+            start_request_message_id: startRequestMessageId,
+          }),
         )
       }
       case "chats.promote_work_to_thread": {
