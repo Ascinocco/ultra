@@ -417,6 +417,24 @@ export function ChatPageShell({
   const selectedProviderReady =
     !hasRuntimeReadinessSignals ||
     readyRuntimeProviders.includes(runtimeProviderDraft)
+  const selectedProviderReadinessCheck = useMemo(
+    () =>
+      readinessChecks.find((check) => check.tool === runtimeProviderDraft) ??
+      null,
+    [readinessChecks, runtimeProviderDraft],
+  )
+  const selectedProviderUnavailableHint = !selectedProviderReady
+    ? [
+        "The selected provider is unavailable in this environment.",
+        selectedProviderReadinessCheck?.helpText ?? null,
+      ]
+        .filter((value): value is string => Boolean(value))
+        .join(" ")
+    : null
+  const activeTurnFailureHint =
+    activeTurn?.status === "failed"
+      ? (activeTurn.failureMessage?.trim() || "Chat turn failed.")
+      : null
   const runtimeDraftDirty =
     activeChat != null &&
     (activeChat.provider !== runtimeProviderDraft ||
@@ -427,7 +445,7 @@ export function ChatPageShell({
     chatTurnSendStatus === "starting" ||
     inFlightTurn ||
     runtimeUpdateStatus === "saving" ||
-    (isPreSendRuntimeConfig && !selectedProviderReady)
+    !selectedProviderReady
   const terminalSessions = activeProjectId
     ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
         .filter((s) => s.status === "running")
@@ -1047,14 +1065,19 @@ export function ChatPageShell({
                     Saving runtime config…
                   </p>
                 ) : null}
-                {isPreSendRuntimeConfig && !selectedProviderReady ? (
+                {selectedProviderUnavailableHint ? (
                   <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
-                    The selected provider is unavailable in this environment.
+                    {selectedProviderUnavailableHint}
                   </p>
                 ) : null}
                 {runtimeUpdateError ? (
                   <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
                     Failed to save runtime config: {runtimeUpdateError}
+                  </p>
+                ) : null}
+                {activeTurnFailureHint ? (
+                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
+                    {activeTurnFailureHint}
                   </p>
                 ) : null}
                 {chatTurnSendError ? (

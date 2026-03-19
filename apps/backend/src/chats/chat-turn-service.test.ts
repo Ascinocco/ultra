@@ -383,6 +383,53 @@ describe("ChatTurnService", () => {
     runtime.close()
   })
 
+  it("maps missing runtime binaries to actionable runtime-unavailable failures", async () => {
+    const { databasePath, projectPath } = createWorkspace()
+    let tick = 0
+    const now = () => {
+      tick += 1
+      return `2026-03-18T14:15:${String(tick).padStart(2, "0")}Z`
+    }
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database, now)
+    const chatService = new ChatService(runtime.database, now)
+    const service = new ChatTurnService(
+      chatService,
+      new ChatRuntimeRegistry([
+        createAdapter("codex", async () => {
+          const missingBinary = Object.assign(new Error("spawn codex ENOENT"), {
+            code: "ENOENT",
+            path: "codex",
+          })
+          throw missingBinary
+        }),
+      ]),
+      new ChatRuntimeSessionManager(),
+      now,
+    )
+    const project = projectService.open({ path: projectPath })
+    const chat = chatService.create(project.id)
+
+    const started = service.startTurn({
+      chatId: chat.id,
+      prompt: "Trigger missing codex runtime",
+    })
+    const failed = await waitForTurnStatus(service, chat.id, started.turn.turnId, [
+      "failed",
+    ])
+    const events = service.getTurnEvents(chat.id, started.turn.turnId)
+
+    expect(failed.status).toBe("failed")
+    expect(failed.failureCode).toBe("runtime_unavailable")
+    expect(failed.failureMessage).toContain("Install Codex CLI")
+    expect(events.events.at(-1)?.payload).toMatchObject({
+      code: "runtime_unavailable",
+    })
+    expect(events.events.at(-1)?.payload.message).toContain("codex")
+
+    runtime.close()
+  })
+
   it("persists user and assistant messages plus checkpoints and reuses the runtime session", async () => {
     const { databasePath, projectPath } = createWorkspace()
     let tick = 0
