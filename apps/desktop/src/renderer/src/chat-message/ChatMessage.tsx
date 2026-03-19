@@ -4,15 +4,18 @@ import { copyToClipboard } from "./copy-to-clipboard"
 import "./ChatMessage.css"
 
 interface ChatMessageProps {
-  role: "user" | "coordinator" | "system"
+  role: "user" | "coordinator" | "assistant" | "system"
   content: string
 }
 
 const ROLE_LABELS: Record<string, string> = {
   user: "You",
   coordinator: "Assistant",
+  assistant: "Assistant",
   system: "System",
 }
+
+const ASSISTANT_ROLES = new Set(["coordinator", "assistant"])
 
 export function ChatMessage({ role, content }: ChatMessageProps): ReactElement | null {
   const [copied, setCopied] = useState(false)
@@ -29,17 +32,20 @@ export function ChatMessage({ role, content }: ChatMessageProps): ReactElement |
     }
   }
 
+  const isAssistant = ASSISTANT_ROLES.has(role)
+  const cssRole = isAssistant ? "coordinator" : role
+
   return (
-    <div className={"chat-message chat-message--" + role}>
+    <div className={"chat-message chat-message--" + cssRole}>
       <div className="chat-message__label">{label}</div>
       <div className="chat-message__content">
-        {role === "coordinator" ? (
+        {isAssistant ? (
           <MarkdownRenderer content={content} />
         ) : (
           <p className="chat-message__text">{content}</p>
         )}
       </div>
-      {role === "coordinator" && (
+      {isAssistant && (
         <button
           className="chat-message__copy"
           onClick={handleCopy}

@@ -55,4 +55,20 @@ describe("ChatMessage", () => {
     )
     expect(html).not.toContain("Copy message")
   })
+
+  it("renders assistant role with Assistant label and markdown", () => {
+    const html = renderToStaticMarkup(
+      <ChatMessage role="assistant" content="Hello **world**" />
+    )
+    expect(html).toContain("Assistant")
+    expect(html).toContain("<strong")
+    expect(html).toContain("Copy message")
+  })
+
+  it("applies coordinator CSS class for assistant role", () => {
+    const html = renderToStaticMarkup(
+      <ChatMessage role="assistant" content="test" />
+    )
+    expect(html).toContain("chat-message--coordinator")
+  })
 })
