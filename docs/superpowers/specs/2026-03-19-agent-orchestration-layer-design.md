@@ -75,8 +75,8 @@ Ultra backend (IS the coordinator)
 
 ### What Gets Kept
 
-- `RuntimeSupervisor` — still supervises agent child processes (with new `restartPolicy: "never"` option for agents — see below)
-- `RuntimeRegistry` — still tracks component state
+- `RuntimeSupervisor` — still supervises long-lived singleton components (but NOT agents — see below)
+- `RuntimeRegistry` — still tracks singleton component state (coordinator, watchdog)
 - `SupervisedProcessAdapter` — still the process abstraction
 - Thread event schema — updated with new source values (see below)
 - Frontend-backend IPC contracts — unchanged (thread subscriptions, queries, commands)
@@ -84,9 +84,9 @@ Ultra backend (IS the coordinator)
 
 ### Shared Contract Changes Required
 
-**`runtimeComponentTypeSchema`** must be extended to include `"agent"` alongside existing `"coordinator" | "watchdog" | "ov_watch"`. The `ov_watch` type should be deprecated. Each spawned agent registers as a runtime component of type `"agent"`.
+**`runtimeComponentTypeSchema`** must be extended to include `"agent"` alongside existing `"coordinator" | "watchdog" | "ov_watch"`. The `ov_watch` type should be deprecated. This is needed because `SupervisedProcessAdapter.spawn()` requires a `componentType` on `SupervisedProcessSpec`.
 
-**`RuntimeSupervisor` restart policy** must support `restartPolicy: "never"` on `SupervisedProcessSpec`. Agents are short-lived — when they exit (code 0 or otherwise), the OrchestrationService handles next steps (merge, cleanup, failure). The supervisor's existing auto-restart with backoff is correct for long-lived processes but must be suppressible for agents. Without this, every completed agent would be restarted up to 3 times.
+**Agents bypass RuntimeSupervisor.** RuntimeSupervisor is designed for singleton long-lived components with `(projectId, componentType)` keyed lookup — multiple agents of the same type under one project would collide. Instead, OrchestrationService calls `SupervisedProcessAdapter.spawn()` directly and tracks agent lifecycle through the new `AgentRegistry`. RuntimeSupervisor continues to manage the remaining singleton processes (if any remain after the ov_watch retirement).
 
 **Thread event source values** change from `ov.coordinator` and `ov.worker` to:
 - `ultra.orchestration` — events from the OrchestrationService itself
@@ -524,8 +524,7 @@ The central service that wires everything together. Replaces CoordinatorService.
 
 ```
 OrchestrationService
-  ├── RuntimeSupervisor      // existing — spawns/supervises processes
-  ├── RuntimeRegistry        // existing — tracks component state
+  ├── SupervisedProcessAdapter // existing — spawns agent child processes directly
   ├── ThreadService          // existing — thread state projection
   ├── WorktreeManager        // new — git isolation
   ├── MergeResolver          // new — tiered conflict resolution
@@ -542,7 +541,7 @@ OrchestrationService
 2. Create lead worktree via WorktreeManager
 3. Generate lead CLAUDE.md via OverlayGenerator
 4. Deploy hooks via AgentContainment
-5. Spawn lead process via RuntimeSupervisor with `--dangerously-skip-permissions`
+5. Spawn lead process via SupervisedProcessAdapter with `--dangerously-skip-permissions`
 6. Attach stdout parser for NDJSON events
 7. Register lead in AgentRegistry
 8. Start health monitoring
@@ -616,8 +615,9 @@ Agents can freely mix structured events with regular stdout output.
 - `WatchdogService` → **replaced** by AgentHealthMonitor
 - `WatchService` (ov watch) → **retired**
 - `watchdog-helper.ts` → **retired**, logic moves to AgentHealthMonitor
-- `RuntimeSupervisor` → **kept**, used by OrchestrationService
-- `RuntimeRegistry` → **kept**, used for component tracking
+- `SupervisedProcessAdapter` → **kept**, used directly by OrchestrationService to spawn agent processes
+- `RuntimeSupervisor` → **kept** for any remaining singleton components, but NOT used for agents
+- `RuntimeRegistry` → **kept** for singleton component tracking, but NOT used for agents
 
 ## Backend Restart & Crash Recovery
 
