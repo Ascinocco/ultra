@@ -123,6 +123,8 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
     console.log("[claude-sdk] getting iterator from queryRuntime...")
     const iterator = session.queryRuntime[Symbol.asyncIterator]()
     console.log("[claude-sdk] calling first iterator.next()...")
+    console.log("[claude-sdk] queryRuntime keys:", Object.keys(session.queryRuntime))
+    console.log("[claude-sdk] queryRuntime type:", Object.prototype.toString.call(session.queryRuntime))
 
     try {
       while (!session.stopped) {

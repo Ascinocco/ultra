@@ -111,7 +111,14 @@ export class ClaudeSessionManager {
         : {}),
     }
 
-    console.log("[claude-session] calling createQuery/query()...")
+    console.log("[claude-session] calling createQuery/query()...", JSON.stringify({
+      cwd: queryOptions.cwd,
+      model: queryOptions.model,
+      permissionMode,
+      pathToClaudeCodeExecutable: queryOptions.pathToClaudeCodeExecutable,
+      hasResume: !!sessionConfig.vendorSessionId,
+      sessionId: vendorSessionId,
+    }))
     let queryRuntime: ClaudeQueryRuntime
     try {
       queryRuntime = this.createQueryFn({
