@@ -107,9 +107,11 @@ Recommended sources:
 - `ultra.chat`
 - `ultra.thread`
 - `ultra.review`
-- `ov.coordinator`
-- `ov.worker`
-- `ov.watch`
+- `ultra.orchestration`
+- `ultra.agent.lead`, `ultra.agent.builder`, `ultra.agent.scout`, `ultra.agent.reviewer`
+- ~~`ov.coordinator`~~ **(DEPRECATED — use `ultra.orchestration`)**
+- ~~`ov.worker`~~ **(DEPRECATED — use the appropriate `ultra.agent.*` source)**
+- ~~`ov.watch`~~ **(DEPRECATED — use `ultra.orchestration`)**
 - `git`
 - `publish`
 

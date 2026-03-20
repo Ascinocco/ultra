@@ -13,7 +13,7 @@ Ultra has two primary user-facing objects:
 - `Chat`: a project-scoped planning and decision-making conversation that can also execute direct coding work when the user wants raw CLI-style interaction
 - `Thread`: a project-scoped execution stream created from an approved plan/spec set
 
-Users think in chats and threads, not in Overstory internals.
+Users think in chats and threads, not in Ultra's orchestration layer.
 
 ## Thread Definition
 
@@ -33,7 +33,7 @@ A thread is the execution home for:
 Threads remain available after completion so the user can inspect history and continue talking to the coordinator.
 
 In the user experience, a thread should feel like one durable execution conversation.
-The user talks to the thread coordinator, not directly to raw workers, Overstory internals, or provider-specific agents.
+The user talks to the thread coordinator, not directly to raw sub-agents, Ultra's orchestration layer, or provider-specific agents.
 
 ## Thread Creation Rules
 
@@ -90,9 +90,9 @@ Recommended thread identity fields:
 
 Recommended external tracking fields:
 
-- `ov_project_id`
-- `ov_coordinator_id`
-- `ov_thread_key`
+- `ov_project_id` **(DEPRECATED — retained for migration only; use `project_id`)**
+- `ov_coordinator_id` **(DEPRECATED — retained for migration only; use `coordinator_id`)**
+- `ov_thread_key` **(DEPRECATED — retained for migration only; use `thread_id`)**
 - `external_ticket_refs`
 
 Recommended execution fields:
@@ -369,7 +369,7 @@ The coordinator chat should retain context for the life of the thread, including
 Review and execution actions may also be initiated from the main chat, but thread-specific changes should resolve back into the thread as the primary control surface.
 
 The user should never need to address raw swarm members directly in v1.
-If Overstory or another backend fans work out to multiple workers, that detail should collapse back into:
+If Ultra's orchestration layer or another backend fans work out to multiple sub-agents, that detail should collapse back into:
 
 - coordinator messages in the main thread conversation
 - structured timeline events
@@ -383,7 +383,7 @@ Tracked health objects:
 
 - backend daemon
 - project coordinator
-- `ov watch`
+- orchestration watcher
 - optional helper watchdog process
 
 Health statuses:

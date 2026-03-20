@@ -1,3 +1,5 @@
+**DEPRECATED:** This document described the external Overstory coordinator model which has been replaced by Ultra's internal orchestration layer. See `docs/superpowers/specs/2026-03-19-agent-orchestration-layer-design.md` for the current architecture. The thread event payload definitions from this document have been absorbed into `thread-event-schema.md`.
+
 # Ultra Coordinator Runtime
 
 ## Status

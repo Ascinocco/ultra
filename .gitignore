@@ -48,6 +48,9 @@ coverage/
 /.overstory/sessions.db-shm
 /.overstory/sessions.db-wal
 
+# Claude Code worktrees
+.claude/worktrees/
+
 # Superpowers brainstorm artifacts
 .superpowers/
-docs/superpowers/
+docs/superpowers/plans/
