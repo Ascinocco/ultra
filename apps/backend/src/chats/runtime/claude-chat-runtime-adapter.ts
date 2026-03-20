@@ -145,12 +145,55 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
   ): Promise<ChatRuntimeTurnResult> {
     validateClaudeThinkingLevel(request.config.thinkingLevel)
 
+    const args = buildClaudeArgs(request)
+    console.log(
+      "[claude-runtime] spawning claude with args:",
+      JSON.stringify(args),
+    )
+
     const diagnostics = await this.processRunner.run({
       command: "claude",
-      args: buildClaudeArgs(request),
+      args,
       cwd: request.cwd,
     })
+
+    console.log("[claude-runtime] exit code:", diagnostics.exitCode)
+    console.log("[claude-runtime] timed out:", diagnostics.timedOut)
+    console.log("[claude-runtime] signal:", diagnostics.signal)
+    console.log(
+      "[claude-runtime] stdout lines count:",
+      diagnostics.stdoutLines.length,
+    )
+    console.log(
+      "[claude-runtime] stderr preview:",
+      diagnostics.stderr.slice(0, 500),
+    )
+
+    for (const [i, line] of diagnostics.stdoutLines.entries()) {
+      try {
+        const obj = JSON.parse(line) as Record<string, unknown>
+        console.log(
+          `[claude-runtime] line[${i}] type=${String(obj.type)} subtype=${String(obj.subtype ?? "")} keys=${Object.keys(obj).join(",")}`,
+        )
+      } catch {
+        console.log(
+          `[claude-runtime] line[${i}] (non-json): ${line.slice(0, 200)}`,
+        )
+      }
+    }
+
     const parsed = parseClaudeLines(diagnostics.stdoutLines)
+
+    console.log("[claude-runtime] parsed finalText length:", parsed.finalText.length)
+    console.log(
+      "[claude-runtime] parsed finalText preview:",
+      parsed.finalText.slice(0, 200),
+    )
+    console.log("[claude-runtime] parsed events count:", parsed.events.length)
+    console.log(
+      "[claude-runtime] parsed vendorSessionId:",
+      parsed.vendorSessionId,
+    )
 
     if (diagnostics.timedOut) {
       throw new ChatRuntimeError(
