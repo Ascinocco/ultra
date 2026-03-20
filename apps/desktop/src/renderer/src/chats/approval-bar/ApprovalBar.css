@@ -116,8 +116,8 @@
 }
 
 .approval-bar__action {
-  background: var(--success);
-  color: #fff;
+  background: color-mix(in srgb, var(--success) 55%, var(--surface-3));
+  color: var(--text-primary);
   border: none;
   border-radius: 5px;
   padding: 6px 16px;
