@@ -41,7 +41,7 @@ const NON_TOOL_LABELS = new Set([
 
 type StructuredBlock =
   | { type: "text"; content: string }
-  | { type: "tools"; tools: Array<{ name: string; detail: string }> }
+  | { type: "tools"; tools: Array<{ name: string; detail: string; id?: string | null }> }
 
 /**
  * Build interleaved text + tool blocks from runtime events for the structured payload.
@@ -63,11 +63,22 @@ function buildStructuredBlocks(events: ChatRuntimeEvent[]): StructuredBlock[] {
       }
     } else if (event.type === "tool_activity" && !NON_TOOL_LABELS.has(event.label)) {
       const detail = extractToolDetail(event.label, event.metadata)
+      const toolId = (event.metadata as any)?.id ?? (event.metadata as any)?.item?.id ?? null
       const last = lastBlock()
+
+      // Deduplicate: if a tool with the same ID exists in the current group, update it
+      if (toolId && last?.type === "tools") {
+        const existing = last.tools.find((t) => t.id === toolId)
+        if (existing) {
+          if (detail) existing.detail = detail
+          continue
+        }
+      }
+
       if (last?.type === "tools") {
-        last.tools.push({ name: event.label, detail })
+        last.tools.push({ name: event.label, detail, id: toolId })
       } else {
-        blocks.push({ type: "tools", tools: [{ name: event.label, detail }] })
+        blocks.push({ type: "tools", tools: [{ name: event.label, detail, id: toolId }] })
       }
     }
   }
