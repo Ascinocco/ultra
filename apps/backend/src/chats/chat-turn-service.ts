@@ -917,6 +917,23 @@ export class ChatTurnService {
     this.turnAbortControllers.set(claimed.turnId, abortController)
 
     try {
+      const timestamp = new Date().toISOString()
+      const streamingOnEvent = (runtimeEvent: ChatRuntimeEvent) => {
+        const mapped = this.mapRuntimeEventToTurnEvent(runtimeEvent)
+        const persisted = this.appendTurnEventInternal({
+          chatId,
+          turnId: claimed.turnId,
+          eventType: mapped.eventType,
+          source: "runtime",
+          actorType: "assistant",
+          actorId: null,
+          payload: mapped.payload,
+          occurredAt: timestamp,
+          recordedAt: timestamp,
+        })
+        this.notifyTurnEventListeners(persisted)
+      }
+
       const result = await this.runTurnWithRecovery(
         runtimeContext.chat,
         runtimeContext.rootPath,
@@ -926,6 +943,7 @@ export class ChatTurnService {
         seedMessages,
         session?.vendorSessionId ?? null,
         abortController.signal,
+        streamingOnEvent,
       )
 
       this.notifyTurnEvents(
@@ -934,6 +952,7 @@ export class ChatTurnService {
           turnId: claimed.turnId,
           runtimeContext,
           result,
+          eventsAlreadyStreamed: true,
         }),
       )
     } catch (error) {
@@ -948,6 +967,7 @@ export class ChatTurnService {
     turnId: ChatTurnId
     runtimeContext: ReturnType<ChatService["getRuntimeContext"]>
     result: ChatRuntimeTurnResult
+    eventsAlreadyStreamed?: boolean
   }): ChatTurnEventSnapshot[] {
     const current = this.getTurn(input.chatId, input.turnId)
     if (current.status !== "running") {
@@ -968,14 +988,30 @@ export class ChatTurnService {
 
     database.exec("BEGIN")
     try {
-      eventsToNotify.push(
-        ...this.appendRuntimeEvents(
-          input.chatId,
-          input.turnId,
-          input.result.events,
-          timestamp,
-        ),
-      )
+      if (input.eventsAlreadyStreamed) {
+        // Only persist non-streamed events (assistant_final is added after process completes)
+        const nonStreamedEvents = input.result.events.filter(
+          (e) => e.type === "assistant_final"
+        )
+        eventsToNotify.push(
+          ...this.appendRuntimeEvents(
+            input.chatId,
+            input.turnId,
+            nonStreamedEvents,
+            timestamp,
+          ),
+        )
+      } else {
+        // Original batch path
+        eventsToNotify.push(
+          ...this.appendRuntimeEvents(
+            input.chatId,
+            input.turnId,
+            input.result.events,
+            timestamp,
+          ),
+        )
+      }
 
       const assistantMessage = this.chatService.appendMessage({
         chatId: input.chatId,
@@ -1645,6 +1681,7 @@ export class ChatTurnService {
     seedMessages: ChatMessageSnapshot[],
     vendorSessionId: string | null,
     signal?: AbortSignal,
+    onEvent?: (event: ChatRuntimeEvent) => void,
   ) {
     const adapter = this.runtimeRegistry.get(chat.provider)
 
@@ -1659,6 +1696,7 @@ export class ChatTurnService {
         seedMessages,
         vendorSessionId,
         signal,
+        onEvent,
       })
     } catch (error) {
       if (!this.isRuntimeError(error) || error.kind !== "resume_failed") {
@@ -1677,6 +1715,7 @@ export class ChatTurnService {
         seedMessages,
         vendorSessionId: null,
         signal,
+        onEvent,
       })
     }
   }
