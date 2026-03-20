@@ -32,6 +32,8 @@ import {
   type RuntimeProvider,
 } from "../runtime-options.js"
 import { useApprovalState } from "../chats/hooks/useApprovalState.js"
+import { useAutoScroll } from "../chats/hooks/useAutoScroll.js"
+import { useStreamingText } from "../chats/hooks/useStreamingText.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { updateChatRuntimeConfig } from "../sidebar/chat-workflows.js"
 import { useAppStore } from "../state/app-store.js"
@@ -350,6 +352,7 @@ export function ChatPageShell({
 
   const chatFrameRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const transcriptScrollRef = useRef<HTMLDivElement>(null)
   const turnSequenceRef = useRef<Record<string, number>>({})
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
   const [isDragging, setIsDragging] = useState(false)
@@ -427,6 +430,15 @@ export function ChatPageShell({
   const latestTurnEvent = activeTurnEvents[activeTurnEvents.length - 1] ?? null
   const inFlightTurn =
     activeTurn?.status === "queued" || activeTurn?.status === "running"
+
+  const { streamingText, isStreaming } = useStreamingText(
+    activeTurnEvents,
+    inFlightTurn,
+    activeChatMessages.length,
+  )
+
+  useAutoScroll(transcriptScrollRef, [activeChatMessages, streamingText])
+
   useEffect(() => {
     if (!inFlightTurn) {
       setCancelRequested(false)
@@ -944,7 +956,7 @@ export function ChatPageShell({
                       </span>
                     </div>
                   </div>
-                  <div className="active-chat-pane__transcript-scroll">
+                  <div className="active-chat-pane__transcript-scroll" ref={transcriptScrollRef}>
                     {chatMessagesFetchStatus === "loading" &&
                     activeChatMessages.length === 0 ? (
                       <p className="active-chat-pane__empty-copy">
@@ -989,6 +1001,13 @@ export function ChatPageShell({
                         />
                       )
                     })}
+                    {streamingText !== null && (
+                      <ChatMessage
+                        role="assistant"
+                        content={streamingText}
+                        isStreaming={isStreaming}
+                      />
+                    )}
                   </div>
                 </section>
 
