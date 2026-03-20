@@ -51,11 +51,12 @@ function mapSdkMessage(message: SDKMessage): {
 
   switch (msg.type) {
     case "assistant": {
+      // Don't extract text from complete assistant messages — that duplicates
+      // the content already streamed via content_block_delta events.
+      // Only extract tool_use blocks (which aren't streamed as deltas).
       if (msg.message?.content && Array.isArray(msg.message.content)) {
         for (const block of msg.message.content) {
-          if (block.type === "text" && typeof block.text === "string") {
-            events.push({ type: "assistant_delta", text: block.text })
-          } else if (block.type === "tool_use") {
+          if (block.type === "tool_use") {
             events.push({
               type: "tool_activity",
               label: block.name ?? "tool",

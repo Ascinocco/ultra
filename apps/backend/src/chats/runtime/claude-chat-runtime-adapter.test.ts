@@ -203,11 +203,12 @@ describe("ClaudeChatRuntimeAdapter (SDK query)", () => {
     expect(callArgs.prompt).toBe("Hello")
   })
 
-  it("extracts text from complete assistant messages", async () => {
+  it("does not duplicate text from complete assistant messages", async () => {
     const events: ChatRuntimeEvent[] = []
     const queryFn = fakeQueryFn([
-      { type: "assistant", message: { content: [{ type: "text", text: "Full message text" }] } },
-      { type: "result", message: { content: [{ type: "text", text: "Full message text" }] } },
+      { type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text: "Streamed" } } },
+      { type: "assistant", message: { content: [{ type: "text", text: "Streamed" }] } },
+      { type: "result", message: { content: [{ type: "text", text: "Streamed" }] } },
     ])
 
     const adapter = new ClaudeChatRuntimeAdapter({ queryFn })
@@ -216,8 +217,9 @@ describe("ClaudeChatRuntimeAdapter (SDK query)", () => {
       onEvent: (event) => events.push(event),
     })
 
+    // Only one assistant_delta from the stream_event, NOT duplicated from the assistant message
     const deltas = events.filter((e) => e.type === "assistant_delta")
-    expect(deltas.length).toBeGreaterThanOrEqual(1)
-    expect(deltas[0]).toEqual({ type: "assistant_delta", text: "Full message text" })
+    expect(deltas).toHaveLength(1)
+    expect(deltas[0]).toEqual({ type: "assistant_delta", text: "Streamed" })
   })
 })
