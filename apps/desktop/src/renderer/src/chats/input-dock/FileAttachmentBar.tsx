@@ -1,5 +1,5 @@
 import { type ReactElement } from "react"
-import "./FileAttachmentBar.css"
+import "./input-dock.css"
 
 export type FileAttachmentBarProps = {
   files: File[]

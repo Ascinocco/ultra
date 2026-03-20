@@ -1,0 +1,226 @@
+/* InputDock container */
+.input-dock {
+  position: relative;
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Textarea area */
+.input-dock__textarea-area {
+  padding: 12px 14px 8px;
+}
+
+.input-dock__textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  min-height: 48px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.input-dock__textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* Toolbar row */
+.input-dock__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 10px;
+}
+
+.input-dock__spacer {
+  flex: 1;
+}
+
+/* Attach button */
+.input-dock__attach {
+  background: none;
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.input-dock__attach:hover {
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+/* Send button */
+.input-dock__send {
+  background: var(--text-primary);
+  color: var(--shell-bg);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.input-dock__send:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Pill button */
+.input-dock__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.input-dock__pill:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.input-dock__pill--readonly {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.7;
+}
+
+.input-dock__pill--readonly:hover {
+  border-color: var(--surface-border);
+  color: var(--text-muted);
+}
+
+.input-dock__pill-icon {
+  font-size: 12px;
+}
+
+.input-dock__pill-label {
+  /* inherits from pill */
+}
+
+.input-dock__pill-arrow {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+/* Pill dropdown menu */
+.input-dock__pill-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 140px;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.input-dock__pill-option {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 6px 10px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.input-dock__pill-option:hover {
+  background: var(--surface-1);
+  color: var(--text-primary);
+}
+
+.input-dock__pill-option--selected {
+  color: var(--accent);
+}
+
+/* File attachment bar */
+.input-dock__file-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 14px 8px;
+}
+
+.input-dock__file-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.input-dock__file-badge-icon {
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.input-dock__file-badge-name {
+  color: var(--text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.input-dock__file-badge-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  margin: 0 -4px;
+  font-size: 0.875rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.input-dock__file-badge-remove:hover {
+  color: var(--text-primary);
+}
+
+/* Drag-and-drop overlay */
+.input-dock__drop-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(26, 30, 42, 0.9);
+  border: 2px dashed var(--accent);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  z-index: 10;
+}
