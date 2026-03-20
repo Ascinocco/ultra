@@ -33,6 +33,74 @@ import {
   selectSummaryModel,
 } from "./workspace-summary.js"
 
+// Non-tool item types that shouldn't appear in structured blocks
+const NON_TOOL_LABELS = new Set([
+  "agent_message", "agentMessage", "reasoning", "userMessage", "user_message",
+  "command_output", "file_change_output",
+])
+
+type StructuredBlock =
+  | { type: "text"; content: string }
+  | { type: "tools"; tools: Array<{ name: string; detail: string }> }
+
+/**
+ * Build interleaved text + tool blocks from runtime events for the structured payload.
+ */
+function buildStructuredBlocks(events: ChatRuntimeEvent[]): StructuredBlock[] {
+  const blocks: StructuredBlock[] = []
+
+  function lastBlock(): StructuredBlock | undefined {
+    return blocks[blocks.length - 1]
+  }
+
+  for (const event of events) {
+    if (event.type === "assistant_delta") {
+      const last = lastBlock()
+      if (last?.type === "text") {
+        last.content += event.text
+      } else {
+        blocks.push({ type: "text", content: event.text })
+      }
+    } else if (event.type === "tool_activity" && !NON_TOOL_LABELS.has(event.label)) {
+      const detail = extractToolDetail(event.label, event.metadata)
+      const last = lastBlock()
+      if (last?.type === "tools") {
+        last.tools.push({ name: event.label, detail })
+      } else {
+        blocks.push({ type: "tools", tools: [{ name: event.label, detail }] })
+      }
+    }
+  }
+
+  // Only return blocks if there are tool entries (otherwise no structured payload needed)
+  return blocks.some((b) => b.type === "tools") ? blocks : []
+}
+
+function extractToolDetail(label: string, metadata?: Record<string, unknown>): string {
+  if (!metadata) return ""
+  const m = metadata as any
+  switch (label) {
+    case "bash":
+    case "commandExecution":
+    case "command_execution":
+      return m?.input?.command ?? m?.item?.command ?? ""
+    case "Read":
+    case "fileRead":
+    case "file_read":
+      return m?.input?.file_path ?? m?.item?.path ?? ""
+    case "Edit":
+    case "Write":
+    case "fileChange":
+    case "file_change":
+      return m?.input?.file_path ?? m?.item?.path ?? ""
+    case "Grep":
+    case "Glob":
+      return m?.input?.pattern ?? ""
+    default:
+      return ""
+  }
+}
+
 type ChatTurnRow = {
   turn_id: string
   chat_id: string
@@ -1025,11 +1093,15 @@ export class ChatTurnService {
         )
       }
 
+      const structuredBlocks = buildStructuredBlocks(input.result.events)
       const assistantMessage = this.chatService.appendMessage({
         chatId: input.chatId,
         role: "assistant",
         messageType: "assistant_text",
         contentMarkdown: input.result.finalText,
+        structuredPayloadJson: structuredBlocks.length > 0
+          ? JSON.stringify({ blocks: structuredBlocks })
+          : null,
         providerMessageId: input.result.vendorSessionId,
       })
 

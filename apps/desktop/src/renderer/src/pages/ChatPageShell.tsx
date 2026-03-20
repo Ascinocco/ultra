@@ -35,6 +35,7 @@ import { useApprovalState } from "../chats/hooks/useApprovalState.js"
 import { useAutoScroll } from "../chats/hooks/useAutoScroll.js"
 import { useStreamingBlocks } from "../chats/hooks/useStreamingBlocks.js"
 import { StreamingMessage } from "../chats/streaming/StreamingMessage.js"
+import { PersistedAssistantMessage } from "../chats/streaming/PersistedAssistantMessage.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { updateChatRuntimeConfig } from "../sidebar/chat-workflows.js"
 import { useAppStore } from "../state/app-store.js"
@@ -989,6 +990,22 @@ export function ChatPageShell({
                             }
                           />
                         )
+                      }
+                      // Render assistant messages with structured blocks (tool activity)
+                      if (message.role === "assistant" && message.structuredPayloadJson) {
+                        try {
+                          const parsed = JSON.parse(message.structuredPayloadJson)
+                          if (parsed.blocks && Array.isArray(parsed.blocks)) {
+                            return (
+                              <PersistedAssistantMessage
+                                key={message.id}
+                                blocks={parsed.blocks}
+                              />
+                            )
+                          }
+                        } catch {
+                          // Fall through to default rendering
+                        }
                       }
                       return (
                         <ChatMessage
