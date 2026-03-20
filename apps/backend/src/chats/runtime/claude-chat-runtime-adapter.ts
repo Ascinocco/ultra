@@ -11,9 +11,12 @@ import type {
   ChatRuntimeTurnResult,
 } from "./types.js"
 
+type QueryFn = typeof query
+
 export type ClaudeSdkAdapterConfig = {
   pathToClaudeCodeExecutable?: string
   defaultEnv?: NodeJS.ProcessEnv
+  queryFn?: QueryFn  // injectable for testing
 }
 
 /**
@@ -134,7 +137,8 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
     }
 
     // Use query() with string prompt — single-turn, yields streaming events including content_block_delta
-    const queryRuntime = query({ prompt: request.prompt, options })
+    const queryFn = this.config.queryFn ?? query
+    const queryRuntime = queryFn({ prompt: request.prompt, options })
 
     const collectedEvents: ChatRuntimeEvent[] = []
     let finalText = ""
