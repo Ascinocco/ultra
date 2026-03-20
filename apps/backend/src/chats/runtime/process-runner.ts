@@ -29,11 +29,13 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
       let lineBuffer = ""
       let timedOut = false
       let settled = false
+      console.log(`[process-runner] spawning: ${options.command} ${options.args.join(" ")}`)
       const child = this.spawnProcess(options.command, options.args, {
         cwd: options.cwd,
         env: options.env,
         stdio: "pipe",
       })
+      console.log(`[process-runner] spawned pid: ${child.pid}`)
 
       const timeout = setTimeout(() => {
         timedOut = true
