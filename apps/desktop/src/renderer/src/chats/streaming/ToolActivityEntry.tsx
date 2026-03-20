@@ -1,5 +1,6 @@
 import type { ReactElement } from "react"
 import type { ToolEntry } from "./streaming-types.js"
+import { normalizeToolLabel } from "./tool-map.js"
 
 const ICON_MAP: Record<string, string> = {
   terminal: "⚡",
@@ -15,7 +16,7 @@ export function ToolActivityEntry({ tool }: { tool: ToolEntry }): ReactElement {
   return (
     <div className="tool-entry">
       <span className="tool-entry__icon">{icon}</span>
-      <span className="tool-entry__name">{tool.toolName}</span>
+      <span className="tool-entry__name">{normalizeToolLabel(tool.toolName)}</span>
       {tool.detail && (
         <span className="tool-entry__detail">{tool.detail}</span>
       )}
