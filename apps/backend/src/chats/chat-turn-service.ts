@@ -159,6 +159,7 @@ export class ChatTurnService {
     Set<ChatTurnEventListener>
   >()
   private readonly processingChatIds = new Set<ChatId>()
+  private readonly turnAbortControllers = new Map<string, AbortController>()
 
   constructor(
     private readonly chatService: ChatService,
@@ -391,6 +392,13 @@ export class ChatTurnService {
     }
 
     this.notifyTurnEvents(eventsToNotify)
+
+    // Kill the running subprocess
+    const controller = this.turnAbortControllers.get(turnId)
+    if (controller) {
+      controller.abort()
+    }
+
     return this.getTurn(chatId, turnId)
   }
 
@@ -905,6 +913,9 @@ export class ChatTurnService {
     )
     const seedMessages = this.chatService.listMessages(chatId)
 
+    const abortController = new AbortController()
+    this.turnAbortControllers.set(claimed.turnId, abortController)
+
     try {
       const result = await this.runTurnWithRecovery(
         runtimeContext.chat,
@@ -914,6 +925,7 @@ export class ChatTurnService {
         runtimeContext.continuationPrompt,
         seedMessages,
         session?.vendorSessionId ?? null,
+        abortController.signal,
       )
 
       this.notifyTurnEvents(
@@ -926,6 +938,8 @@ export class ChatTurnService {
       )
     } catch (error) {
       this.notifyTurnEvents(this.finalizeFailedTurn(chatId, claimed.turnId, error))
+    } finally {
+      this.turnAbortControllers.delete(claimed.turnId)
     }
   }
 
@@ -1630,6 +1644,7 @@ export class ChatTurnService {
     continuationPrompt: string | null,
     seedMessages: ChatMessageSnapshot[],
     vendorSessionId: string | null,
+    signal?: AbortSignal,
   ) {
     const adapter = this.runtimeRegistry.get(chat.provider)
 
@@ -1643,6 +1658,7 @@ export class ChatTurnService {
         continuationPrompt,
         seedMessages,
         vendorSessionId,
+        signal,
       })
     } catch (error) {
       if (!this.isRuntimeError(error) || error.kind !== "resume_failed") {
@@ -1660,6 +1676,7 @@ export class ChatTurnService {
         continuationPrompt,
         seedMessages,
         vendorSessionId: null,
+        signal,
       })
     }
   }
