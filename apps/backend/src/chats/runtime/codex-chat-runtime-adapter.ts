@@ -146,6 +146,7 @@ export class CodexChatRuntimeAdapter implements ChatRuntimeAdapter {
       command: "codex",
       args: buildArgs(request),
       cwd: request.cwd,
+      signal: request.signal,
     })
     const parsed = parseCodexLines(diagnostics.stdoutLines)
 

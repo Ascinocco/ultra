@@ -158,6 +158,7 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       args,
       cwd: request.cwd,
       timeoutMs: FORTY_EIGHT_HOURS_MS,
+      signal: request.signal,
     })
 
     console.log("[claude-runtime] exit code:", diagnostics.exitCode)
