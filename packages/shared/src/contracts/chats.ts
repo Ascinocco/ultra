@@ -14,6 +14,11 @@ export const chatIdSchema = opaqueIdSchema
 export const chatStatusSchema = z.enum(["active", "archived"])
 export const chatProviderSchema = z.enum(["codex", "claude"])
 export const chatPermissionLevelSchema = z.enum(["supervised", "full_access"])
+export const chatSidebarTurnStatusSchema = z.enum([
+  "running",
+  "waiting_for_input",
+  "error",
+])
 export const chatThinkingLevelSchema = z.string().min(1)
 
 export const chatSnapshotSchema = z.object({
@@ -32,6 +37,8 @@ export const chatSnapshotSchema = z.object({
   currentSessionId: opaqueIdSchema.nullable(),
   createdAt: isoUtcTimestampSchema,
   updatedAt: isoUtcTimestampSchema,
+  workspaceDescription: z.string().nullable(),
+  turnStatus: chatSidebarTurnStatusSchema.nullable(),
 })
 
 export const chatSummarySchema = chatSnapshotSchema
@@ -414,6 +421,7 @@ export const chatsTurnEventsEventSchema =
 export type ChatId = z.infer<typeof chatIdSchema>
 export type ChatSnapshot = z.infer<typeof chatSnapshotSchema>
 export type ChatSummary = z.infer<typeof chatSummarySchema>
+export type ChatSidebarTurnStatus = z.infer<typeof chatSidebarTurnStatusSchema>
 export type ChatSessionSnapshot = z.infer<typeof chatSessionSnapshotSchema>
 export type ChatMessageSnapshot = z.infer<typeof chatMessageSnapshotSchema>
 export type ChatTurnId = z.infer<typeof chatTurnIdSchema>
