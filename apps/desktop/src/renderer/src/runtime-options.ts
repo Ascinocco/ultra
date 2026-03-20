@@ -21,3 +21,14 @@ export function getDefaultModelForRuntimeProvider(
 ): string {
   return RUNTIME_MODELS_BY_PROVIDER[provider][0] ?? ""
 }
+
+export function getAllModels(): string[] {
+  return Object.values(RUNTIME_MODELS_BY_PROVIDER).flat()
+}
+
+export function getProviderForModel(model: string): RuntimeProvider {
+  for (const [provider, models] of Object.entries(RUNTIME_MODELS_BY_PROVIDER)) {
+    if (models.includes(model)) return provider as RuntimeProvider
+  }
+  return "claude"
+}

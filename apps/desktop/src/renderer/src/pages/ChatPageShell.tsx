@@ -27,8 +27,10 @@ import {
   subscribeToChatTurnEvents,
 } from "../chats/chat-message-workflows.js"
 import {
+  getAllModels,
   getDefaultModelForRuntimeProvider,
   getModelsForRuntimeProvider,
+  getProviderForModel,
   type RuntimeProvider,
 } from "../runtime-options.js"
 import { useApprovalState } from "../chats/hooks/useApprovalState.js"
@@ -427,11 +429,7 @@ export function ChatPageShell({
     null,
   )
   const isPreSendRuntimeConfig = activeChatMessages.length === 0
-  const availableModels = activeChat
-    ? getModelsForRuntimeProvider(
-        (isPreSendRuntimeConfig ? runtimeProviderDraft : activeChat.provider) as RuntimeProvider,
-      )
-    : []
+  const availableModels = getAllModels()
   const latestTurnEvent = activeTurnEvents[activeTurnEvents.length - 1] ?? null
   const inFlightTurn =
     activeTurn?.status === "queued" || activeTurn?.status === "running"
@@ -847,11 +845,14 @@ export function ChatPageShell({
   }) => {
     if (!activeChatId || !activeChat) return
 
-    const nextProvider = config.provider ?? (isPreSendRuntimeConfig ? runtimeProviderDraft : activeChat.provider)
     const nextModel = config.model ?? (isPreSendRuntimeConfig ? runtimeModelDraft : activeChat.model)
+    // Infer provider from model selection
+    const nextProvider = config.model
+      ? getProviderForModel(config.model)
+      : (config.provider as RuntimeProvider | undefined) ?? (isPreSendRuntimeConfig ? runtimeProviderDraft : activeChat.provider) as RuntimeProvider
 
     void persistRuntimeDraft(
-      nextProvider as RuntimeProvider,
+      nextProvider,
       nextModel,
       config.thinkingLevel,
       config.permissionLevel,
