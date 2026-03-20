@@ -612,6 +612,14 @@ export class ThreadService {
     }
   }
 
+  notifyPartialMessage(threadId: string, message: ThreadMessageSnapshot): void {
+    const listeners = this.messageListenersByThreadId.get(threadId)
+    if (!listeners) return
+    for (const listener of listeners) {
+      listener({ ...message, partial: true })
+    }
+  }
+
   subscribeToMessages(
     threadId: ThreadId,
     listener: (message: ThreadMessageSnapshot) => void,

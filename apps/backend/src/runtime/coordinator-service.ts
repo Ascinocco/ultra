@@ -10,6 +10,7 @@ import type {
   ThreadDetailResult,
   ThreadMessageAttachment,
   ThreadMessageRole,
+  ThreadMessageSnapshot,
   ThreadMessageType,
 } from "@ultra/shared"
 
@@ -799,27 +800,50 @@ export class CoordinatorService {
       return
     }
 
-    this.threadService.appendMessage({
-      attachments: Array.isArray(event.payload.attachments)
-        ? (event.payload.attachments.filter(
-            isRecord,
-          ) as ThreadMessageAttachment[])
-        : [],
-      contentText:
-        typeof event.payload.content_markdown === "string"
-          ? event.payload.content_markdown
-          : typeof event.payload.text === "string"
-            ? event.payload.text
-            : "",
-      createdAt: event.occurred_at ?? this.now(),
-      messageType: normalizeThreadMessageType(event.payload.message_type),
-      projectId,
-      role: normalizeThreadMessageRole(event.payload.role),
-      threadId: event.thread_id,
-      ...(typeof event.payload.message_id === "string"
-        ? { messageId: event.payload.message_id }
-        : {}),
-    })
+    const isPartial = event.payload.partial === true
+    const contentText =
+      typeof event.payload.content_markdown === "string"
+        ? event.payload.content_markdown
+        : typeof event.payload.text === "string"
+          ? event.payload.text
+          : ""
+    const role = normalizeThreadMessageRole(event.payload.role)
+    const messageType = normalizeThreadMessageType(event.payload.message_type)
+    const messageId =
+      typeof event.payload.message_id === "string"
+        ? event.payload.message_id
+        : `partial_${Date.now()}`
+    const createdAt = event.occurred_at ?? this.now()
+
+    if (isPartial) {
+      this.threadService.notifyPartialMessage(event.thread_id, {
+        id: messageId,
+        threadId: event.thread_id,
+        role,
+        provider: null,
+        model: null,
+        messageType,
+        content: { text: contentText },
+        artifactRefs: [],
+        createdAt,
+        partial: true,
+      })
+    } else {
+      this.threadService.appendMessage({
+        attachments: Array.isArray(event.payload.attachments)
+          ? (event.payload.attachments.filter(
+              isRecord,
+            ) as ThreadMessageAttachment[])
+          : [],
+        contentText,
+        createdAt,
+        messageType,
+        projectId,
+        role,
+        threadId: event.thread_id,
+        messageId,
+      })
+    }
   }
 
   private applyMappedThreadEvent(
