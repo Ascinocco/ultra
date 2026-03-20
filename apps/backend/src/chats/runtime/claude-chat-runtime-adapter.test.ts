@@ -83,6 +83,7 @@ describe("ClaudeChatRuntimeAdapter", () => {
     expect(calls[0]?.args).toEqual(
       expect.arrayContaining([
         "-p",
+        "--verbose",
         "--output-format",
         "stream-json",
         "--permission-mode",

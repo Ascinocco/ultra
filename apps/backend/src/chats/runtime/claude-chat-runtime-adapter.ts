@@ -30,6 +30,7 @@ function buildClaudeArgs(request: ChatRuntimeTurnRequest): string[] {
   const seededPrompt = buildSeededPrompt(request)
   const baseArgs = [
     "-p",
+    "--verbose",
     "--output-format",
     "stream-json",
     "--include-partial-messages",
