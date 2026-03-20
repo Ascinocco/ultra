@@ -141,6 +141,7 @@ export const chatsGetInputSchema = z.object({
 
 export const chatsListInputSchema = z.object({
   project_id: projectIdSchema,
+  include_archived: z.boolean().optional(),
 })
 
 export const chatsGetMessagesInputSchema = z.object({

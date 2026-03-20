@@ -363,11 +363,12 @@ export async function routeIpcRequest(
       }
       case "chats.list": {
         const listQuery = assertQueryRequest(request)
+        const { project_id, include_archived } = chatsListInputSchema.parse(
+          listQuery.payload,
+        )
         return createSuccessResponse(
           listQuery.request_id,
-          services.chatService.list(
-            chatsListInputSchema.parse(listQuery.payload).project_id,
-          ),
+          services.chatService.list(project_id, include_archived ?? false),
         )
       }
       case "chats.get": {
