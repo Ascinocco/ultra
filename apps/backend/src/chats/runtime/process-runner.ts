@@ -59,6 +59,7 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
 
       child.stdout.on("data", (chunk) => {
         const text = chunk.toString()
+        console.log(`[process-runner] stdout data event: ${text.length} bytes at ${Date.now()}`)
         stdout += text
 
         if (options.onLine) {
