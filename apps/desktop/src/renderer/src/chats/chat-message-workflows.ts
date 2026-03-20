@@ -52,6 +52,13 @@ type StartChatTurnActions = Pick<
   "setChatTurnSendState" | "upsertChatTurn" | "setActiveChatTurn"
 >
 
+export type StartChatTurnRuntimeConfig = {
+  provider: "claude" | "codex"
+  model: string
+  thinkingLevel: string
+  permissionLevel: "supervised" | "full_access"
+}
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -68,10 +75,21 @@ export async function startChatTurn(
   prompt: string,
   actions: StartChatTurnActions,
   client: WorkflowClient = ipcClient,
+  runtimeConfig?: StartChatTurnRuntimeConfig,
 ): Promise<ChatsStartTurnResult> {
   actions.setChatTurnSendState(chatId, "starting")
 
   try {
+    if (runtimeConfig) {
+      await client.command("chats.update_runtime_config", {
+        chat_id: chatId,
+        provider: runtimeConfig.provider,
+        model: runtimeConfig.model,
+        thinking_level: runtimeConfig.thinkingLevel,
+        permission_level: runtimeConfig.permissionLevel,
+      })
+    }
+
     const result = await client.command("chats.start_turn", {
       chat_id: chatId,
       prompt,

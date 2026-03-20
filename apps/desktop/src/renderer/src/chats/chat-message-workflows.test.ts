@@ -143,6 +143,111 @@ describe("startChatTurn", () => {
     )
     expect(result.turn.turnId).toBe("chat_turn_1")
   })
+
+  it("persists runtime config before starting when provided", async () => {
+    const turn = makeTurn("chat_turn_2", "chat_1", {
+      provider: "claude",
+      model: "claude-sonnet-4-6",
+    })
+    const client = createMockClient({
+      "chats.update_runtime_config": {
+        id: "chat_1",
+        projectId: "proj_1",
+        title: "Chat 1",
+        status: "active",
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+        thinkingLevel: "high",
+        permissionLevel: "full_access",
+        isPinned: false,
+        pinnedAt: null,
+        archivedAt: null,
+        lastCompactedAt: null,
+        currentSessionId: "chat_sess_1",
+        createdAt: "2026-03-19T12:00:00.000Z",
+        updatedAt: "2026-03-19T12:00:00.000Z",
+      },
+      "chats.start_turn": {
+        accepted: true,
+        turn,
+      },
+    })
+    const actions = {
+      setChatTurnSendState: vi.fn(),
+      upsertChatTurn: vi.fn(),
+      setActiveChatTurn: vi.fn(),
+    }
+
+    await startChatTurn("chat_1", "Use Claude for this turn.", actions, client, {
+      provider: "claude",
+      model: "claude-sonnet-4-6",
+      thinkingLevel: "high",
+      permissionLevel: "full_access",
+    })
+
+    expect(client.command).toHaveBeenNthCalledWith(1, "chats.update_runtime_config", {
+      chat_id: "chat_1",
+      provider: "claude",
+      model: "claude-sonnet-4-6",
+      thinking_level: "high",
+      permission_level: "full_access",
+    })
+    expect(client.command).toHaveBeenNthCalledWith(2, "chats.start_turn", {
+      chat_id: "chat_1",
+      prompt: "Use Claude for this turn.",
+      client_turn_id: expect.any(String),
+    })
+  })
+
+  it("surfaces runtime-config update failures and skips start_turn", async () => {
+    const client = {
+      query: vi.fn(),
+      command: vi.fn(async (name: string) => {
+        if (name === "chats.update_runtime_config") {
+          throw new Error("invalid runtime config")
+        }
+        return {
+          accepted: true,
+          turn: makeTurn("chat_turn_3", "chat_1"),
+        }
+      }),
+      subscribe: vi.fn(),
+    }
+    const actions = {
+      setChatTurnSendState: vi.fn(),
+      upsertChatTurn: vi.fn(),
+      setActiveChatTurn: vi.fn(),
+    }
+
+    await expect(
+      startChatTurn("chat_1", "Prompt", actions, client, {
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+        thinkingLevel: "high",
+        permissionLevel: "full_access",
+      }),
+    ).rejects.toThrow("invalid runtime config")
+
+    expect(client.command).toHaveBeenCalledTimes(1)
+    expect(client.command).toHaveBeenCalledWith("chats.update_runtime_config", {
+      chat_id: "chat_1",
+      provider: "claude",
+      model: "claude-sonnet-4-6",
+      thinking_level: "high",
+      permission_level: "full_access",
+    })
+    expect(actions.setChatTurnSendState).toHaveBeenNthCalledWith(
+      1,
+      "chat_1",
+      "starting",
+    )
+    expect(actions.setChatTurnSendState).toHaveBeenNthCalledWith(
+      2,
+      "chat_1",
+      "error",
+      "invalid runtime config",
+    )
+  })
 })
 
 describe("fetchChatTurns", () => {

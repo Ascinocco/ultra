@@ -183,12 +183,12 @@ describe("ChatService", () => {
     runtime.close()
   })
 
-  it("updates runtime config and persists provider changes", () => {
+  it("updates runtime config, trims fields, and persists changes across reload", () => {
     const { databasePath, projectPath } = createWorkspace()
-    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
-    const projectService = new ProjectService(runtime.database)
+    const firstRuntime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(firstRuntime.database)
     const service = new ChatService(
-      runtime.database,
+      firstRuntime.database,
       () => "2026-03-15T12:15:00Z",
     )
     const project = projectService.open({ path: projectPath })
@@ -196,8 +196,8 @@ describe("ChatService", () => {
 
     const updated = service.updateRuntimeConfig(chat.id, {
       provider: "claude",
-      model: "sonnet",
-      thinkingLevel: "medium",
+      model: "  sonnet  ",
+      thinkingLevel: "  medium  ",
       permissionLevel: "full_access",
     })
 
@@ -207,6 +207,48 @@ describe("ChatService", () => {
       thinkingLevel: "medium",
       permissionLevel: "full_access",
     })
+
+    firstRuntime.close()
+
+    const secondRuntime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const secondService = new ChatService(secondRuntime.database)
+    const reloaded = secondService.get(chat.id)
+
+    expect(reloaded).toMatchObject({
+      provider: "claude",
+      model: "sonnet",
+      thinkingLevel: "medium",
+      permissionLevel: "full_access",
+    })
+
+    secondRuntime.close()
+  })
+
+  it("rejects empty model and thinking level runtime updates", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const service = new ChatService(runtime.database)
+    const project = projectService.open({ path: projectPath })
+    const chat = service.create(project.id)
+
+    expect(() =>
+      service.updateRuntimeConfig(chat.id, {
+        provider: "codex",
+        model: "   ",
+        thinkingLevel: "default",
+        permissionLevel: "supervised",
+      }),
+    ).toThrow(/Chat model must not be empty/)
+
+    expect(() =>
+      service.updateRuntimeConfig(chat.id, {
+        provider: "codex",
+        model: "gpt-5.4",
+        thinkingLevel: "   ",
+        permissionLevel: "supervised",
+      }),
+    ).toThrow(/Chat thinking level must not be empty/)
 
     runtime.close()
   })
