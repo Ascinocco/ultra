@@ -981,19 +981,24 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           },
         })),
       appendMessage: (threadId, message) =>
-        set((state) => ({
-          ...state,
-          threads: {
-            ...state.threads,
-            messagesByThreadId: {
-              ...state.threads.messagesByThreadId,
-              [threadId]: [
-                ...(state.threads.messagesByThreadId[threadId] ?? []),
-                message,
-              ],
+        set((state) => {
+          const existing = state.threads.messagesByThreadId[threadId] ?? []
+          const idx = existing.findIndex((m) => m.id === message.id)
+          const updated =
+            idx >= 0
+              ? existing.map((m, i) => (i === idx ? message : m))
+              : [...existing, message]
+          return {
+            ...state,
+            threads: {
+              ...state.threads,
+              messagesByThreadId: {
+                ...state.threads.messagesByThreadId,
+                [threadId]: updated,
+              },
             },
-          },
-        })),
+          }
+        }),
       setThreadFetchStatus: (projectId, status) =>
         set((state) => ({
           ...state,
