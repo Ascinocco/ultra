@@ -33,7 +33,8 @@ import {
 } from "../runtime-options.js"
 import { useApprovalState } from "../chats/hooks/useApprovalState.js"
 import { useAutoScroll } from "../chats/hooks/useAutoScroll.js"
-import { useStreamingText } from "../chats/hooks/useStreamingText.js"
+import { useStreamingBlocks } from "../chats/hooks/useStreamingBlocks.js"
+import { StreamingMessage } from "../chats/streaming/StreamingMessage.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { updateChatRuntimeConfig } from "../sidebar/chat-workflows.js"
 import { useAppStore } from "../state/app-store.js"
@@ -431,13 +432,13 @@ export function ChatPageShell({
   const inFlightTurn =
     activeTurn?.status === "queued" || activeTurn?.status === "running"
 
-  const { streamingText, isStreaming } = useStreamingText(
+  const { blocks: streamingBlocks, isStreaming } = useStreamingBlocks(
     activeTurnEvents,
     inFlightTurn,
     activeChatMessages.length,
   )
 
-  useAutoScroll(transcriptScrollRef, [activeChatMessages, streamingText])
+  useAutoScroll(transcriptScrollRef, [activeChatMessages, streamingBlocks])
 
   useEffect(() => {
     if (!inFlightTurn) {
@@ -1001,10 +1002,9 @@ export function ChatPageShell({
                         />
                       )
                     })}
-                    {streamingText !== null && (
-                      <ChatMessage
-                        role="assistant"
-                        content={streamingText}
+                    {streamingBlocks !== null && (
+                      <StreamingMessage
+                        blocks={streamingBlocks}
                         isStreaming={isStreaming}
                       />
                     )}
