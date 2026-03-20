@@ -118,7 +118,7 @@ export function extractTextCandidate(input: unknown): string | null {
     return null
   }
 
-  const candidateKeys = ["text", "delta", "content", "message"]
+  const candidateKeys = ["text", "delta", "content", "message", "result"]
 
   for (const key of candidateKeys) {
     if (typeof input[key] === "string" && input[key].trim().length > 0) {

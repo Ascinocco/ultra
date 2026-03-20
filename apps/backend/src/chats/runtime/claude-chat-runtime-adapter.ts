@@ -82,11 +82,19 @@ function parseClaudeLines(lines: string[]): {
     }
 
     vendorSessionId = extractVendorSessionId(payload) ?? vendorSessionId
+
+    // Verbose stream-json wraps streaming events inside {"type":"stream_event","event":{...}}
+    const record = payload as Record<string, unknown>
+    const inner =
+      record.type === "stream_event" &&
+      typeof record.event === "object" &&
+      record.event !== null
+        ? (record.event as Record<string, unknown>)
+        : record
+
     const payloadType =
-      typeof (payload as Record<string, unknown>).type === "string"
-        ? ((payload as Record<string, unknown>).type as string)
-        : ""
-    const text = extractTextCandidate(payload)
+      typeof inner.type === "string" ? (inner.type as string) : ""
+    const text = extractTextCandidate(inner)
     const checkpoint = maybeBuildCheckpoint(payload)
 
     if (checkpoint) {

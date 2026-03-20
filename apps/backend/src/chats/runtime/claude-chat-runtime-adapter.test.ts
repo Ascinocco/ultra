@@ -37,12 +37,15 @@ function createRunner(
 }
 
 describe("ClaudeChatRuntimeAdapter", () => {
-  it("normalizes stream-json output into runtime events", async () => {
+  it("normalizes verbose stream-json output into runtime events", async () => {
     const { runner, calls } = createRunner(
       [
         JSON.stringify({
-          type: "message.delta",
-          delta: "Working ",
+          type: "stream_event",
+          event: {
+            type: "content_block_delta",
+            delta: { type: "text_delta", text: "Working " },
+          },
           session_id: "vendor_claude_1",
         }),
         JSON.stringify({
@@ -53,7 +56,8 @@ describe("ClaudeChatRuntimeAdapter", () => {
         }),
         JSON.stringify({
           type: "result",
-          message: "All set",
+          subtype: "success",
+          result: "All set",
         }),
       ],
       "claude diagnostic warning",
@@ -109,7 +113,8 @@ describe("ClaudeChatRuntimeAdapter", () => {
     const { runner, calls } = createRunner([
       JSON.stringify({
         type: "result",
-        message: "Resumed",
+        subtype: "success",
+        result: "Resumed",
       }),
     ])
     const adapter = new ClaudeChatRuntimeAdapter(runner)
