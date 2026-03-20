@@ -26,6 +26,7 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
     return new Promise((resolve, reject) => {
       let stdout = ""
       let stderr = ""
+      let lineBuffer = ""
       let timedOut = false
       let settled = false
       const child = this.spawnProcess(options.command, options.args, {
@@ -57,7 +58,20 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
       }
 
       child.stdout.on("data", (chunk) => {
-        stdout += chunk.toString()
+        const text = chunk.toString()
+        stdout += text
+
+        if (options.onLine) {
+          lineBuffer += text
+          const parts = lineBuffer.split("\n")
+          // Last element is incomplete (no trailing \n yet) — keep in buffer
+          lineBuffer = parts.pop()!
+          for (const part of parts) {
+            if (part.length > 0) {
+              options.onLine(part)
+            }
+          }
+        }
       })
       child.stderr.on("data", (chunk) => {
         stderr += chunk.toString()
@@ -78,6 +92,12 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
         }
 
         settled = true
+
+        if (options.onLine && lineBuffer.length > 0) {
+          options.onLine(lineBuffer)
+          lineBuffer = ""
+        }
+
         resolve({
           exitCode: code,
           signal,
