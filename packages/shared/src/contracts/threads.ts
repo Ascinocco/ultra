@@ -287,6 +287,7 @@ export const threadMessageSnapshotSchema = z.object({
   content: threadMessageContentSchema,
   artifactRefs: z.array(z.string()),
   createdAt: isoUtcTimestampSchema,
+  partial: z.boolean().optional(),
 })
 
 export const threadsGetMessagesInputSchema = z.object({
