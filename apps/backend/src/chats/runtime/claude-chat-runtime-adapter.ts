@@ -80,6 +80,8 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       vendorSessionId: request.vendorSessionId,
     })
 
+    console.log(`[claude-sdk] runTurn called for chat ${request.chatId}, onEvent=${!!request.onEvent}`)
+
     // Build the user message
     const userMessage = {
       role: "user" as const,
@@ -132,6 +134,7 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
         const mapped = mapSdkMessage(message)
 
         for (const event of mapped.events) {
+          console.log(`[claude-sdk] event: ${event.type}`, "text" in event ? (event as any).text?.slice(0, 30) : "")
           collectedEvents.push(event)
           request.onEvent?.(event)
 
