@@ -81,6 +81,14 @@ export function ChatRow({
     )
   }
 
+  const statusConfig = chat.turnStatus
+    ? {
+        running: { color: "#a6e3a1", label: "Running" },
+        waiting_for_input: { color: "#89b4fa", label: "Waiting for input" },
+        error: { color: "#f38ba8", label: "Error" },
+      }[chat.turnStatus]
+    : null
+
   return (
     <button
       className={`chat-row ${isActive ? "chat-row--active" : ""} ${chat.isPinned ? "chat-row--pinned" : ""}`}
@@ -90,10 +98,29 @@ export function ChatRow({
       onKeyDown={handleKeyDown}
       aria-current={isActive ? "true" : undefined}
     >
-      <span className="chat-row__title">{chat.title}</span>
-      <span className="chat-row__time">
-        {formatRelativeTime(chat.updatedAt)}
-      </span>
+      <div className="chat-row__header">
+        <span className="chat-row__title">{chat.title}</span>
+        <span className="chat-row__time">
+          {formatRelativeTime(chat.updatedAt)}
+        </span>
+      </div>
+      {chat.workspaceDescription && (
+        <span className="chat-row__description">
+          {chat.workspaceDescription}
+        </span>
+      )}
+      {statusConfig && (
+        <span
+          className="chat-row__status"
+          style={{ color: statusConfig.color }}
+        >
+          <span
+            className="chat-row__status-dot"
+            style={{ backgroundColor: statusConfig.color }}
+          />
+          {statusConfig.label}
+        </span>
+      )}
     </button>
   )
 }
