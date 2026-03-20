@@ -53,6 +53,7 @@ import {
   fetchThreads,
   sendThreadMessage,
 } from "../threads/thread-workflows.js"
+import { useThreadSubscription } from "../threads/hooks/useThreadSubscription.js"
 
 const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
@@ -517,6 +518,7 @@ export function ChatPageShell({
   const selectedThreadId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.selectedThreadId ?? null)
     : null
+  useThreadSubscription(selectedThreadId, actions)
   const threadFetchStatus = activeProjectId
     ? (threads.threadFetchStatus[activeProjectId] ?? "idle")
     : "idle"
@@ -1243,7 +1245,6 @@ export function ChatPageShell({
             messagesByThreadId={threads.messagesByThreadId}
             fetchStatus={threadFetchStatus}
             onSelectThread={handleSelectThread}
-            onFetchMessages={handleFetchMessages}
             onSendMessage={handleSendMessage}
           />
         </div>

@@ -1,5 +1,4 @@
 import type { ThreadMessageSnapshot, ThreadSnapshot } from "@ultra/shared"
-import { useEffect } from "react"
 
 import { ThreadCard } from "./ThreadCard.js"
 import { ThreadDetail } from "./ThreadDetail.js"
@@ -10,7 +9,6 @@ export function ThreadPane({
   messagesByThreadId,
   fetchStatus,
   onSelectThread,
-  onFetchMessages,
   onSendMessage,
 }: {
   threads: ThreadSnapshot[]
@@ -18,20 +16,11 @@ export function ThreadPane({
   messagesByThreadId: Record<string, ThreadMessageSnapshot[]>
   fetchStatus: "idle" | "loading" | "error"
   onSelectThread: (threadId: string | null) => void
-  onFetchMessages: (threadId: string) => void
   onSendMessage: (threadId: string, content: string) => void
 }) {
   const selectedThread = selectedThreadId
     ? (threads.find((t) => t.id === selectedThreadId) ?? null)
     : null
-
-  // Fetch messages when a thread is selected
-  // biome-ignore lint/correctness/useExhaustiveDependencies: onFetchMessages is stable
-  useEffect(() => {
-    if (selectedThreadId) {
-      onFetchMessages(selectedThreadId)
-    }
-  }, [selectedThreadId])
 
   if (fetchStatus === "loading" && threads.length === 0) {
     return (
