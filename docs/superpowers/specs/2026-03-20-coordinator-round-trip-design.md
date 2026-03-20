@@ -15,32 +15,49 @@ The thread detail UI has a CoordinatorConversation component with a message inpu
 - Backend receives coordinator events, persists to `thread_messages`, notifies subscription listeners
 - `threads.messages` subscription handler in socket server
 
-**Missing (frontend):**
+**Missing (frontend + backend streaming):**
 - No call to `ipcClient.subscribe("threads.messages", ...)` — messages only update on explicit fetch
-- No streaming support for incremental coordinator responses
+- Backend emits complete messages only — no partial/streaming support in schema or emission
 - All message types render identically (just `.content.text`)
+- Store `appendMessage` has no deduplication — optimistic send + subscription would produce duplicates
 
 ## Design
 
-### 1. Frontend Thread Message Subscription
+### 1. Backend Streaming Support
 
-Add `subscribeToThreadMessages()` to `thread-workflows.ts`. When a thread is selected in `ThreadPane`, call subscribe. On unmount or thread change, unsubscribe. Incoming messages are appended to the store's thread message list via existing `appendMessage` action.
+The current `ThreadMessageSnapshot` schema has no `partial` field and the backend emits one complete event per message. To support streaming:
 
-On reconnect, replay from `from_sequence` to catch missed messages — same pattern as `chats.turn_events`.
+1. Add `partial?: boolean` to `threadMessageSnapshotSchema` in shared contracts
+2. Update `ThreadService.notifyMessageListeners` to support emitting partial messages with the same `message_id`
+3. Update `CoordinatorService.applyThreadMessage` to emit partial events when coordinator sends incremental content (the coordinator NDJSON protocol already supports multiple `thread_message_emitted` events for the same message_id)
+4. Final emission sets `partial: false` (or omits the field) and persists the complete message to SQLite
 
-### 2. Streaming Coordinator Responses
+Partial messages are NOT persisted — only the final complete message is written to `thread_messages`.
 
-Coordinator responses stream as partial `thread_message_emitted` events. Multiple events can fire for the same `message_id` with incremental content.
+### 2. Frontend Thread Message Subscription
 
-Create a `useThreadStreaming` hook (following the same pattern as `useStreamingText` for chats) that:
-- Tracks in-flight message IDs in component state
-- Updates message content as new events arrive for the same `message_id`
-- Marks as complete when `partial: false` or a new message starts
+Add `subscribeToThreadMessages()` to `thread-workflows.ts`. Update the `WorkflowClient` type to include `subscribe` (matching `chat-message-workflows.ts` pattern).
+
+Subscription lifecycle is managed via a `useThreadSubscription(threadId)` hook called from the parent container component — following existing patterns where ThreadPane is presentational and workflows are orchestrated by the parent.
+
+On reconnect, refetch all messages via `threads.get_messages` query (defer `from_sequence` optimization to a future ticket).
+
+### 3. Store Deduplication
+
+Change the store's `appendMessage` to an `upsertMessage` pattern — check `message.id` before appending. If a message with the same ID exists, update its content (for streaming partial updates). If new, append. This prevents duplicates from optimistic send + subscription.
+
+### 4. Streaming Display
+
+Create a `useThreadStreaming` hook that:
+- Receives messages from the subscription
+- Tracks in-flight message IDs where `partial === true`
+- Updates message content as new partial events arrive for the same `message_id`
+- Marks as complete when `partial` is `false` or absent
 - Shows a typing/streaming indicator while a message is partial
 
-### 3. Distinct Message Type Rendering
+### 5. Distinct Message Type Rendering
 
-Each `messageType` gets visual treatment in `CoordinatorConversation`:
+Create a `CoordinatorMessage` component. Each `messageType` gets visual treatment:
 
 | Type | Rendering |
 |------|-----------|
@@ -51,35 +68,42 @@ Each `messageType` gets visual treatment in `CoordinatorConversation`:
 | `review_ready` | Success-styled card with action hint |
 | `change_request_followup` | Warning-styled card referencing the change request |
 
-### 4. Error Handling
+**Role-based rendering:** Messages with `system` role render as status lines regardless of `messageType`.
+
+### 6. Error Handling
 
 - **Coordinator not running:** Inline message in conversation area — "Coordinator is not active for this thread"
 - **Message delivery failure:** Inline error below input, re-enable input
-- **Reconnect:** Auto-resubscribe with `from_sequence`, replay missed messages
+- **Reconnect:** Auto-resubscribe, refetch all messages via `threads.get_messages`
 
-### 5. Send Flow Enhancement
+### 7. Send Flow Enhancement
 
-Enhance existing `sendThreadMessage` workflow:
-- Disable input while sending (prevent double-send)
+The existing `sendThreadMessage` already clears input on submit (optimistic). Enhance to:
+- Add a `sending` state to disable input during the IPC round-trip (prevent double-send)
 - Re-enable on success or failure
-- Clear input on success
+- Show inline error on failure
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `apps/desktop/src/renderer/src/threads/thread-workflows.ts` | Add `subscribeToThreadMessages()` |
-| `apps/desktop/src/renderer/src/threads/ThreadPane.tsx` | Subscribe on thread select, unsubscribe on change/unmount |
-| `apps/desktop/src/renderer/src/threads/ThreadDetail.tsx` | Wire subscription, enhance CoordinatorConversation with message types and streaming |
-| `apps/desktop/src/renderer/src/threads/hooks/useThreadStreaming.ts` | New hook for streaming coordinator messages |
+| `packages/shared/src/contracts/threads.ts` | Add `partial?: boolean` to `threadMessageSnapshotSchema` |
+| `apps/backend/src/threads/thread-service.ts` | Support partial message emission in `notifyMessageListeners` |
+| `apps/backend/src/runtime/coordinator-service.ts` | Emit partial events for incremental coordinator content |
+| `apps/desktop/src/renderer/src/threads/thread-workflows.ts` | Add `subscribeToThreadMessages()`, update `WorkflowClient` type to include `subscribe` |
+| `apps/desktop/src/renderer/src/threads/hooks/useThreadSubscription.ts` | New hook for subscription lifecycle management |
+| `apps/desktop/src/renderer/src/threads/hooks/useThreadStreaming.ts` | New hook for streaming partial messages |
+| `apps/desktop/src/renderer/src/threads/ThreadDetail.tsx` | Wire subscription via parent, enhance CoordinatorConversation |
+| `apps/desktop/src/renderer/src/threads/ThreadPane.tsx` | Pass subscription props from parent |
 | `apps/desktop/src/renderer/src/threads/CoordinatorMessage.tsx` | New component for per-type message rendering |
-| `apps/desktop/src/renderer/src/styles/app.css` | Styles for message types (status, blocking_question, summary, review_ready, change_request_followup) |
-| `apps/desktop/src/renderer/src/state/app-store.ts` | Possibly add/update thread message actions if needed |
+| `apps/desktop/src/renderer/src/styles/app.css` | Styles for message types |
+| `apps/desktop/src/renderer/src/state/app-store.ts` | Change `appendMessage` to upsert pattern with dedup by ID |
 
 ## Testing
 
-- **useThreadStreaming hook:** Unit test — partial messages accumulate, complete on `partial: false`
-- **subscribeToThreadMessages:** Unit test — subscription lifecycle, message appending
-- **CoordinatorMessage:** Unit test — each message type renders with correct CSS class
+- **useThreadStreaming hook:** Unit test — partial messages accumulate, complete on `partial: false/absent`
+- **subscribeToThreadMessages:** Unit test — subscription lifecycle, message upserting
+- **CoordinatorMessage:** Unit test — each message type renders with correct CSS class, system role renders as status
+- **Store dedup:** Unit test — upsert prevents duplicates, updates existing messages
 - **Integration:** Manual test — send message in thread detail, see coordinator response stream back
-- **Reconnect:** Manual test — disconnect/reconnect, verify missed messages replay
+- **Reconnect:** Manual test — disconnect/reconnect, verify messages refetch correctly
