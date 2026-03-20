@@ -412,11 +412,6 @@ export function ChatPageShell({
     ? (chatTurns.sendErrorByChatId[activeChatId] ?? null)
     : null
   const [cancelRequested, setCancelRequested] = useState(false)
-  useEffect(() => {
-    if (!inFlightTurn) {
-      setCancelRequested(false)
-    }
-  }, [inFlightTurn])
   const [runtimeProviderDraft, setRuntimeProviderDraft] =
     useState<RuntimeProvider>(activeChat?.provider ?? "codex")
   const [runtimeModelDraft, setRuntimeModelDraft] = useState(
@@ -432,6 +427,11 @@ export function ChatPageShell({
   const latestTurnEvent = activeTurnEvents[activeTurnEvents.length - 1] ?? null
   const inFlightTurn =
     activeTurn?.status === "queued" || activeTurn?.status === "running"
+  useEffect(() => {
+    if (!inFlightTurn) {
+      setCancelRequested(false)
+    }
+  }, [inFlightTurn])
   const readyRuntimeProviders = useMemo(() => {
     const providers: RuntimeProvider[] = []
     const hasClaude = readinessChecks.some(
