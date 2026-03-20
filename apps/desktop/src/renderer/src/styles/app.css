@@ -2036,6 +2036,71 @@ button {
   opacity: 0.9;
 }
 
+/* Coordinator Message Types */
+.coord-msg {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.25rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.coord-msg--role-user {
+  background: var(--color-surface-elevated, #2d3748);
+  margin-left: 2rem;
+}
+
+.coord-msg--role-coordinator {
+  background: var(--color-surface, #1a202c);
+  margin-right: 2rem;
+}
+
+.coord-msg--system,
+.coord-msg--status {
+  background: none;
+  color: var(--color-text-muted, #718096);
+  font-style: italic;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.75rem;
+  text-align: center;
+}
+
+.coord-msg--blocking-question {
+  background: var(--color-warning-bg, #744210);
+  border-left: 3px solid var(--color-warning, #ecc94b);
+  padding: 0.625rem 0.75rem;
+}
+
+.coord-msg--summary {
+  background: var(--color-surface-elevated, #2d3748);
+  border-left: 3px solid var(--color-text-muted, #718096);
+}
+
+.coord-msg--review-ready {
+  background: var(--color-success-bg, #22543d);
+  border-left: 3px solid var(--color-success, #48bb78);
+}
+
+.coord-msg--change-request-followup {
+  background: var(--color-warning-bg, #744210);
+  border-left: 3px solid var(--color-warning, #ecc94b);
+}
+
+.coord-msg--streaming .coord-msg__content {
+  opacity: 0.85;
+}
+
+.coord-msg__streaming-indicator {
+  display: inline-block;
+  animation: coord-msg-pulse 1s infinite;
+  color: var(--color-text-muted, #718096);
+}
+
+@keyframes coord-msg-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
 /* ── Thread Timeline ──────────────────────────────────────────────── */
 
 .thread-timeline {
