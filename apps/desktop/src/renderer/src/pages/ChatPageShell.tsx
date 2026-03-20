@@ -768,7 +768,12 @@ export function ChatPageShell({
   ])
 
   const persistRuntimeDraft = useCallback(
-    async (provider: RuntimeProvider, model: string): Promise<void> => {
+    async (
+      provider: RuntimeProvider,
+      model: string,
+      thinkingLevel?: string,
+      permissionLevel?: string,
+    ): Promise<void> => {
       if (!activeChatId || !activeChat) {
         return
       }
@@ -782,8 +787,8 @@ export function ChatPageShell({
           {
             provider,
             model,
-            thinkingLevel: activeChat.thinkingLevel,
-            permissionLevel: activeChat.permissionLevel,
+            thinkingLevel: thinkingLevel ?? activeChat.thinkingLevel,
+            permissionLevel: permissionLevel ?? activeChat.permissionLevel,
           },
           actions,
         )
@@ -845,7 +850,12 @@ export function ChatPageShell({
     const nextProvider = config.provider ?? (isPreSendRuntimeConfig ? runtimeProviderDraft : activeChat.provider)
     const nextModel = config.model ?? (isPreSendRuntimeConfig ? runtimeModelDraft : activeChat.model)
 
-    void persistRuntimeDraft(nextProvider as RuntimeProvider, nextModel)
+    void persistRuntimeDraft(
+      nextProvider as RuntimeProvider,
+      nextModel,
+      config.thinkingLevel,
+      config.permissionLevel,
+    )
   }
 
   function handleCancelTurn() {

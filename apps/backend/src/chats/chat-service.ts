@@ -139,7 +139,7 @@ const DEFAULT_CHAT_TITLE = "Untitled Chat"
 const DEFAULT_CHAT_PROVIDER = "codex"
 const DEFAULT_CHAT_MODEL = "gpt-5.4"
 const DEFAULT_CHAT_THINKING_LEVEL = "default"
-const DEFAULT_CHAT_PERMISSION_LEVEL = "supervised"
+const DEFAULT_CHAT_PERMISSION_LEVEL = "full_access"
 
 const CHAT_SELECT_COLUMNS = `
   SELECT

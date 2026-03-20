@@ -4,7 +4,6 @@
   background: var(--surface-1);
   border: 1px solid var(--surface-border);
   border-radius: 12px;
-  overflow: hidden;
 }
 
 /* Textarea area */
