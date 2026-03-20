@@ -33,8 +33,8 @@ import { ArtifactStorageService } from "../artifacts/artifact-storage-service.js
 import { ChatService } from "../chats/chat-service.js"
 import { ChatTurnService } from "../chats/chat-turn-service.js"
 import { ChatRuntimeRegistry } from "../chats/runtime/chat-runtime-registry.js"
-import type { ChatRuntimeAdapter } from "../chats/runtime/types.js"
 import { ChatRuntimeSessionManager } from "../chats/runtime/runtime-session-manager.js"
+import type { ChatRuntimeAdapter } from "../chats/runtime/types.js"
 import { bootstrapDatabase } from "../db/database.js"
 import { ProjectService } from "../projects/project-service.js"
 import { CoordinatorService } from "../runtime/coordinator-service.js"
@@ -80,9 +80,7 @@ async function createServerRuntime(directory: string, socketPath: string) {
   const sandboxService = new SandboxService(sandboxPersistenceService)
   const threadService = new ThreadService(databaseRuntime.database)
   const chatService = new ChatService(databaseRuntime.database)
-  const createAdapter = (
-    provider: "codex" | "claude",
-  ): ChatRuntimeAdapter => ({
+  const createAdapter = (provider: "codex" | "claude"): ChatRuntimeAdapter => ({
     provider,
     async runTurn(request) {
       const finalText = `${provider.toUpperCase()} ack: ${request.prompt}`
@@ -490,6 +488,32 @@ describe("socket server", () => {
       throw new Error("Expected chat create to succeed")
     }
 
+    const updateRuntimeConfigRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_update_runtime",
+      type: "command",
+      name: "chats.update_runtime_config",
+      payload: {
+        chat_id: createChatResponse.result.id,
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+        thinking_level: "high",
+        permission_level: "full_access",
+      },
+    })
+    const invalidUpdateRuntimeConfigRaw = await request(socketPath, {
+      protocol_version: IPC_PROTOCOL_VERSION,
+      request_id: "req_chat_update_runtime_invalid",
+      type: "command",
+      name: "chats.update_runtime_config",
+      payload: {
+        chat_id: createChatResponse.result.id,
+        provider: "openai",
+        model: "gpt-5.4",
+        thinking_level: "default",
+        permission_level: "supervised",
+      },
+    })
     const renameRaw = await request(socketPath, {
       protocol_version: IPC_PROTOCOL_VERSION,
       request_id: "req_chat_rename",
@@ -562,6 +586,12 @@ describe("socket server", () => {
     const archiveResponse = parseIpcResponseEnvelope(archiveRaw)
     const restoreResponse = parseIpcResponseEnvelope(restoreRaw)
     const unpinResponse = parseIpcResponseEnvelope(unpinRaw)
+    const updateRuntimeConfigResponse = parseIpcResponseEnvelope(
+      updateRuntimeConfigRaw,
+    )
+    const invalidUpdateRuntimeConfigResponse = parseIpcResponseEnvelope(
+      invalidUpdateRuntimeConfigRaw,
+    )
 
     expect(renameResponse.ok).toBe(true)
     expect(pinResponse.ok).toBe(true)
@@ -570,11 +600,32 @@ describe("socket server", () => {
     expect(archiveResponse.ok).toBe(true)
     expect(restoreResponse.ok).toBe(true)
     expect(unpinResponse.ok).toBe(true)
+    expect(updateRuntimeConfigResponse.ok).toBe(true)
+    expect(invalidUpdateRuntimeConfigResponse.ok).toBe(false)
+
+    if (!invalidUpdateRuntimeConfigResponse.ok) {
+      expect(["invalid_request", "internal_error"]).toContain(
+        invalidUpdateRuntimeConfigResponse.error.code,
+      )
+    }
 
     if (listResponse.ok) {
       expect(listResponse.result.chats).toHaveLength(1)
       expect(listResponse.result.chats[0]).toMatchObject({
         title: "Ship M2",
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+        thinkingLevel: "high",
+        permissionLevel: "full_access",
+      })
+    }
+
+    if (getResponse.ok) {
+      expect(getResponse.result).toMatchObject({
+        provider: "claude",
+        model: "claude-sonnet-4-6",
+        thinkingLevel: "high",
+        permissionLevel: "full_access",
       })
     }
 

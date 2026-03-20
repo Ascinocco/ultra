@@ -47,6 +47,29 @@ export async function renameChat(
   actions.upsertChat(chat)
 }
 
+export type ChatRuntimeConfigUpdate = Pick<
+  ChatSummary,
+  "provider" | "model" | "thinkingLevel" | "permissionLevel"
+>
+
+export async function updateChatRuntimeConfig(
+  chatId: string,
+  config: ChatRuntimeConfigUpdate,
+  actions: Pick<AppActions, "upsertChat">,
+  client: WorkflowClient = ipcClient,
+): Promise<ChatSummary> {
+  const result = await client.command("chats.update_runtime_config", {
+    chat_id: chatId,
+    provider: config.provider,
+    model: config.model,
+    thinking_level: config.thinkingLevel,
+    permission_level: config.permissionLevel,
+  })
+  const chat = parseChatSnapshot(result)
+  actions.upsertChat(chat)
+  return chat
+}
+
 export async function pinChat(
   chatId: string,
   actions: Pick<AppActions, "upsertChat">,

@@ -42,6 +42,7 @@ export const commandMethodSchema = z.enum([
   "system.recheck_environment",
   "chats.create",
   "chats.rename",
+  "chats.update_runtime_config",
   "chats.pin",
   "chats.unpin",
   "chats.archive",

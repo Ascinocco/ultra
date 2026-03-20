@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 
-type Provider = "claude" | "codex"
-
-const CLAUDE_MODELS = [
-  "claude-sonnet-4-6",
-  "claude-opus-4-6",
-  "claude-haiku-4-5",
-]
-const CODEX_MODELS = ["gpt-5.4"]
+import {
+  getModelsForRuntimeProvider,
+  type RuntimeProvider,
+} from "../runtime-options.js"
 
 export function TerminalCommandBar({
   visible,
@@ -22,15 +18,15 @@ export function TerminalCommandBar({
   availableProviders,
 }: {
   visible: boolean
-  provider: Provider
+  provider: RuntimeProvider
   model: string
   generating?: boolean
   error?: string | null
   onSubmit: (prompt: string) => void
   onCancel: () => void
-  onProviderChange: (provider: Provider) => void
+  onProviderChange: (provider: RuntimeProvider) => void
   onModelChange: (model: string) => void
-  availableProviders: Provider[]
+  availableProviders: RuntimeProvider[]
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [inputValue, setInputValue] = useState("")
@@ -63,7 +59,10 @@ export function TerminalCommandBar({
     }
   }
 
-  const handleModelSelect = (newProvider: Provider, newModel: string) => {
+  const handleModelSelect = (
+    newProvider: RuntimeProvider,
+    newModel: string,
+  ) => {
     onProviderChange(newProvider)
     onModelChange(newModel)
     setDropdownOpen(false)
@@ -145,7 +144,7 @@ export function TerminalCommandBar({
                 <div className="terminal-command-bar__dropdown-header">
                   Claude
                 </div>
-                {CLAUDE_MODELS.map((m) => (
+                {getModelsForRuntimeProvider("claude").map((m) => (
                   <button
                     type="button"
                     key={m}
@@ -169,7 +168,7 @@ export function TerminalCommandBar({
                 <div className="terminal-command-bar__dropdown-header">
                   Codex
                 </div>
-                {CODEX_MODELS.map((m) => (
+                {getModelsForRuntimeProvider("codex").map((m) => (
                   <button
                     type="button"
                     key={m}

@@ -752,6 +752,42 @@ button {
   background: rgba(14, 17, 26, 0.28);
 }
 
+.active-chat-pane__runtime-config {
+  display: grid;
+  gap: 6px;
+}
+
+.active-chat-pane__runtime-config-label {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.active-chat-pane__runtime-config-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.active-chat-pane__runtime-config-field {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.active-chat-pane__runtime-config-select {
+  appearance: none;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: rgba(148, 163, 200, 0.06);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
 .active-chat-pane__input-label {
   font-size: 0.78rem;
   font-weight: 600;
@@ -2181,6 +2217,10 @@ button {
   .active-chat-pane__input-row {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .active-chat-pane__runtime-config-row {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .active-chat-pane__send {

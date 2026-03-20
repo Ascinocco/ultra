@@ -152,6 +152,14 @@ export const chatsRenameInputSchema = z.object({
   title: z.string().min(1),
 })
 
+export const chatsUpdateRuntimeConfigInputSchema = z.object({
+  chat_id: chatIdSchema,
+  provider: chatProviderSchema,
+  model: z.string().min(1),
+  thinking_level: chatThinkingLevelSchema,
+  permission_level: chatPermissionLevelSchema,
+})
+
 export const chatsPinInputSchema = z.object({
   chat_id: chatIdSchema,
 })
@@ -219,6 +227,12 @@ export const chatsRenameCommandSchema = commandRequestEnvelopeSchema.extend({
   payload: chatsRenameInputSchema,
 })
 
+export const chatsUpdateRuntimeConfigCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("chats.update_runtime_config"),
+    payload: chatsUpdateRuntimeConfigInputSchema,
+  })
+
 export const chatsPinCommandSchema = commandRequestEnvelopeSchema.extend({
   name: z.literal("chats.pin"),
   payload: chatsPinInputSchema,
@@ -265,11 +279,12 @@ export const chatsStartTurnCommandSchema = commandRequestEnvelopeSchema.extend({
   payload: chatsStartTurnInputSchema,
 })
 
-export const chatsCancelTurnCommandSchema =
-  commandRequestEnvelopeSchema.extend({
+export const chatsCancelTurnCommandSchema = commandRequestEnvelopeSchema.extend(
+  {
     name: z.literal("chats.cancel_turn"),
     payload: chatsCancelTurnInputSchema,
-  })
+  },
+)
 
 export const chatsGetTurnQuerySchema = queryRequestEnvelopeSchema.extend({
   name: z.literal("chats.get_turn"),
@@ -339,6 +354,11 @@ export const chatsGetMessagesSuccessResponseSchema =
     result: chatsGetMessagesResultSchema,
   })
 
+export const chatsUpdateRuntimeConfigSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: chatSnapshotSchema,
+  })
+
 export const chatsStartTurnSuccessResponseSchema =
   successResponseEnvelopeSchema.extend({
     result: chatsStartTurnResultSchema,
@@ -384,12 +404,11 @@ export const chatsMessagesEventSchema = subscriptionEventEnvelopeSchema.extend({
   payload: chatMessageSnapshotSchema,
 })
 
-export const chatsTurnEventsEventSchema = subscriptionEventEnvelopeSchema.extend(
-  {
+export const chatsTurnEventsEventSchema =
+  subscriptionEventEnvelopeSchema.extend({
     event_name: z.literal("chats.turn_events"),
     payload: chatTurnEventSnapshotSchema,
-  },
-)
+  })
 
 export type ChatId = z.infer<typeof chatIdSchema>
 export type ChatSnapshot = z.infer<typeof chatSnapshotSchema>
@@ -405,6 +424,9 @@ export type ChatsCreateInput = z.infer<typeof chatsCreateInputSchema>
 export type ChatsGetInput = z.infer<typeof chatsGetInputSchema>
 export type ChatsListInput = z.infer<typeof chatsListInputSchema>
 export type ChatsGetMessagesInput = z.infer<typeof chatsGetMessagesInputSchema>
+export type ChatsUpdateRuntimeConfigInput = z.infer<
+  typeof chatsUpdateRuntimeConfigInputSchema
+>
 export type ChatsStartTurnInput = z.infer<typeof chatsStartTurnInputSchema>
 export type ChatsCancelTurnInput = z.infer<typeof chatsCancelTurnInputSchema>
 export type ChatsGetTurnInput = z.infer<typeof chatsGetTurnInputSchema>
@@ -419,13 +441,17 @@ export type ChatsApproveSpecsInput = z.infer<
 >
 export type ChatsRenameInput = z.infer<typeof chatsRenameInputSchema>
 export type ChatsListResult = z.infer<typeof chatsListResultSchema>
-export type ChatsGetMessagesResult = z.infer<typeof chatsGetMessagesResultSchema>
+export type ChatsGetMessagesResult = z.infer<
+  typeof chatsGetMessagesResultSchema
+>
 export type ChatsStartTurnResult = z.infer<typeof chatsStartTurnResultSchema>
 export type ChatsListTurnsResult = z.infer<typeof chatsListTurnsResultSchema>
 export type ChatsGetTurnEventsResult = z.infer<
   typeof chatsGetTurnEventsResultSchema
 >
-export type ChatsSendMessageResult = z.infer<typeof chatsSendMessageResultSchema>
+export type ChatsSendMessageResult = z.infer<
+  typeof chatsSendMessageResultSchema
+>
 export type ChatsMessagesSubscribeInput = z.infer<
   typeof chatsMessagesSubscribeInputSchema
 >
@@ -463,11 +489,15 @@ export function parseChatsGetMessagesResult(
   return chatsGetMessagesResultSchema.parse(input)
 }
 
-export function parseChatsStartTurnResult(input: unknown): ChatsStartTurnResult {
+export function parseChatsStartTurnResult(
+  input: unknown,
+): ChatsStartTurnResult {
   return chatsStartTurnResultSchema.parse(input)
 }
 
-export function parseChatsListTurnsResult(input: unknown): ChatsListTurnsResult {
+export function parseChatsListTurnsResult(
+  input: unknown,
+): ChatsListTurnsResult {
   return chatsListTurnsResultSchema.parse(input)
 }
 

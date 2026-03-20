@@ -1124,7 +1124,7 @@ export class ChatTurnService {
 
     const database = this.chatService.getDatabase()
     const timestamp = this.now()
-    const failure = this.mapTurnFailure(error)
+    const failure = this.mapTurnFailure(error, current.provider)
 
     database.exec("BEGIN")
     try {
@@ -1256,7 +1256,10 @@ export class ChatTurnService {
     }
   }
 
-  private mapTurnFailure(error: unknown): {
+  private mapTurnFailure(
+    error: unknown,
+    provider: ChatRuntimeConfig["provider"],
+  ): {
     code: string
     message: string
     details?: unknown
@@ -1278,6 +1281,10 @@ export class ChatTurnService {
       }
     }
 
+    if (this.isMissingRuntimeBinaryError(error)) {
+      return this.buildMissingRuntimeFailure(provider, error)
+    }
+
     if (error instanceof Error) {
       return {
         code: "internal_error",
@@ -1289,6 +1296,58 @@ export class ChatTurnService {
       code: "internal_error",
       message: String(error),
     }
+  }
+
+  private isMissingRuntimeBinaryError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false
+    }
+
+    const maybeError = error as NodeJS.ErrnoException
+    if (maybeError.code === "ENOENT") {
+      return true
+    }
+
+    return /\bENOENT\b/u.test(error.message)
+  }
+
+  private buildMissingRuntimeFailure(
+    provider: ChatRuntimeConfig["provider"],
+    error: Error,
+  ): { code: string; message: string; details: Record<string, unknown> } {
+    const command = this.resolveMissingRuntimeCommand(error, provider)
+    const runtimeLabel = provider === "codex" ? "Codex" : "Claude"
+    const installHint =
+      provider === "codex"
+        ? "Install Codex CLI and ensure `codex` is on PATH."
+        : "Install Claude Code and ensure `claude` is on PATH."
+
+    return {
+      code: "runtime_unavailable",
+      message: `${runtimeLabel} runtime is unavailable because '${command}' was not found on PATH. ${installHint}`,
+      details: {
+        provider,
+        command,
+        cause: error.message,
+      },
+    }
+  }
+
+  private resolveMissingRuntimeCommand(
+    error: Error,
+    provider: ChatRuntimeConfig["provider"],
+  ): string {
+    const maybeError = error as NodeJS.ErrnoException
+    if (typeof maybeError.path === "string" && maybeError.path.trim().length > 0) {
+      return maybeError.path.trim()
+    }
+
+    const messageMatch = error.message.match(/spawn\s+([^\s]+)\s+ENOENT/iu)
+    if (messageMatch?.[1]) {
+      return messageMatch[1]
+    }
+
+    return provider
   }
 
   private failStaleRunningTurns(): ChatTurnEventSnapshot[] {
