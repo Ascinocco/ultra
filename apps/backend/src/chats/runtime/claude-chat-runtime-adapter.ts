@@ -196,7 +196,6 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
 
     const onLine = streaming
       ? (line: string) => {
-          console.log(`[claude-adapter] onLine: ${line.slice(0, 80)}...`)
           const result = parseClaudeLine(line)
 
           for (const event of result.events) {
