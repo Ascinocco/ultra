@@ -67,6 +67,64 @@ function buildArgs(request: ChatRuntimeTurnRequest): string[] {
   ]
 }
 
+export type ParseCodexLineResult = {
+  events: ChatRuntimeEvent[]
+  vendorSessionId?: string
+  finalText?: string
+}
+
+export function parseCodexLine(line: string): ParseCodexLineResult {
+  const events: ChatRuntimeEvent[] = []
+  let vendorSessionId: string | undefined
+  let finalText: string | undefined
+
+  let payload: unknown
+  try {
+    payload = JSON.parse(line)
+  } catch {
+    return { events }
+  }
+
+  const extractedSessionId = extractVendorSessionId(payload)
+  if (extractedSessionId) {
+    vendorSessionId = extractedSessionId
+  }
+
+  const payloadType =
+    typeof (payload as Record<string, unknown>).type === "string"
+      ? ((payload as Record<string, unknown>).type as string)
+      : ""
+  const text = extractTextCandidate(payload)
+  const checkpoint = maybeBuildCheckpoint(payload)
+
+  if (checkpoint) {
+    events.push(
+      createToolActivityEvent("Codex activity", {
+        raw: payload as Record<string, unknown>,
+      }),
+    )
+    events.push({
+      type: "checkpoint_candidate",
+      checkpoint,
+    })
+  }
+
+  if (text) {
+    if (payloadType.includes("delta")) {
+      events.push({ type: "assistant_delta", text })
+    } else {
+      finalText = text
+    }
+  } else if (payloadType.length > 0) {
+    events.push({
+      type: "runtime_notice",
+      message: stringifyUnknown(payload),
+    })
+  }
+
+  return { events, vendorSessionId, finalText }
+}
+
 function parseCodexLines(lines: string[]): {
   events: ChatRuntimeEvent[]
   finalText: string
@@ -78,46 +136,23 @@ function parseCodexLines(lines: string[]): {
   let vendorSessionId: string | null = null
 
   for (const line of lines) {
-    let payload: unknown
+    const result = parseCodexLine(line)
 
-    try {
-      payload = JSON.parse(line)
-    } catch {
-      continue
+    events.push(...result.events)
+
+    if (result.vendorSessionId && !vendorSessionId) {
+      vendorSessionId = result.vendorSessionId
     }
 
-    vendorSessionId = extractVendorSessionId(payload) ?? vendorSessionId
-    const payloadType =
-      typeof (payload as Record<string, unknown>).type === "string"
-        ? ((payload as Record<string, unknown>).type as string)
-        : ""
-    const text = extractTextCandidate(payload)
-    const checkpoint = maybeBuildCheckpoint(payload)
-
-    if (checkpoint) {
-      events.push(
-        createToolActivityEvent("Codex activity", {
-          raw: payload as Record<string, unknown>,
-        }),
-      )
-      events.push({
-        type: "checkpoint_candidate",
-        checkpoint,
-      })
+    if (result.finalText) {
+      finalText = result.finalText
     }
 
-    if (text) {
-      if (payloadType.includes("delta")) {
-        deltas.push(text)
-        events.push({ type: "assistant_delta", text })
-      } else {
-        finalText = text
+    // Collect delta text for fallback
+    for (const event of result.events) {
+      if (event.type === "assistant_delta") {
+        deltas.push(event.text)
       }
-    } else if (payloadType.length > 0) {
-      events.push({
-        type: "runtime_notice",
-        message: stringifyUnknown(payload),
-      })
     }
   }
 
@@ -142,13 +177,51 @@ export class CodexChatRuntimeAdapter implements ChatRuntimeAdapter {
   ): Promise<ChatRuntimeTurnResult> {
     assertSupportedThinkingLevel(request.config.thinkingLevel)
 
+    // When onEvent is provided, parse and emit events incrementally
+    const streaming = !!request.onEvent
+    const streamEvents: ChatRuntimeEvent[] = []
+    const streamDeltas: string[] = []
+    let streamVendorSessionId: string | null = null
+    let streamFinalText: string | null = null
+
+    const onLine = streaming
+      ? (line: string) => {
+          const result = parseCodexLine(line)
+
+          for (const event of result.events) {
+            streamEvents.push(event)
+            request.onEvent!(event)
+            if (event.type === "assistant_delta") {
+              streamDeltas.push(event.text)
+            }
+          }
+
+          if (result.vendorSessionId && !streamVendorSessionId) {
+            streamVendorSessionId = result.vendorSessionId
+          }
+
+          if (result.finalText) {
+            streamFinalText = result.finalText
+          }
+        }
+      : undefined
+
     const diagnostics = await this.processRunner.run({
       command: "codex",
       args: buildArgs(request),
       cwd: request.cwd,
       signal: request.signal,
+      onLine,
     })
-    const parsed = parseCodexLines(diagnostics.stdoutLines)
+
+    // Use incrementally-collected results when streaming, otherwise batch-parse
+    const parsed = streaming
+      ? {
+          events: streamEvents,
+          finalText: streamFinalText ?? streamDeltas.join("").trim(),
+          vendorSessionId: streamVendorSessionId,
+        }
+      : parseCodexLines(diagnostics.stdoutLines)
 
     if (diagnostics.timedOut) {
       throw new ChatRuntimeError(
