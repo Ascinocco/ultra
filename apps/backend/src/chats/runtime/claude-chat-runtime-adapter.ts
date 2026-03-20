@@ -84,6 +84,9 @@ function mapSdkMessage(message: SDKMessage): {
           label: block.name,
           metadata: { id: block.id },
         })
+      } else if (block?.type === "text" && msg.index > 0) {
+        // New text block after a tool call — emit separator so text doesn't run together
+        events.push({ type: "assistant_delta", text: "\n\n" })
       }
       break
     }
