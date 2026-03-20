@@ -1,6 +1,6 @@
 import type { ReactElement } from "react"
 import type { StreamingBlock } from "./streaming-types.js"
-import { ToolActivityGroup } from "./ToolActivityGroup.js"
+import { ToolActivityInline } from "./ToolActivityInline.js"
 import { MarkdownRenderer } from "../../chat-message/MarkdownRenderer.js"
 import "./streaming.css"
 
@@ -32,10 +32,9 @@ export function StreamingMessage({ blocks, isStreaming }: Props): ReactElement {
               ) : null
             }
             return (
-              <ToolActivityGroup
+              <ToolActivityInline
                 key={block.id}
                 tools={block.tools}
-                collapsed={block.collapsed}
               />
             )
           })
