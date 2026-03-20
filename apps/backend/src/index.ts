@@ -12,6 +12,17 @@ import { CodexChatRuntimeAdapter } from "./chats/runtime/codex-chat-runtime-adap
 import { SpawnRuntimeProcessRunner } from "./chats/runtime/process-runner.js"
 import { ChatRuntimeSessionManager } from "./chats/runtime/runtime-session-manager.js"
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
+import { AgentHealthMonitor } from "./orchestration/agent-health-monitor.js"
+import { AgentRegistry } from "./orchestration/agent-registry.js"
+import { deployHooks } from "./orchestration/hooks-deployer.js"
+import { createMergeResolver } from "./orchestration/merge-resolver.js"
+import { OrchestrationService } from "./orchestration/orchestration-service.js"
+import { generateOverlay } from "./orchestration/overlay-generator.js"
+import {
+  createWorktree,
+  removeWorktree,
+  rollbackWorktree,
+} from "./orchestration/worktree-manager.js"
 import { ProjectService } from "./projects/project-service.js"
 import { CoordinatorService } from "./runtime/coordinator-service.js"
 import { NodeSupervisedProcessAdapter } from "./runtime/node-supervised-process-adapter.js"
@@ -102,13 +113,54 @@ export async function startBackendScaffold(options?: {
       undefined,
       watchdogService,
     )
+    const processAdapter =
+      options?.processAdapter ?? new NodeSupervisedProcessAdapter()
+    const agentRegistry = new AgentRegistry()
+    const agentHealthMonitor = new AgentHealthMonitor(agentRegistry, {
+      staleMs: 5 * 60 * 1000,
+      zombieMs: 30 * 60 * 1000,
+    })
+    const mergeResolver = createMergeResolver({})
+    const orchestrationService = new OrchestrationService({
+      processAdapter,
+      threadService: {
+        appendThreadEvent: (threadId, event) => {
+          const thread = threadService.getThread(threadId)
+          threadService.appendProjectedEvent({
+            actorType: "agent",
+            eventType: String(event["type"] ?? "agent_event"),
+            payload: event,
+            projectId: thread.thread.projectId,
+            source: "ultra.orchestration",
+            threadId,
+          })
+        },
+        updateThreadSnapshot: (_threadId, _update) => {
+          // No-op: OrchestrationService defines this in deps type but does not call it
+        },
+      },
+      worktreeManager: { createWorktree, removeWorktree, rollbackWorktree },
+      mergeResolver,
+      hooksDeployer: { deployHooks },
+      healthMonitor: agentHealthMonitor,
+      agentRegistry,
+      overlayGenerator: { generateOverlay },
+    })
     threadService.setCoordinatorDispatchHandler({
       sendThreadMessage: (input) =>
         coordinatorService.sendThreadMessage({
           ...input,
           threadId: input.threadId,
         }),
-      startThread: (input) => coordinatorService.startThread(input),
+      startThread: ({ input, thread }) => {
+        const repoRoot = process.env.ULTRA_REPO_ROOT ?? process.cwd()
+        const baseBranch = process.env.ULTRA_BASE_BRANCH ?? "main"
+        void orchestrationService.startThread(thread.thread.id, {
+          specMarkdown: input.summary ?? input.title,
+          baseBranch,
+          repoRoot,
+        })
+      },
     })
     const runtimeProfileService = new RuntimeProfileService(
       databaseRuntime.database,

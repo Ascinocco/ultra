@@ -667,3 +667,31 @@ export {
   threadTicketRefMetadataSchema,
   threadTicketRefSnapshotSchema,
 } from "./contracts/threads.js"
+export type {
+  ApprovalSnapshot,
+  ApprovalStatus,
+  ApprovalType,
+} from "./contracts/approvals.js"
+export {
+  approvalSnapshotSchema,
+  approvalStatusSchema,
+  approvalTypeSchema,
+  parseApprovalSnapshot,
+} from "./contracts/approvals.js"
+export type {
+  TerminalCommandGenEvent,
+  TerminalCommandGenInput,
+} from "./contracts/terminal-command-gen.js"
+export {
+  parseTerminalCommandGenEvent,
+  parseTerminalCommandGenInput,
+  terminalCommandGenCompleteEventSchema,
+  terminalCommandGenDeltaEventSchema,
+  terminalCommandGenErrorEventSchema,
+  terminalCommandGenEventSchema,
+  terminalCommandGenInputSchema,
+  terminalCommandGenProviderSchema,
+  terminalCommandGenSubscribeInputSchema,
+  terminalCommandGenSubscribeRequestSchema,
+} from "./contracts/terminal-command-gen.js"
+export { sanitize, sanitizeObject } from "./utils/sanitizer.js"

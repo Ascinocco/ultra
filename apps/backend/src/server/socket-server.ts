@@ -523,7 +523,7 @@ function handleSubscribeRequest(
       const cleanup = services.chatTurnService.subscribeToTurnEvents(
         {
           chatId: chat_id,
-          turnId: turn_id,
+          ...(turn_id !== undefined ? { turnId: turn_id } : {}),
         },
         (event) => {
           socket.write(
