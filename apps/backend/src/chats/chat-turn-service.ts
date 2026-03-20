@@ -1534,7 +1534,11 @@ export class ChatTurnService {
 
     const chat = this.chatService.get(chatId)
     const recentMessages = this.chatService.listMessages(chatId)
-    const userPrompt = buildSummaryPrompt(chat.workspaceDescription, recentMessages)
+    const summaryMessages = recentMessages.slice(-10).map((m) => ({
+      role: m.role,
+      content: m.contentMarkdown ?? "",
+    }))
+    const userPrompt = buildSummaryPrompt(chat.workspaceDescription, summaryMessages)
     const systemPrompt = getSystemPrompt()
     const { provider, model } = selectSummaryModel(chat.provider)
 

@@ -51,7 +51,7 @@ describe("migration runner", () => {
       "0009_layout_sidebar_and_split_ratio",
       "0010_thread_agents_events_and_approvals",
       "0011_chat_turn_persistence",
-      "0012_workspace_description",
+      "0012_chat_workspace_description",
     ])
     expect(rows).toEqual([
       {
@@ -99,7 +99,7 @@ describe("migration runner", () => {
         applied_at: "2026-03-14T00:00:00.000Z",
       },
       {
-        id: "0012_workspace_description",
+        id: "0012_chat_workspace_description",
         applied_at: "2026-03-14T00:00:00.000Z",
       },
     ])
@@ -142,7 +142,7 @@ describe("migration runner", () => {
     database.close()
   })
 
-  it("applies 0005_thread_core through 0011_chat_turn_persistence on a fresh database", () => {
+  it("applies 0005_thread_core through 0012_chat_workspace_description on a fresh database", () => {
     const database = createDatabase()
     const result = runMigrations(database, {
       now: () => "2026-03-15T00:00:00.000Z",
@@ -161,6 +161,7 @@ describe("migration runner", () => {
     )
     expect(result.appliedMigrationIds).toContain("0010_thread_agents_events_and_approvals")
     expect(result.appliedMigrationIds).toContain("0011_chat_turn_persistence")
+    expect(result.appliedMigrationIds).toContain("0012_chat_workspace_description")
     expect(result.totalMigrationCount).toBe(12)
 
     // Verify threads table exists with correct columns
@@ -782,7 +783,7 @@ describe("thread core FK constraints", () => {
       "0009_layout_sidebar_and_split_ratio",
       "0010_thread_agents_events_and_approvals",
       "0011_chat_turn_persistence",
-      "0012_workspace_description",
+      "0012_chat_workspace_description",
     ])
     expect(secondResult.totalMigrationCount).toBe(12)
 
