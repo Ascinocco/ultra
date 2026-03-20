@@ -1,11 +1,20 @@
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk"
-import { ClaudeSessionManager, type ClaudeSessionManagerConfig } from "./claude-session-manager.js"
+import {
+  query,
+  type Query,
+  type Options as ClaudeQueryOptions,
+  type SDKMessage,
+} from "@anthropic-ai/claude-agent-sdk"
 import type {
   ChatRuntimeAdapter,
   ChatRuntimeEvent,
   ChatRuntimeTurnRequest,
   ChatRuntimeTurnResult,
 } from "./types.js"
+
+export type ClaudeSdkAdapterConfig = {
+  pathToClaudeCodeExecutable?: string
+  defaultEnv?: NodeJS.ProcessEnv
+}
 
 /**
  * Maps an SDK message to zero or more ChatRuntimeEvent objects.
@@ -21,14 +30,12 @@ function mapSdkMessage(message: SDKMessage): {
 
   const msg = message as any
 
-  // Extract session ID
   if (msg.session_id && typeof msg.session_id === "string") {
     vendorSessionId = msg.session_id
   }
 
   switch (msg.type) {
     case "assistant": {
-      // Full assistant message — extract text from content blocks
       if (msg.message?.content && Array.isArray(msg.message.content)) {
         for (const block of msg.message.content) {
           if (block.type === "text" && typeof block.text === "string") {
@@ -65,7 +72,6 @@ function mapSdkMessage(message: SDKMessage): {
       break
     }
     case "result": {
-      // Extract final text
       if (msg.message?.content && Array.isArray(msg.message.content)) {
         const textParts = msg.message.content
           .filter((b: any) => b.type === "text")
@@ -94,52 +100,39 @@ function mapSdkMessage(message: SDKMessage): {
 
 export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
   readonly provider = "claude" as const
-  private sessionManager: ClaudeSessionManager
+  private config: ClaudeSdkAdapterConfig
 
-  constructor(config: ClaudeSessionManagerConfig = {}) {
-    this.sessionManager = new ClaudeSessionManager(config)
+  constructor(config: ClaudeSdkAdapterConfig = {}) {
+    this.config = config
   }
 
   async runTurn(request: ChatRuntimeTurnRequest): Promise<ChatRuntimeTurnResult> {
-    const session = this.sessionManager.getOrCreate(request.chatId, {
+    console.log(`[claude-sdk] runTurn: creating query() with string prompt, resume=${!!request.vendorSessionId}`)
+
+    const options: ClaudeQueryOptions = {
       cwd: request.cwd,
       model: request.config.model,
-      permissionLevel: request.config.permissionLevel,
-      thinkingLevel: request.config.thinkingLevel,
-      vendorSessionId: request.vendorSessionId,
-    })
-
-    console.log(`[claude-sdk] runTurn: sending message to session`)
-
-    // Send the user message
-    await session.session.send(request.prompt)
-
-    console.log(`[claude-sdk] runTurn: message sent, streaming responses...`)
-
-    // Consume SDK messages from stream()
-    const collectedEvents: ChatRuntimeEvent[] = []
-    let finalText = ""
-    let vendorSessionId: string | null = session.vendorSessionId
-    const deltas: string[] = []
-
-    // Wire abort signal
-    let abortHandler: (() => void) | undefined
-    if (request.signal) {
-      abortHandler = () => {
-        session.stopped = true
-      }
-      if (request.signal.aborted) {
-        abortHandler()
-      } else {
-        request.signal.addEventListener("abort", abortHandler, { once: true })
-      }
+      pathToClaudeCodeExecutable: this.config.pathToClaudeCodeExecutable ?? "claude",
+      permissionMode: "bypassPermissions",
+      allowDangerouslySkipPermissions: true,
+      includePartialMessages: true,
+      env: this.config.defaultEnv ?? process.env,
+      ...(request.vendorSessionId
+        ? { resume: request.vendorSessionId }
+        : {}),
     }
 
-    try {
-      for await (const message of session.session.stream()) {
-        if (session.stopped) break
+    // Use query() with string prompt — single-turn, yields streaming events including content_block_delta
+    const queryRuntime = query({ prompt: request.prompt, options })
 
-        console.log(`[claude-sdk] event: type=${(message as any).type}`)
+    const collectedEvents: ChatRuntimeEvent[] = []
+    let finalText = ""
+    let vendorSessionId: string | null = request.vendorSessionId ?? null
+    const deltas: string[] = []
+
+    try {
+      for await (const message of queryRuntime) {
+        console.log(`[claude-sdk] event: type=${(message as any).type}${(message as any).subtype ? ` subtype=${(message as any).subtype}` : ""}`)
 
         const mapped = mapSdkMessage(message)
 
@@ -157,40 +150,20 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
         }
         if (mapped.vendorSessionId) {
           vendorSessionId = mapped.vendorSessionId
-          session.vendorSessionId = mapped.vendorSessionId
-        }
-
-        // Result message means this turn is done
-        if ((message as any).type === "result") {
-          break
         }
       }
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        // Abort is expected control flow, not an error
-        console.log("[claude-sdk] turn aborted")
-      } else {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        console.error("[claude-sdk] stream error:", errorMessage)
-        const errorEvent: ChatRuntimeEvent = { type: "runtime_error", message: errorMessage }
-        collectedEvents.push(errorEvent)
-        request.onEvent?.(errorEvent)
-
-        // Destroy session on error — will be recreated on next turn
-        this.sessionManager.destroy(request.chatId)
-      }
-    } finally {
-      if (request.signal && abortHandler) {
-        request.signal.removeEventListener("abort", abortHandler)
-      }
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error("[claude-sdk] stream error:", errorMessage)
+      const errorEvent: ChatRuntimeEvent = { type: "runtime_error", message: errorMessage }
+      collectedEvents.push(errorEvent)
+      request.onEvent?.(errorEvent)
     }
 
-    // Fall back to joining deltas if no explicit finalText
     if (!finalText && deltas.length > 0) {
       finalText = deltas.join("")
     }
 
-    // Add the assistant_final event
     if (finalText) {
       const finalEvent: ChatRuntimeEvent = { type: "assistant_final", text: finalText }
       collectedEvents.push(finalEvent)
@@ -206,6 +179,6 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
   }
 
   shutdown(): void {
-    this.sessionManager.destroyAll()
+    // No persistent sessions to clean up with per-turn query() approach
   }
 }
