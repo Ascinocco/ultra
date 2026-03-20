@@ -1,6 +1,7 @@
 import type {
   ChatTurnEventSnapshot,
   ChatTurnSnapshot,
+  EnvironmentReadinessSnapshot,
   TerminalSessionSnapshot,
 } from "@ultra/shared"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -46,6 +47,7 @@ import {
 const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
 const MAX_DRAWER_HEIGHT_RATIO = 0.8
+const EMPTY_READINESS_CHECKS: EnvironmentReadinessSnapshot["checks"] = []
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -333,7 +335,7 @@ export function ChatPageShell({
   const chatMessages = useAppStore((state) => state.chatMessages)
   const chatTurns = useAppStore((state) => state.chatTurns)
   const readinessChecks = useAppStore(
-    (state) => state.readiness.snapshot?.checks ?? [],
+    (state) => state.readiness.snapshot?.checks ?? EMPTY_READINESS_CHECKS,
   )
   const actions = useAppStore((state) => state.actions)
   const threads = useAppStore((state) => state.threads)

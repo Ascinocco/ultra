@@ -201,6 +201,28 @@ async function changeSelect(
 }
 
 describe("ChatPageShell runtime selector interactions", () => {
+  it("renders with null readiness snapshot during startup", async () => {
+    const project = makeProject("proj-1", "ultra")
+    const chat = makeChat("chat-1", project.id, {
+      provider: "codex",
+      model: "gpt-5.4",
+      thinkingLevel: "normal",
+      permissionLevel: "supervised",
+    })
+
+    await renderChatPageInteraction((store) => {
+      const state = store.getState()
+      state.actions.setProjects([project])
+      state.actions.setActiveProjectId(project.id)
+      state.actions.setChatsForProject(project.id, [chat])
+      state.actions.setThreadsForProject(project.id, [])
+      setActiveChatLayout(state, project.id, chat.id)
+    })
+
+    expect(requireSelect("chat-runtime-provider").value).toBe("codex")
+    expect(requireSelect("chat-runtime-model").value).toBe("gpt-5.4")
+  })
+
   it("persists expected payload when provider changes", async () => {
     const project = makeProject("proj-1", "ultra")
     const chat = makeChat("chat-1", project.id, {
