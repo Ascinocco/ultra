@@ -151,10 +151,13 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       JSON.stringify(args),
     )
 
+    const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000
+
     const diagnostics = await this.processRunner.run({
       command: "claude",
       args,
       cwd: request.cwd,
+      timeoutMs: FORTY_EIGHT_HOURS_MS,
     })
 
     console.log("[claude-runtime] exit code:", diagnostics.exitCode)
