@@ -44,6 +44,7 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
       let timedOut = false
       let settled = false
 
+      console.log(`[process-runner] PTY spawning: ${options.command} ${options.args.slice(0, 3).join(" ")}...`)
       const pty = ptySpawn(options.command, options.args, {
         cwd: options.cwd,
         env: (options.env ?? process.env) as Record<string, string>,
@@ -69,6 +70,7 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
       }
 
       const disposeData = pty.onData((data) => {
+        console.log(`[process-runner] PTY data: ${data.length} bytes at ${Date.now()}`)
         output += data
 
         // Line buffering — split on \n and emit complete lines

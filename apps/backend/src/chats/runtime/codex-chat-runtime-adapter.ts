@@ -186,6 +186,7 @@ export class CodexChatRuntimeAdapter implements ChatRuntimeAdapter {
 
     const onLine = streaming
       ? (line: string) => {
+          console.log(`[codex-adapter] onLine: ${line.slice(0, 80)}...`)
           const result = parseCodexLine(line)
 
           for (const event of result.events) {
