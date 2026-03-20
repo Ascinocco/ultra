@@ -3,13 +3,14 @@ import {
   parseThreadsGetEventsResult,
   parseThreadsGetMessagesResult,
   parseThreadsListResult,
+  parseThreadsMessagesEvent,
   parseThreadsSendMessageResult,
 } from "@ultra/shared"
 
 import { ipcClient } from "../ipc/ipc-client.js"
 import type { AppActions } from "../state/app-store.js"
 
-type WorkflowClient = Pick<typeof ipcClient, "query" | "command">
+type WorkflowClient = Pick<typeof ipcClient, "query" | "command" | "subscribe">
 
 type FetchThreadsActions = Pick<
   AppActions,
@@ -74,4 +75,21 @@ export async function sendThreadMessage(
   const { message } = parseThreadsSendMessageResult(result)
   actions.appendMessage(threadId, message)
   return message
+}
+
+type SubscribeMessagesActions = Pick<AppActions, "appendMessage">
+
+export async function subscribeToThreadMessages(
+  threadId: string,
+  actions: SubscribeMessagesActions,
+  client: WorkflowClient = ipcClient,
+): Promise<() => Promise<void>> {
+  return client.subscribe(
+    "threads.messages",
+    { thread_id: threadId },
+    (event) => {
+      const parsed = parseThreadsMessagesEvent(event)
+      actions.appendMessage(parsed.payload.threadId, parsed.payload)
+    },
+  )
 }
