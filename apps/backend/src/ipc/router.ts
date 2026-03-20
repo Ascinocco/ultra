@@ -451,7 +451,7 @@ export async function routeIpcRequest(
           services.chatTurnService.startTurn({
             chatId: chat_id,
             prompt,
-            clientTurnId: client_turn_id,
+            ...(client_turn_id !== undefined ? { clientTurnId: client_turn_id } : {}),
           }),
         )
       }
@@ -484,8 +484,8 @@ export async function routeIpcRequest(
           listTurnsQuery.request_id,
           services.chatTurnService.listTurns({
             chatId: chat_id,
-            limit,
-            cursor,
+            ...(limit !== undefined ? { limit } : {}),
+            ...(cursor !== undefined ? { cursor } : {}),
           }),
         )
       }

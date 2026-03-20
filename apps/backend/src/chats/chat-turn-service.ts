@@ -1461,15 +1461,16 @@ export class ChatTurnService {
       )
     }
 
-    const nextSequence = database
-      .prepare<[string], { next_sequence: number }>(
+    const nextSequenceRow = database
+      .prepare(
         `
           SELECT COALESCE(MAX(sequence_number), 0) + 1 AS next_sequence
           FROM chat_turn_events
           WHERE turn_id = ?
         `,
       )
-      .get(input.turnId).next_sequence
+      .get(input.turnId) as { next_sequence: number } | undefined
+    const nextSequence = nextSequenceRow?.next_sequence ?? 1
 
     const recordedAt = input.recordedAt ?? this.now()
     const occurredAt = input.occurredAt ?? recordedAt

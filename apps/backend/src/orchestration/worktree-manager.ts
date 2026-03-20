@@ -24,8 +24,8 @@ async function runGit(
     throw new WorktreeError(
       `git ${args.join(" ")} failed (exit ${exitCode}): ${stderr}`,
       {
-        worktreePath: context?.worktreePath,
-        branchName: context?.branchName,
+        ...(context?.worktreePath !== undefined ? { worktreePath: context.worktreePath } : {}),
+        ...(context?.branchName !== undefined ? { branchName: context.branchName } : {}),
       },
     )
   }

@@ -16,8 +16,12 @@ export class WorktreeError extends OrchestrationError {
   ) {
     super(message, "worktree_error", { cause: context?.cause })
     this.name = "WorktreeError"
-    this.worktreePath = context?.worktreePath
-    this.branchName = context?.branchName
+    if (context?.worktreePath !== undefined) {
+      this.worktreePath = context.worktreePath
+    }
+    if (context?.branchName !== undefined) {
+      this.branchName = context.branchName
+    }
   }
 }
 
@@ -31,9 +35,15 @@ export class MergeError extends OrchestrationError {
   ) {
     super(message, "merge_error", { cause: context?.cause })
     this.name = "MergeError"
-    this.branchName = context?.branchName
-    this.conflictFiles = context?.conflictFiles
-    this.tier = context?.tier
+    if (context?.branchName !== undefined) {
+      this.branchName = context.branchName
+    }
+    if (context?.conflictFiles !== undefined) {
+      this.conflictFiles = context.conflictFiles
+    }
+    if (context?.tier !== undefined) {
+      this.tier = context.tier
+    }
   }
 }
 
@@ -46,7 +56,11 @@ export class AgentError extends OrchestrationError {
   ) {
     super(message, "agent_error", { cause: context?.cause })
     this.name = "AgentError"
-    this.agentId = context?.agentId
-    this.agentType = context?.agentType
+    if (context?.agentId !== undefined) {
+      this.agentId = context.agentId
+    }
+    if (context?.agentType !== undefined) {
+      this.agentType = context.agentType
+    }
   }
 }
