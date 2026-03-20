@@ -9,6 +9,7 @@ import { createPortal } from "react-dom"
 import { ChatMessage } from "../chat-message/ChatMessage"
 
 import { ApprovalBar } from "../chats/approval-bar/ApprovalBar.js"
+import { InputDock } from "../chats/input-dock/InputDock.js"
 import { ApprovalDivider } from "../chats/approval-divider/ApprovalDivider.js"
 import type { ApprovalDividerProps } from "../chats/approval-divider/ApprovalDivider.js"
 import {
@@ -28,7 +29,6 @@ import {
 import {
   getDefaultModelForRuntimeProvider,
   getModelsForRuntimeProvider,
-  RUNTIME_PROVIDER_LABELS,
   type RuntimeProvider,
 } from "../runtime-options.js"
 import { useApprovalState } from "../chats/hooks/useApprovalState.js"
@@ -358,8 +358,6 @@ export function ChatPageShell({
   const turnSequenceRef = useRef<Record<string, number>>({})
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
   const [isDragging, setIsDragging] = useState(false)
-  const [chatInput, setChatInput] = useState("")
-
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
     : null
@@ -429,6 +427,11 @@ export function ChatPageShell({
     null,
   )
   const isPreSendRuntimeConfig = activeChatMessages.length === 0
+  const availableModels = activeChat
+    ? getModelsForRuntimeProvider(
+        (isPreSendRuntimeConfig ? runtimeProviderDraft : activeChat.provider) as RuntimeProvider,
+      )
+    : []
   const latestTurnEvent = activeTurnEvents[activeTurnEvents.length - 1] ?? null
   const inFlightTurn =
     activeTurn?.status === "queued" || activeTurn?.status === "running"
@@ -662,7 +665,6 @@ export function ChatPageShell({
   }, [activeProjectId, actions])
 
   useEffect(() => {
-    setChatInput("")
     if (!activeChatId) {
       turnSequenceRef.current = {}
     }
@@ -795,43 +797,8 @@ export function ChatPageShell({
     [activeChat, activeChatId, actions],
   )
 
-  function handleRuntimeProviderChange(
-    event: React.ChangeEvent<HTMLSelectElement>,
-  ) {
-    const nextProvider = event.target.value as RuntimeProvider
-    const nextModels = getModelsForRuntimeProvider(nextProvider)
-    const nextModel = nextModels.includes(runtimeModelDraft)
-      ? runtimeModelDraft
-      : getDefaultModelForRuntimeProvider(nextProvider)
-
-    setRuntimeProviderDraft(nextProvider)
-    setRuntimeModelDraft(nextModel)
-
-    void persistRuntimeDraft(nextProvider, nextModel).catch((error) => {
-      console.error("[chat] failed to persist runtime provider:", error)
-    })
-  }
-
-  function handleRuntimeModelChange(event: React.ChangeEvent<HTMLSelectElement>) {
-    const nextModel = event.target.value
-    setRuntimeModelDraft(nextModel)
-
-    void persistRuntimeDraft(runtimeProviderDraft, nextModel).catch((error) => {
-      console.error("[chat] failed to persist runtime model:", error)
-    })
-  }
-
-  function handleStartTurn(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    if (!activeChatId || !activeChat) {
-      return
-    }
-
-    const prompt = chatInput.trim()
-    if (!prompt || chatInputDisabled) {
-      return
-    }
+  const handleSend = (prompt: string, _attachments: File[]) => {
+    if (!activeChatId || !activeChat || !prompt.trim() || chatInputDisabled) return
 
     const run = async () => {
       const firstTurnRuntimeConfig =
@@ -851,7 +818,6 @@ export function ChatPageShell({
         undefined,
         firstTurnRuntimeConfig,
       )
-      setChatInput("")
 
       const replayResult = await replayChatTurnEvents(
         activeChatId,
@@ -868,6 +834,20 @@ export function ChatPageShell({
     })
   }
 
+  const handleRuntimeConfigChange = (config: {
+    provider?: string
+    model?: string
+    thinkingLevel?: string
+    permissionLevel?: string
+  }) => {
+    if (!activeChatId || !activeChat) return
+
+    const nextProvider = config.provider ?? (isPreSendRuntimeConfig ? runtimeProviderDraft : activeChat.provider)
+    const nextModel = config.model ?? (isPreSendRuntimeConfig ? runtimeModelDraft : activeChat.model)
+
+    void persistRuntimeDraft(nextProvider as RuntimeProvider, nextModel)
+  }
+
   function handleCancelTurn() {
     if (!activeChatId || !activeTurnId || cancelRequested) {
       return
@@ -878,21 +858,6 @@ export function ChatPageShell({
       console.error("[chat] failed to cancel turn:", err)
       setCancelRequested(false)
     })
-  }
-
-  function handleChatInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      !chatInputDisabled &&
-      chatInput.trim().length > 0
-    ) {
-      event.preventDefault()
-      const form = event.currentTarget.closest("form")
-      if (form) {
-        form.requestSubmit()
-      }
-    }
   }
 
   function handleSelectThread(threadId: string | null) {
@@ -1082,150 +1047,18 @@ export function ChatPageShell({
                 />
               ) : null}
 
-              <form
-                className="active-chat-pane__input-dock"
-                onSubmit={handleStartTurn}
-              >
-                {isPreSendRuntimeConfig ? (
-                  <div className="active-chat-pane__runtime-config">
-                    <p className="active-chat-pane__runtime-config-label">
-                      Runtime for first turn
-                    </p>
-                    <div className="active-chat-pane__runtime-config-row">
-                      <label
-                        className="active-chat-pane__runtime-config-field"
-                        htmlFor="chat-runtime-provider"
-                      >
-                        Provider
-                      </label>
-                      <select
-                        id="chat-runtime-provider"
-                        className="active-chat-pane__runtime-config-select"
-                        value={runtimeProviderDraft}
-                        onChange={handleRuntimeProviderChange}
-                        disabled={runtimeUpdateStatus === "saving"}
-                      >
-                        {(["claude", "codex"] as RuntimeProvider[]).map(
-                          (provider) => {
-                            const unavailable =
-                              hasRuntimeReadinessSignals &&
-                              !readyRuntimeProviders.includes(provider)
-                            return (
-                              <option key={provider} value={provider}>
-                                {RUNTIME_PROVIDER_LABELS[provider]}
-                                {unavailable ? " (unavailable)" : ""}
-                              </option>
-                            )
-                          },
-                        )}
-                      </select>
-                      <label
-                        className="active-chat-pane__runtime-config-field"
-                        htmlFor="chat-runtime-model"
-                      >
-                        Model
-                      </label>
-                      <select
-                        id="chat-runtime-model"
-                        className="active-chat-pane__runtime-config-select"
-                        value={runtimeModelDraft}
-                        onChange={handleRuntimeModelChange}
-                        disabled={runtimeUpdateStatus === "saving"}
-                      >
-                        {getModelsForRuntimeProvider(runtimeProviderDraft).map(
-                          (model) => (
-                            <option key={model} value={model}>
-                              {model}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </div>
-                  </div>
-                ) : null}
-                <label
-                  className="active-chat-pane__input-label"
-                  htmlFor="chat-input"
-                >
-                  Message
-                </label>
-                <div className="active-chat-pane__input-row">
-                  <textarea
-                    id="chat-input"
-                    className="active-chat-pane__input"
-                    rows={3}
-                    placeholder={
-                      inFlightTurn
-                        ? "Wait for the active turn to finish."
-                        : "Send a prompt to start a chat turn."
-                    }
-                    value={chatInput}
-                    onChange={(event) => setChatInput(event.target.value)}
-                    onKeyDown={handleChatInputKeyDown}
-                    disabled={chatInputDisabled}
-                  />
-                  <div className="active-chat-pane__button-stack">
-                    {inFlightTurn ? (
-                      <button
-                        className="active-chat-pane__stop"
-                        type="button"
-                        disabled={cancelRequested}
-                        onClick={handleCancelTurn}
-                      >
-                        {cancelRequested ? "Stopping…" : "Stop"}
-                      </button>
-                    ) : null}
-                    <button
-                      className="active-chat-pane__send"
-                      type="submit"
-                      disabled={
-                        chatInputDisabled || chatInput.trim().length === 0
-                      }
-                    >
-                      {chatTurnSendStatus === "starting"
-                        ? "Starting…"
-                        : inFlightTurn
-                          ? "Running…"
-                          : "Send"}
-                    </button>
-                  </div>
-                </div>
-                {chatTurnsFetchStatus === "error" ? (
-                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
-                    Failed to load turn state for this chat.
-                  </p>
-                ) : null}
-                {runtimeUpdateStatus === "saving" ? (
-                  <p className="active-chat-pane__input-hint">
-                    Saving runtime config…
-                  </p>
-                ) : null}
-                {selectedProviderUnavailableHint ? (
-                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
-                    {selectedProviderUnavailableHint}
-                  </p>
-                ) : null}
-                {runtimeUpdateError ? (
-                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
-                    Failed to save runtime config: {runtimeUpdateError}
-                  </p>
-                ) : null}
-                {activeTurnFailureHint ? (
-                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
-                    {activeTurnFailureHint}
-                  </p>
-                ) : null}
-                {chatTurnSendError ? (
-                  <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
-                    {chatTurnSendError}
-                  </p>
-                ) : null}
-                {connectionStatus !== "connected" ? (
-                  <p className="active-chat-pane__input-hint">
-                    Reconnect to the backend before sending a new turn.
-                  </p>
-                ) : null}
-              </form>
+              <InputDock
+                chatId={activeChatId!}
+                disabled={chatInputDisabled}
+                isFirstTurn={isPreSendRuntimeConfig}
+                provider={isPreSendRuntimeConfig ? runtimeProviderDraft : activeChat.provider}
+                model={isPreSendRuntimeConfig ? runtimeModelDraft : activeChat.model}
+                thinkingLevel={activeChat.thinkingLevel}
+                permissionLevel={activeChat.permissionLevel}
+                availableModels={availableModels}
+                onSend={handleSend}
+                onRuntimeConfigChange={handleRuntimeConfigChange}
+              />
             </section>
           ) : (
             <section

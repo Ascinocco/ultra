@@ -81,7 +81,7 @@ function renderChatPage(
 }
 
 describe("ChatPageShell pre-send runtime config", () => {
-  it("shows provider/model selectors before the first message", () => {
+  it("renders InputDock with model pill before the first message", () => {
     const markup = renderChatPage((store) => {
       const project = makeProject("proj-1", "ultra")
       const chat = makeChat("chat-1", project.id, {
@@ -96,13 +96,11 @@ describe("ChatPageShell pre-send runtime config", () => {
       setActiveChatLayout(state, project.id, chat.id)
     })
 
-    expect(markup).toContain("Runtime for first turn")
-    expect(markup).toContain('id="chat-runtime-provider"')
-    expect(markup).toContain('id="chat-runtime-model"')
+    expect(markup).toContain("input-dock")
     expect(markup).toContain("claude-sonnet-4-6")
   })
 
-  it("hides pre-send selectors after the transcript already has messages", () => {
+  it("renders InputDock with read-only pills after transcript has messages", () => {
     const markup = renderChatPage((store) => {
       const project = makeProject("proj-1", "ultra")
       const chat = makeChat("chat-1", project.id)
@@ -118,7 +116,8 @@ describe("ChatPageShell pre-send runtime config", () => {
       )
     })
 
-    expect(markup).not.toContain("Runtime for first turn")
+    // Pills should be read-only (disabled) after first turn
+    expect(markup).toContain("input-dock__pill--readonly")
   })
 
   it("renders persisted provider/model values for selected chat state", () => {
@@ -140,7 +139,7 @@ describe("ChatPageShell pre-send runtime config", () => {
     expect(markup).toContain("gpt-5.4")
   })
 
-  it("flags unavailable providers when readiness data marks them non-ready", () => {
+  it("disables InputDock when readiness marks selected provider non-ready", () => {
     const markup = renderChatPage((store) => {
       const project = makeProject("proj-1", "ultra")
       const chat = makeChat("chat-1", project.id, {
@@ -182,11 +181,11 @@ describe("ChatPageShell pre-send runtime config", () => {
       })
     })
 
-    expect(markup).toContain("Claude (unavailable)")
-    expect(markup).toContain("The selected provider is unavailable")
+    // The textarea should be readOnly when disabled
+    expect(markup).toContain("readOnly")
   })
 
-  it("keeps runtime-unavailable gating active after transcript history exists", () => {
+  it("disables InputDock when provider unavailable after transcript exists", () => {
     const markup = renderChatPage((store) => {
       const project = makeProject("proj-1", "ultra")
       const chat = makeChat("chat-1", project.id, {
@@ -232,11 +231,11 @@ describe("ChatPageShell pre-send runtime config", () => {
       })
     })
 
-    expect(markup).toContain("The selected provider is unavailable")
-    expect(markup).toContain("Install Codex CLI and ensure `codex` is on PATH.")
+    // The textarea should be readOnly when disabled
+    expect(markup).toContain("readOnly")
   })
 
-  it("surfaces actionable failed-turn reasons in the input dock", () => {
+  it("renders InputDock with failed turn state", () => {
     const markup = renderChatPage((store) => {
       const project = makeProject("proj-1", "ultra")
       const chat = makeChat("chat-1", project.id, {
@@ -265,6 +264,8 @@ describe("ChatPageShell pre-send runtime config", () => {
       state.actions.setTurnsForChat(chat.id, [failedTurn])
     })
 
-    expect(markup).toContain("Install Codex CLI and ensure `codex` is on PATH.")
+    // InputDock should still render, turn failure is shown in transcript area
+    expect(markup).toContain("input-dock")
+    expect(markup).toContain("Failed")
   })
 })

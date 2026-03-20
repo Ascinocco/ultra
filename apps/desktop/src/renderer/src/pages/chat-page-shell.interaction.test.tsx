@@ -131,6 +131,9 @@ beforeEach(() => {
     disconnect() {}
   } as typeof ResizeObserver
 
+  // jsdom does not implement scrollTo
+  Element.prototype.scrollTo = vi.fn()
+
   fetchChatMessagesMock.mockResolvedValue(undefined)
   fetchChatTurnMock.mockResolvedValue(undefined)
   fetchChatTurnsMock.mockResolvedValue({ turns: [], nextCursor: null })
@@ -181,27 +184,8 @@ async function renderChatPageInteraction(
   })
 }
 
-function requireSelect(id: string): HTMLSelectElement {
-  const element = container.querySelector(`#${id}`)
-  if (!(element instanceof HTMLSelectElement)) {
-    throw new Error(`Expected select #${id} to exist`)
-  }
-  return element
-}
-
-async function changeSelect(
-  select: HTMLSelectElement,
-  value: string,
-): Promise<void> {
-  await act(async () => {
-    select.value = value
-    select.dispatchEvent(new Event("change", { bubbles: true }))
-    await Promise.resolve()
-  })
-}
-
 describe("ChatPageShell runtime selector interactions", () => {
-  it("renders with null readiness snapshot during startup", async () => {
+  it("renders InputDock with correct model displayed", async () => {
     const project = makeProject("proj-1", "ultra")
     const chat = makeChat("chat-1", project.id, {
       provider: "codex",
@@ -219,11 +203,16 @@ describe("ChatPageShell runtime selector interactions", () => {
       setActiveChatLayout(state, project.id, chat.id)
     })
 
-    expect(requireSelect("chat-runtime-provider").value).toBe("codex")
-    expect(requireSelect("chat-runtime-model").value).toBe("gpt-5.4")
+    const dock = container.querySelector(".input-dock")
+    expect(dock).not.toBeNull()
+
+    // Model pill should show gpt-5.4
+    const pillLabels = container.querySelectorAll(".input-dock__pill-label")
+    const labelTexts = Array.from(pillLabels).map((el) => el.textContent)
+    expect(labelTexts).toContain("gpt-5.4")
   })
 
-  it("persists expected payload when provider changes", async () => {
+  it("calls onRuntimeConfigChange when model pill option is clicked", async () => {
     const project = makeProject("proj-1", "ultra")
     const chat = makeChat("chat-1", project.id, {
       provider: "claude",
@@ -242,15 +231,33 @@ describe("ChatPageShell runtime selector interactions", () => {
       setActiveChatLayout(state, project.id, chat.id)
     })
 
-    const providerSelect = requireSelect("chat-runtime-provider")
-    await changeSelect(providerSelect, "codex")
+    // Find the model pill (first pill) and click it to open the dropdown
+    const pills = container.querySelectorAll(".input-dock__pill")
+    expect(pills.length).toBeGreaterThan(0)
+
+    await act(async () => {
+      pills[0]!.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    // Find the dropdown option for claude-opus-4-6
+    const options = container.querySelectorAll(".input-dock__pill-option")
+    const opusOption = Array.from(options).find(
+      (el) => el.textContent === "claude-opus-4-6",
+    )
+    expect(opusOption).toBeDefined()
+
+    await act(async () => {
+      opusOption!.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+      await Promise.resolve()
+    })
 
     expect(updateChatRuntimeConfigMock).toHaveBeenCalledTimes(1)
     expect(updateChatRuntimeConfigMock).toHaveBeenCalledWith(
       chat.id,
       {
-        provider: "codex",
-        model: "gpt-5.4",
+        provider: "claude",
+        model: "claude-opus-4-6",
         thinkingLevel: "high",
         permissionLevel: "full_access",
       },
@@ -258,7 +265,7 @@ describe("ChatPageShell runtime selector interactions", () => {
     )
   })
 
-  it("persists expected payload when model changes", async () => {
+  it("renders InputDock textarea for user input", async () => {
     const project = makeProject("proj-1", "ultra")
     const chat = makeChat("chat-1", project.id, {
       provider: "claude",
@@ -277,19 +284,8 @@ describe("ChatPageShell runtime selector interactions", () => {
       setActiveChatLayout(state, project.id, chat.id)
     })
 
-    const modelSelect = requireSelect("chat-runtime-model")
-    await changeSelect(modelSelect, "claude-opus-4-6")
-
-    expect(updateChatRuntimeConfigMock).toHaveBeenCalledTimes(1)
-    expect(updateChatRuntimeConfigMock).toHaveBeenCalledWith(
-      chat.id,
-      {
-        provider: "claude",
-        model: "claude-opus-4-6",
-        thinkingLevel: "normal",
-        permissionLevel: "supervised",
-      },
-      expect.any(Object),
-    )
+    const textarea = container.querySelector(".input-dock__textarea")
+    expect(textarea).not.toBeNull()
+    expect(textarea).toBeInstanceOf(HTMLTextAreaElement)
   })
 })
