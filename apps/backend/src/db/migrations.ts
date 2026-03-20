@@ -633,7 +633,7 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
     `,
   },
   {
-    id: "0012_workspace_description",
+    id: "0012_chat_workspace_description",
     sql: `
       ALTER TABLE chats ADD COLUMN workspace_description TEXT;
     `,

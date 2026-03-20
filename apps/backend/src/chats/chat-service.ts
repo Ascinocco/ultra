@@ -26,6 +26,7 @@ type ChatRow = {
   archived_at: string | null
   last_compacted_at: string | null
   current_session_id: string | null
+  workspace_description: string | null
   created_at: string
   updated_at: string
 }
@@ -155,6 +156,7 @@ const CHAT_SELECT_COLUMNS = `
     archived_at,
     last_compacted_at,
     current_session_id,
+    workspace_description,
     created_at,
     updated_at
   FROM chats
@@ -192,6 +194,8 @@ function mapChatRow(row: ChatRow): ChatSnapshot {
     archivedAt: row.archived_at,
     lastCompactedAt: row.last_compacted_at,
     currentSessionId: row.current_session_id,
+    workspaceDescription: row.workspace_description,
+    turnStatus: null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -327,6 +331,26 @@ export class ChatService {
     return this.get(chatId)
   }
 
+  deriveTurnStatus(chatId: ChatId): "running" | "waiting_for_input" | "error" | null {
+    const activeTurn = this.database
+      .prepare(
+        "SELECT turn_id FROM chat_turns WHERE chat_id = ? AND status IN ('queued', 'running') LIMIT 1",
+      )
+      .get(chatId)
+
+    if (activeTurn) return "running"
+
+    const latestTurn = this.database
+      .prepare(
+        "SELECT status FROM chat_turns WHERE chat_id = ? ORDER BY started_at DESC LIMIT 1",
+      )
+      .get(chatId) as { status: string } | undefined
+
+    if (!latestTurn) return null
+    if (latestTurn.status === "failed") return "error"
+    return "waiting_for_input"
+  }
+
   list(projectId: ProjectId, includeArchived: boolean = false): ChatsListResult {
     this.assertProjectExists(projectId)
 
@@ -341,7 +365,11 @@ export class ChatService {
       .all(projectId) as ChatRow[]
 
     return {
-      chats: rows.map((row) => mapChatRow(row) satisfies ChatSummary),
+      chats: rows.map((row) => {
+        const chat = mapChatRow(row)
+        chat.turnStatus = this.deriveTurnStatus(chat.id)
+        return chat satisfies ChatSummary
+      }),
     }
   }
 
@@ -354,7 +382,9 @@ export class ChatService {
       throw new IpcProtocolError("not_found", `Chat not found: ${chatId}`)
     }
 
-    return mapChatRow(chat)
+    const snapshot = mapChatRow(chat)
+    snapshot.turnStatus = this.deriveTurnStatus(chatId)
+    return snapshot
   }
 
   rename(chatId: ChatId, title: string): ChatSnapshot {
@@ -452,6 +482,15 @@ export class ChatService {
     })
 
     return this.get(chatId)
+  }
+
+  updateWorkspaceDescription(chatId: ChatId, description: string): void {
+    const timestamp = this.now()
+    this.database
+      .prepare(
+        "UPDATE chats SET workspace_description = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(description, timestamp, chatId)
   }
 
   approvePlan(chatId: ChatId): ChatMessageSnapshot {

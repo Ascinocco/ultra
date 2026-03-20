@@ -334,4 +334,231 @@ describe("ChatService", () => {
 
     runtime.close()
   })
+
+  it("returns workspaceDescription as null for new chats", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-19T12:00:00Z",
+    )
+    const project = projectService.open({ path: projectPath })
+
+    const chat = chatService.create(project.id)
+    expect(chat.workspaceDescription).toBeNull()
+
+    runtime.close()
+  })
+
+  it("returns workspaceDescription after update", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-19T12:00:00Z",
+    )
+    const project = projectService.open({ path: projectPath })
+
+    const chat = chatService.create(project.id)
+    chatService.updateWorkspaceDescription(
+      chat.id,
+      "ULR-93: Fixing archived chat persistence",
+    )
+    const updated = chatService.get(chat.id)
+    expect(updated.workspaceDescription).toBe(
+      "ULR-93: Fixing archived chat persistence",
+    )
+
+    runtime.close()
+  })
+
+  describe("deriveTurnStatus", () => {
+    function setupChatWithTurn(
+      databasePath: string,
+      projectPath: string,
+      turnStatus: "queued" | "running" | "succeeded" | "failed" | "canceled",
+    ) {
+      const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+      const projectService = new ProjectService(runtime.database)
+      const chatService = new ChatService(
+        runtime.database,
+        () => "2026-03-19T12:00:00Z",
+      )
+      const project = projectService.open({ path: projectPath })
+      const chat = chatService.create(project.id)
+
+      // Insert a user message (required FK for user_message_id)
+      const messageId = `chat_msg_test_${turnStatus}`
+      runtime.database
+        .prepare(
+          `INSERT INTO chat_messages (id, chat_id, session_id, role, message_type, content_markdown, structured_payload_json, provider_message_id, created_at)
+           VALUES (?, ?, ?, 'user', 'user_text', 'hello', NULL, NULL, '2026-03-19T12:00:00Z')`,
+        )
+        .run(messageId, chat.id, chat.currentSessionId)
+
+      // Insert a chat_turn row
+      const turnId = `turn_test_${turnStatus}`
+      runtime.database
+        .prepare(
+          `INSERT INTO chat_turns (turn_id, chat_id, session_id, user_message_id, status, provider, model, started_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'claude', 'sonnet', '2026-03-19T12:00:00Z', '2026-03-19T12:00:00Z')`,
+        )
+        .run(turnId, chat.id, chat.currentSessionId, messageId, turnStatus)
+
+      return { runtime, chatService, chat }
+    }
+
+    it("returns null when no turns exist", () => {
+      const { databasePath, projectPath } = createWorkspace()
+      const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+      const projectService = new ProjectService(runtime.database)
+      const chatService = new ChatService(
+        runtime.database,
+        () => "2026-03-19T12:00:00Z",
+      )
+      const project = projectService.open({ path: projectPath })
+      const chat = chatService.create(project.id)
+
+      expect(chatService.deriveTurnStatus(chat.id)).toBeNull()
+
+      runtime.close()
+    })
+
+    it("returns 'running' when a turn is queued", () => {
+      const { databasePath, projectPath } = createWorkspace()
+      const { runtime, chatService, chat } = setupChatWithTurn(
+        databasePath,
+        projectPath,
+        "queued",
+      )
+
+      expect(chatService.deriveTurnStatus(chat.id)).toBe("running")
+
+      runtime.close()
+    })
+
+    it("returns 'running' when a turn is running", () => {
+      const { databasePath, projectPath } = createWorkspace()
+      const { runtime, chatService, chat } = setupChatWithTurn(
+        databasePath,
+        projectPath,
+        "running",
+      )
+
+      expect(chatService.deriveTurnStatus(chat.id)).toBe("running")
+
+      runtime.close()
+    })
+
+    it("returns 'waiting_for_input' when last turn succeeded", () => {
+      const { databasePath, projectPath } = createWorkspace()
+      const { runtime, chatService, chat } = setupChatWithTurn(
+        databasePath,
+        projectPath,
+        "succeeded",
+      )
+
+      expect(chatService.deriveTurnStatus(chat.id)).toBe("waiting_for_input")
+
+      runtime.close()
+    })
+
+    it("returns 'waiting_for_input' when last turn was canceled", () => {
+      const { databasePath, projectPath } = createWorkspace()
+      const { runtime, chatService, chat } = setupChatWithTurn(
+        databasePath,
+        projectPath,
+        "canceled",
+      )
+
+      expect(chatService.deriveTurnStatus(chat.id)).toBe("waiting_for_input")
+
+      runtime.close()
+    })
+
+    it("returns 'error' when last turn failed", () => {
+      const { databasePath, projectPath } = createWorkspace()
+      const { runtime, chatService, chat } = setupChatWithTurn(
+        databasePath,
+        projectPath,
+        "failed",
+      )
+
+      expect(chatService.deriveTurnStatus(chat.id)).toBe("error")
+
+      runtime.close()
+    })
+
+    it("returns 'running' even when previous turn failed (active turn takes priority)", () => {
+      const { databasePath, projectPath } = createWorkspace()
+      const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+      const projectService = new ProjectService(runtime.database)
+      const chatService = new ChatService(
+        runtime.database,
+        () => "2026-03-19T12:00:00Z",
+      )
+      const project = projectService.open({ path: projectPath })
+      const chat = chatService.create(project.id)
+
+      // Insert a failed turn (older)
+      const failedMsgId = "chat_msg_test_failed_priority"
+      runtime.database
+        .prepare(
+          `INSERT INTO chat_messages (id, chat_id, session_id, role, message_type, content_markdown, structured_payload_json, provider_message_id, created_at)
+           VALUES (?, ?, ?, 'user', 'user_text', 'first', NULL, NULL, '2026-03-19T11:59:00Z')`,
+        )
+        .run(failedMsgId, chat.id, chat.currentSessionId)
+
+      runtime.database
+        .prepare(
+          `INSERT INTO chat_turns (turn_id, chat_id, session_id, user_message_id, status, provider, model, started_at, updated_at)
+           VALUES ('turn_failed_priority', ?, ?, ?, 'failed', 'claude', 'sonnet', '2026-03-19T11:59:00Z', '2026-03-19T11:59:30Z')`,
+        )
+        .run(chat.id, chat.currentSessionId, failedMsgId)
+
+      // Insert an active (running) turn (newer)
+      const runningMsgId = "chat_msg_test_running_priority"
+      runtime.database
+        .prepare(
+          `INSERT INTO chat_messages (id, chat_id, session_id, role, message_type, content_markdown, structured_payload_json, provider_message_id, created_at)
+           VALUES (?, ?, ?, 'user', 'user_text', 'second', NULL, NULL, '2026-03-19T12:00:00Z')`,
+        )
+        .run(runningMsgId, chat.id, chat.currentSessionId)
+
+      runtime.database
+        .prepare(
+          `INSERT INTO chat_turns (turn_id, chat_id, session_id, user_message_id, status, provider, model, started_at, updated_at)
+           VALUES ('turn_running_priority', ?, ?, ?, 'running', 'claude', 'sonnet', '2026-03-19T12:00:00Z', '2026-03-19T12:00:00Z')`,
+        )
+        .run(chat.id, chat.currentSessionId, runningMsgId)
+
+      expect(chatService.deriveTurnStatus(chat.id)).toBe("running")
+
+      runtime.close()
+    })
+
+    it("reflects turn status through get() and list()", () => {
+      const { databasePath, projectPath } = createWorkspace()
+      const { runtime, chatService, chat } = setupChatWithTurn(
+        databasePath,
+        projectPath,
+        "failed",
+      )
+      const project = chatService.get(chat.id)
+
+      expect(project.turnStatus).toBe("error")
+
+      // list() also returns derived turn status
+      const projectRow = runtime.database
+        .prepare("SELECT id FROM projects WHERE id = ?")
+        .get(chat.projectId) as { id: string }
+      const listed = chatService.list(projectRow.id)
+      const listedChat = listed.chats.find((c) => c.id === chat.id)
+      expect(listedChat?.turnStatus).toBe("error")
+
+      runtime.close()
+    })
+  })
 })

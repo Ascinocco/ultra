@@ -259,7 +259,10 @@ export async function subscribeToChatMessages(
   })
 }
 
-type SubscribeChatTurnEventsActions = Pick<AppActions, "appendChatTurnEvent">
+type SubscribeChatTurnEventsActions = Pick<
+  AppActions,
+  "appendChatTurnEvent" | "updateChatTurnStatus"
+>
 
 export async function subscribeToChatTurnEvents(
   input: { chatId: string; turnId?: string },
@@ -276,6 +279,16 @@ export async function subscribeToChatTurnEvents(
     (event) => {
       const parsed = parseChatsTurnEventsEvent(event)
       actions.appendChatTurnEvent(parsed.payload)
+
+      const { eventType, chatId } = parsed.payload
+      if (eventType === "chat.turn_queued" || eventType === "chat.turn_started") {
+        actions.updateChatTurnStatus(chatId, "running")
+      } else if (eventType === "chat.turn_completed") {
+        actions.updateChatTurnStatus(chatId, "waiting_for_input")
+      } else if (eventType === "chat.turn_failed") {
+        actions.updateChatTurnStatus(chatId, "error")
+      }
+
       onEvent?.(parsed.payload)
     },
   )

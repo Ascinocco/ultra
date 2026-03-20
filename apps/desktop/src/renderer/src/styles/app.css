@@ -1408,8 +1408,7 @@ button {
 .chat-row {
   appearance: none;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
   width: 100%;
   padding: 5px 8px;
   border: none;
@@ -1420,7 +1419,7 @@ button {
   font-size: 0.8rem;
   cursor: pointer;
   text-align: left;
-  gap: 8px;
+  gap: 2px;
 }
 
 .chat-row:hover {
@@ -1479,6 +1478,37 @@ button {
 .chat-row__time {
   color: var(--text-muted);
   font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.chat-row__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+
+.chat-row__description {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.chat-row__status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.65rem;
+}
+
+.chat-row__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 

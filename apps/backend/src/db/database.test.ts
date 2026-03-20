@@ -61,7 +61,7 @@ describe("database bootstrap", () => {
       "0008_artifacts_and_sharing",
     )
     expect(runtime.migrationResult.appliedMigrationIds).toContain(
-      "0011_chat_turn_persistence",
+      "0012_chat_workspace_description",
     )
 
     const tables = runtime.database
@@ -173,7 +173,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0012_workspace_description",
+      "0012_chat_workspace_description",
     )
 
     secondRuntime.close()

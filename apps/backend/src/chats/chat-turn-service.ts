@@ -1,4 +1,6 @@
+import { execFile } from "node:child_process"
 import { randomUUID } from "node:crypto"
+import { promisify } from "node:util"
 import type {
   ChatId,
   ChatTurnEventSnapshot,
@@ -25,6 +27,11 @@ import type {
   ChatRuntimeError,
   ChatRuntimeTurnResult,
 } from "./runtime/types.js"
+import {
+  buildSummaryPrompt,
+  getSystemPrompt,
+  selectSummaryModel,
+} from "./workspace-summary.js"
 
 type ChatTurnRow = {
   turn_id: string
@@ -955,6 +962,11 @@ export class ChatTurnService {
           eventsAlreadyStreamed: true,
         }),
       )
+
+      // Fire-and-forget workspace description update
+      this.updateWorkspaceDescription(chatId).catch(() => {
+        // Silently ignore summary generation failures
+      })
     } catch (error) {
       this.notifyTurnEvents(this.finalizeFailedTurn(chatId, claimed.turnId, error))
     } finally {
@@ -1515,6 +1527,71 @@ export class ChatTurnService {
       .get(chatId) as { present: number } | undefined
 
     return typeof row?.present === "number"
+  }
+
+  private async updateWorkspaceDescription(chatId: ChatId): Promise<void> {
+    const execFileAsync = promisify(execFile)
+
+    const chat = this.chatService.get(chatId)
+    const recentMessages = this.chatService.listMessages(chatId)
+    const summaryMessages = recentMessages.slice(-10).map((m) => ({
+      role: m.role,
+      content: m.contentMarkdown ?? "",
+    }))
+    const userPrompt = buildSummaryPrompt(chat.workspaceDescription, summaryMessages)
+    const systemPrompt = getSystemPrompt()
+    const { provider, model } = selectSummaryModel(chat.provider)
+
+    let description: string
+
+    if (provider === "claude") {
+      const { stdout } = await execFileAsync(
+        "claude",
+        ["-p", userPrompt, "--system-prompt", systemPrompt, "--model", model, "--output-format", "text"],
+        { timeout: 15_000 },
+      )
+      description = stdout.trim().slice(0, 120)
+    } else {
+      // Codex: use exec --json mode and extract the last assistant message text
+      const { stdout } = await execFileAsync(
+        "codex",
+        [
+          "-a", "never",
+          "exec",
+          "--json",
+          "--ephemeral",
+          "--skip-git-repo-check",
+          "-m", model,
+          userPrompt,
+        ],
+        { timeout: 15_000 },
+      )
+      // Parse JSONL output to find the last non-delta text message
+      const lines = stdout.split("\n")
+      let finalText = ""
+      for (const line of lines) {
+        try {
+          const payload = JSON.parse(line) as Record<string, unknown>
+          const payloadType = typeof payload.type === "string" ? payload.type : ""
+          // Look for final message text (not delta)
+          if (!payloadType.includes("delta")) {
+            const content = payload.content
+            if (typeof content === "string" && content.length > 0) {
+              finalText = content
+            } else if (typeof payload.text === "string" && payload.text.length > 0) {
+              finalText = payload.text
+            }
+          }
+        } catch {
+          // Skip non-JSON lines
+        }
+      }
+      description = finalText.trim().slice(0, 120)
+    }
+
+    if (description.length > 0) {
+      this.chatService.updateWorkspaceDescription(chatId, description)
+    }
   }
 
   private notifyTurnEvents(events: ChatTurnEventSnapshot[]): void {
