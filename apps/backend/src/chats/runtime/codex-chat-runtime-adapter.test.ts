@@ -1,317 +1,456 @@
-import { describe, expect, it, vi } from "vitest"
+import { PassThrough } from "node:stream"
+import type { ChildProcess, SpawnOptions } from "node:child_process"
+import { EventEmitter } from "node:events"
 
-import { CodexChatRuntimeAdapter, parseCodexLine } from "./codex-chat-runtime-adapter.js"
-import type {
-  ChatRuntimeEvent,
-  RuntimeProcessRunner,
-  RuntimeProcessRunOptions,
-  RuntimeProcessResult,
-} from "./types.js"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-function createRunner(
-  lines: string[],
-  stderr = "",
-): {
-  runner: RuntimeProcessRunner
-  calls: Array<{ command: string; args: string[]; cwd: string }>
-} {
-  const calls: Array<{ command: string; args: string[]; cwd: string }> = []
+import { CodexChatRuntimeAdapter } from "./codex-chat-runtime-adapter.js"
+import type { ChatRuntimeEvent, ChatRuntimeTurnRequest } from "./types.js"
+import { ChatRuntimeError } from "./types.js"
 
-  return {
-    calls,
-    runner: {
-      async run(options) {
-        calls.push({
-          command: options.command,
-          args: options.args,
-          cwd: options.cwd,
-        })
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
 
-        return {
-          exitCode: 0,
-          signal: null,
-          stdout: `${lines.join("\n")}\n`,
-          stderr,
-          stdoutLines: lines,
-          stderrLines: stderr ? [stderr] : [],
-          timedOut: false,
+/**
+ * Creates a fake ChildProcess whose stdout/stdin are PassThrough streams
+ * we control from the test side.
+ *
+ * - `serverWrite(obj)` pushes a JSON-RPC message into the adapter (via stdout)
+ * - `capturedWrites` collects every JSON-RPC message the adapter sends (via stdin)
+ * - The helper auto-responds to the handshake sequence (initialize, thread/start)
+ *   and injects a `thread/started` notification with a configurable threadId.
+ */
+function createFakeProcess(options?: {
+  threadId?: string
+  autoHandshake?: boolean
+}) {
+  const threadId = options?.threadId ?? "thread-001"
+  const autoHandshake = options?.autoHandshake ?? true
+
+  const stdout = new PassThrough() // adapter reads from this
+  const stdin = new PassThrough() // adapter writes to this
+  const emitter = new EventEmitter()
+
+  const child = Object.assign(emitter, {
+    stdin,
+    stdout,
+    stderr: new PassThrough(),
+    pid: 12345,
+    connected: true,
+    exitCode: null,
+    signalCode: null,
+    killed: false,
+    kill: vi.fn(() => {
+      child.killed = true
+      return true
+    }),
+    ref: vi.fn(),
+    unref: vi.fn(),
+    disconnect: vi.fn(),
+    send: vi.fn(),
+    [Symbol.dispose]: vi.fn(),
+  }) as unknown as ChildProcess & { killed: boolean }
+
+  const capturedWrites: any[] = []
+  let lineBuffer = ""
+
+  stdin.on("data", (chunk: Buffer) => {
+    lineBuffer += chunk.toString()
+    const lines = lineBuffer.split("\n")
+    lineBuffer = lines.pop()! // keep incomplete line in buffer
+    for (const line of lines) {
+      if (!line.trim()) continue
+      try {
+        const parsed = JSON.parse(line)
+        capturedWrites.push(parsed)
+
+        if (autoHandshake) {
+          handleAutoResponse(parsed)
         }
-      },
-    },
+      } catch {
+        // ignore non-JSON
+      }
+    }
+  })
+
+  function handleAutoResponse(msg: any) {
+    // Response to a request (has id and method)
+    if (msg.id != null && msg.method) {
+      if (msg.method === "initialize") {
+        serverWrite({ id: msg.id, result: { serverInfo: { name: "codex-app-server" } } })
+      } else if (msg.method === "thread/start" || msg.method === "thread/resume") {
+        serverWrite({ id: msg.id, result: {} })
+        // Also send thread/started notification
+        serverWrite({ method: "thread/started", params: { thread: { id: threadId } } })
+      } else if (msg.method === "turn/start") {
+        serverWrite({ id: msg.id, result: { turn: { id: "turn-001" } } })
+      }
+    }
   }
+
+  function serverWrite(obj: Record<string, unknown>) {
+    stdout.write(JSON.stringify(obj) + "\n")
+  }
+
+  function simulateExit(code = 0) {
+    emitter.emit("exit", code, null)
+  }
+
+  const spawnFn = vi.fn(
+    (_command: string, _args: string[], _options: SpawnOptions) => child,
+  )
+
+  return { child, spawnFn, serverWrite, capturedWrites, simulateExit }
 }
 
-describe("CodexChatRuntimeAdapter", () => {
-  it("normalizes codex jsonl output into runtime events", async () => {
-    const { runner, calls } = createRunner(
-      [
-        JSON.stringify({
-          type: "session.started",
-          session_id: "vendor_codex_1",
-        }),
-        JSON.stringify({
-          type: "assistant.delta",
-          delta: "Plan ",
-        }),
-        JSON.stringify({
-          type: "tool",
-          command: "git status",
-          path: "src/index.ts",
-          summary: "Checked git status",
-        }),
-        JSON.stringify({
-          type: "assistant.final",
-          text: "Plan complete",
-        }),
-      ],
-      "codex diagnostic warning",
-    )
-    const adapter = new CodexChatRuntimeAdapter(runner)
-
-    const result = await adapter.runTurn({
-      chatId: "chat_1",
-      chatSessionId: "chat_sess_1",
-      cwd: "/repo",
-      prompt: "Ship it",
-      config: {
-        provider: "codex",
-        model: "gpt-5.4",
-        thinkingLevel: "default",
-        permissionLevel: "supervised",
-      },
-      continuationPrompt: null,
-      seedMessages: [],
-      vendorSessionId: null,
-    })
-
-    expect(calls[0]).toMatchObject({
-      command: "codex",
-      cwd: "/repo",
-    })
-    expect(calls[0]?.args).toContain("-a")
-    expect(calls[0]?.args).toContain("workspace-write")
-    expect(result.vendorSessionId).toBe("vendor_codex_1")
-    expect(result.finalText).toBe("Plan complete")
-    expect(result.events).toEqual(
-      expect.arrayContaining([
-        { type: "assistant_delta", text: "Plan " },
-        { type: "assistant_final", text: "Plan complete" },
-        expect.objectContaining({ type: "tool_activity" }),
-        expect.objectContaining({ type: "checkpoint_candidate" }),
-      ]),
-    )
-    expect(result.diagnostics?.stderr).toContain("codex diagnostic warning")
-  })
-
-  it("uses resume mode and rejects unsupported thinking levels", async () => {
-    const { runner, calls } = createRunner([
-      JSON.stringify({
-        type: "assistant.final",
-        text: "Resumed",
-      }),
-    ])
-    const adapter = new CodexChatRuntimeAdapter(runner)
-
-    await expect(
-      adapter.runTurn({
-        chatId: "chat_1",
-        chatSessionId: "chat_sess_1",
-        cwd: "/repo",
-        prompt: "Continue",
-        config: {
-          provider: "codex",
-          model: "gpt-5.4",
-          thinkingLevel: "default",
-          permissionLevel: "full_access",
-        },
-        continuationPrompt: null,
-        seedMessages: [],
-        vendorSessionId: "vendor_codex_1",
-      }),
-    ).resolves.toMatchObject({
-      finalText: "Resumed",
-      resumed: true,
-    })
-
-    expect(calls[0]?.args).toEqual(
-      expect.arrayContaining([
-        "resume",
-        "vendor_codex_1",
-        "-s",
-        "danger-full-access",
-      ]),
-    )
-    expect(calls[0]?.args.at(-1)).toBe("Continue")
-
-    await expect(
-      adapter.runTurn({
-        chatId: "chat_1",
-        chatSessionId: "chat_sess_1",
-        cwd: "/repo",
-        prompt: "Continue",
-        config: {
-          provider: "codex",
-          model: "gpt-5.4",
-          thinkingLevel: "high",
-          permissionLevel: "supervised",
-        },
-        continuationPrompt: null,
-        seedMessages: [],
-        vendorSessionId: null,
-      }),
-    ).rejects.toThrow(/does not support thinking level 'high'/)
-  })
-})
-
-// --- Unit tests for parseCodexLine ---
-
-describe("parseCodexLine", () => {
-  it("parses a delta line into an assistant_delta event", () => {
-    const line = JSON.stringify({ type: "assistant.delta", delta: "Hello" })
-    const result = parseCodexLine(line)
-    expect(result.events).toHaveLength(1)
-    expect(result.events[0]).toEqual({ type: "assistant_delta", text: "Hello" })
-    expect(result.finalText).toBeUndefined()
-  })
-
-  it("parses a non-delta text line into finalText", () => {
-    const line = JSON.stringify({
-      type: "assistant.final",
-      text: "Hello world",
-      session_id: "vendor-session-123",
-    })
-    const result = parseCodexLine(line)
-    expect(result.events).toHaveLength(0)
-    expect(result.finalText).toBe("Hello world")
-    expect(result.vendorSessionId).toBe("vendor-session-123")
-  })
-
-  it("returns empty events for non-JSON lines", () => {
-    const result = parseCodexLine("not json at all")
-    expect(result.events).toHaveLength(0)
-    expect(result.vendorSessionId).toBeUndefined()
-    expect(result.finalText).toBeUndefined()
-  })
-
-  it("parses a runtime_notice for typed events without text", () => {
-    const line = JSON.stringify({ type: "session.started" })
-    const result = parseCodexLine(line)
-    expect(result.events).toHaveLength(1)
-    expect(result.events[0].type).toBe("runtime_notice")
-  })
-
-  it("extracts vendorSessionId from any line", () => {
-    const line = JSON.stringify({
-      type: "assistant.delta",
-      delta: "Hi",
-      session_id: "vendor-abc",
-    })
-    const result = parseCodexLine(line)
-    expect(result.vendorSessionId).toBe("vendor-abc")
-  })
-})
-
-// --- Streaming tests ---
-
-function makeFakeRunner(lines: string[]): RuntimeProcessRunner {
+function makeRequest(overrides?: Partial<ChatRuntimeTurnRequest>): ChatRuntimeTurnRequest {
   return {
-    run: async (options: RuntimeProcessRunOptions): Promise<RuntimeProcessResult> => {
-      if (options.onLine) {
-        for (const line of lines) {
-          options.onLine(line)
-        }
-      }
-      return {
-        exitCode: 0,
-        signal: null,
-        stdout: lines.join("\n"),
-        stderr: "",
-        stdoutLines: lines,
-        stderrLines: [],
-        timedOut: false,
-      }
-    },
-  }
-}
-
-// Test data using Codex JSON line format
-const deltaLine1 = JSON.stringify({ type: "assistant.delta", delta: "Hello" })
-const deltaLine2 = JSON.stringify({ type: "assistant.delta", delta: " world" })
-const resultLine = JSON.stringify({
-  type: "assistant.final",
-  text: "Hello world",
-  session_id: "vendor-session-123",
-})
-
-describe("CodexChatRuntimeAdapter streaming", () => {
-  const baseRequest = {
-    chatId: "chat_1",
-    chatSessionId: "chat_sess_1",
+    chatId: "chat_1" as any,
+    chatSessionId: "sess_1",
     cwd: "/repo",
-    prompt: "hello",
+    prompt: "Hello",
     config: {
-      provider: "codex" as const,
-      model: "gpt-5.4",
+      provider: "codex",
+      model: "o4-mini",
       thinkingLevel: "default",
-      permissionLevel: "full_access" as const,
+      permissionLevel: "supervised",
     },
     continuationPrompt: null,
     seedMessages: [],
     vendorSessionId: null,
+    ...overrides,
   }
+}
 
-  it("emits events incrementally via onEvent and returns all events in final result", async () => {
-    const lines = [deltaLine1, deltaLine2, resultLine]
-    const runner = makeFakeRunner(lines)
-    const adapter = new CodexChatRuntimeAdapter(runner)
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
-    const emittedEvents: ChatRuntimeEvent[] = []
-    const onEvent = vi.fn((event: ChatRuntimeEvent) => {
-      emittedEvents.push(event)
-    })
+describe("CodexChatRuntimeAdapter (app-server JSON-RPC)", () => {
+  let adapter: CodexChatRuntimeAdapter
 
-    const result = await adapter.runTurn({ ...baseRequest, onEvent })
-
-    // onEvent should have been called for each delta
-    expect(onEvent).toHaveBeenCalledTimes(2)
-    expect(emittedEvents[0]).toEqual({ type: "assistant_delta", text: "Hello" })
-    expect(emittedEvents[1]).toEqual({ type: "assistant_delta", text: " world" })
-
-    // Final result should contain all events plus assistant_final
-    expect(result.finalText).toBe("Hello world")
-    expect(result.vendorSessionId).toBe("vendor-session-123")
-    expect(result.events).toContainEqual({ type: "assistant_delta", text: "Hello" })
-    expect(result.events).toContainEqual({ type: "assistant_delta", text: " world" })
-    expect(result.events).toContainEqual({ type: "assistant_final", text: "Hello world" })
+  afterEach(() => {
+    adapter?.shutdown()
   })
 
-  it("works correctly without onEvent (batch path)", async () => {
-    const lines = [deltaLine1, deltaLine2, resultLine]
-    const runner = makeFakeRunner(lines)
-    const adapter = new CodexChatRuntimeAdapter(runner)
+  it("streams text deltas via onEvent", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
 
-    const result = await adapter.runTurn({ ...baseRequest })
+    const events: ChatRuntimeEvent[] = []
 
-    expect(result.finalText).toBe("Hello world")
-    expect(result.vendorSessionId).toBe("vendor-session-123")
-    expect(result.events).toContainEqual({ type: "assistant_delta", text: "Hello" })
-    expect(result.events).toContainEqual({ type: "assistant_delta", text: " world" })
-    expect(result.events).toContainEqual({ type: "assistant_final", text: "Hello world" })
-  })
-
-  it("falls back to concatenated deltas for finalText when no result line", async () => {
-    const lines = [deltaLine1, deltaLine2]
-    const runner = makeFakeRunner(lines)
-    const adapter = new CodexChatRuntimeAdapter(runner)
-
-    const emittedEvents: ChatRuntimeEvent[] = []
-    const onEvent = vi.fn((event: ChatRuntimeEvent) => {
-      emittedEvents.push(event)
+    const resultPromise = adapter.runTurn({
+      ...makeRequest(),
+      onEvent: (e) => events.push(e),
     })
 
-    const result = await adapter.runTurn({ ...baseRequest, onEvent })
+    // Wait a tick for the handshake + turn/start to complete, then stream
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Hello" } })
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: " world" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
 
+    const result = await resultPromise
+
+    const deltas = events.filter((e) => e.type === "assistant_delta")
+    expect(deltas).toHaveLength(2)
+    expect(deltas[0]).toEqual({ type: "assistant_delta", text: "Hello" })
+    expect(deltas[1]).toEqual({ type: "assistant_delta", text: " world" })
     expect(result.finalText).toBe("Hello world")
-    expect(onEvent).toHaveBeenCalledTimes(2)
+  })
+
+  it("works without onEvent (batch path)", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const resultPromise = adapter.runTurn(makeRequest())
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Batch" } })
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: " result" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+
+    const result = await resultPromise
+
+    expect(result.finalText).toBe("Batch result")
+    expect(result.events.some((e) => e.type === "assistant_delta")).toBe(true)
+    expect(result.events.some((e) => e.type === "assistant_final")).toBe(true)
+  })
+
+  it("resolves turn with correct finalText on turn/completed", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const resultPromise = adapter.runTurn(makeRequest())
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "The answer is 42" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+
+    const result = await resultPromise
+
+    expect(result.finalText).toBe("The answer is 42")
+    const finals = result.events.filter((e) => e.type === "assistant_final")
+    expect(finals).toHaveLength(1)
+    expect(finals[0]).toEqual({ type: "assistant_final", text: "The answer is 42" })
+  })
+
+  it("auto-approves approval requests from the server", async () => {
+    const { spawnFn, serverWrite, capturedWrites } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const resultPromise = adapter.runTurn(makeRequest())
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Done" } })
+    // Server sends a request (has id + method) for approval
+    serverWrite({ id: "approval-1", method: "approval/requested", params: { tool: "bash", command: "rm -rf /tmp/x" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+
+    await resultPromise
+
+    // Find the adapter's response to the approval request
+    const approvalResponse = capturedWrites.find(
+      (msg) => msg.id === "approval-1" && msg.result,
+    )
+    expect(approvalResponse).toBeDefined()
+    expect(approvalResponse.result).toEqual({ decision: "approved" })
+  })
+
+  it("maps item/started and item/completed to tool_activity events", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const events: ChatRuntimeEvent[] = []
+
+    const resultPromise = adapter.runTurn({
+      ...makeRequest(),
+      onEvent: (e) => events.push(e),
+    })
+
+    await tick()
+    serverWrite({
+      method: "item/started",
+      params: { item: { type: "bash", id: "item-1" } },
+    })
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Running" } })
+    serverWrite({
+      method: "item/completed",
+      params: { item: { type: "bash", id: "item-1" } },
+    })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+
+    await resultPromise
+
+    const toolEvents = events.filter((e) => e.type === "tool_activity")
+    expect(toolEvents).toHaveLength(2)
+    expect(toolEvents[0]).toMatchObject({ type: "tool_activity", label: "bash" })
+    expect(toolEvents[1]).toMatchObject({ type: "tool_activity", label: "bash" })
+  })
+
+  it("reuses the session on second runTurn (no new process spawned)", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    // First turn
+    const p1 = adapter.runTurn(makeRequest())
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "First" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+    const r1 = await p1
+
+    expect(spawnFn).toHaveBeenCalledTimes(1)
+    expect(r1.resumed).toBe(false)
+
+    // Second turn — same chatSessionId
+    const p2 = adapter.runTurn(makeRequest())
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Second" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+    const r2 = await p2
+
+    // Should NOT have spawned a second process
+    expect(spawnFn).toHaveBeenCalledTimes(1)
+    expect(r2.resumed).toBe(true)
+    expect(r2.finalText).toBe("Second")
+  })
+
+  it("captures vendorSessionId from thread/started notification", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess({ threadId: "thread-xyz-999" })
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const resultPromise = adapter.runTurn(makeRequest())
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Hi" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+
+    const result = await resultPromise
+    expect(result.vendorSessionId).toBe("thread-xyz-999")
+  })
+
+  it("handles process crash gracefully — empty response error", async () => {
+    const { spawnFn, simulateExit } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const resultPromise = adapter.runTurn(makeRequest())
+
+    await tick()
+    // Process crashes with no text emitted
+    simulateExit(1)
+
+    await expect(resultPromise).rejects.toThrow(ChatRuntimeError)
+    await expect(resultPromise).rejects.toThrow(/no assistant text/)
+  })
+
+  it("handles process crash mid-stream — resolves with accumulated text", async () => {
+    const { spawnFn, serverWrite, simulateExit } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const resultPromise = adapter.runTurn(makeRequest())
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Partial output" } })
+    await tick()
+    // Process crashes, which resolves the turn promise via the exit handler
+    simulateExit(1)
+
+    const result = await resultPromise
+    expect(result.finalText).toBe("Partial output")
+  })
+
+  it("throws empty_response error when turn completes with no text", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const resultPromise = adapter.runTurn(makeRequest())
+
+    await tick()
+    // Turn completes with no deltas
+    serverWrite({ method: "turn/completed", params: {} })
+
+    await expect(resultPromise).rejects.toThrow(ChatRuntimeError)
+    await expect(resultPromise).rejects.toThrow(/no assistant text/)
+  })
+
+  it("spawns codex with app-server arg and correct cwd", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({
+      spawnFn,
+      codexBinaryPath: "/usr/local/bin/codex",
+    })
+
+    const resultPromise = adapter.runTurn(makeRequest({ cwd: "/my/project" }))
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Ok" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+    await resultPromise
+
+    expect(spawnFn).toHaveBeenCalledWith(
+      "/usr/local/bin/codex",
+      ["app-server"],
+      expect.objectContaining({ cwd: "/my/project" }),
+    )
+  })
+
+  it("sends correct sandbox and approval policy based on permissionLevel", async () => {
+    const { spawnFn, serverWrite, capturedWrites } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const resultPromise = adapter.runTurn(
+      makeRequest({
+        config: {
+          provider: "codex",
+          model: "o4-mini",
+          thinkingLevel: "default",
+          permissionLevel: "full_access",
+        },
+      }),
+    )
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Ok" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+    await resultPromise
+
+    // Find the thread/start request
+    const threadStartReq = capturedWrites.find((m) => m.method === "thread/start")
+    expect(threadStartReq).toBeDefined()
+    expect(threadStartReq.params.sandbox).toBe("danger-full-access")
+    expect(threadStartReq.params.approvalPolicy).toBe("never")
+  })
+
+  it("emits runtime_error events from error notifications", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const events: ChatRuntimeEvent[] = []
+
+    const resultPromise = adapter.runTurn({
+      ...makeRequest(),
+      onEvent: (e) => events.push(e),
+    })
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Oops" } })
+    serverWrite({
+      method: "error",
+      params: { error: { message: "Something went wrong" } },
+    })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+
+    await resultPromise
+
+    const errorEvents = events.filter((e) => e.type === "runtime_error")
+    expect(errorEvents).toHaveLength(1)
+    expect(errorEvents[0]).toEqual({
+      type: "runtime_error",
+      message: "Something went wrong",
+    })
+  })
+
+  it("maps item/commandExecution/outputDelta to tool_activity", async () => {
+    const { spawnFn, serverWrite } = createFakeProcess()
+    adapter = new CodexChatRuntimeAdapter({ spawnFn })
+
+    const events: ChatRuntimeEvent[] = []
+
+    const resultPromise = adapter.runTurn({
+      ...makeRequest(),
+      onEvent: (e) => events.push(e),
+    })
+
+    await tick()
+    serverWrite({ method: "item/agentMessage/delta", params: { delta: "Running cmd" } })
+    serverWrite({ method: "item/commandExecution/outputDelta", params: { delta: "output line" } })
+    await tick()
+    serverWrite({ method: "turn/completed", params: {} })
+
+    await resultPromise
+
+    const toolEvents = events.filter((e) => e.type === "tool_activity")
+    expect(toolEvents).toHaveLength(1)
+    expect(toolEvents[0]).toEqual({ type: "tool_activity", label: "command_output" })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function tick(ms = 10): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
