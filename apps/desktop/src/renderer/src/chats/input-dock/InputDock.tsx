@@ -30,7 +30,6 @@ export type InputDockProps = {
 }
 
 const THINKING_OPTIONS = [
-  { value: "default", label: "Default" },
   { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
