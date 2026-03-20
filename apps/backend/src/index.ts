@@ -9,7 +9,6 @@ import { ChatTurnService } from "./chats/chat-turn-service.js"
 import { ChatRuntimeRegistry } from "./chats/runtime/chat-runtime-registry.js"
 import { ClaudeChatRuntimeAdapter } from "./chats/runtime/claude-chat-runtime-adapter.js"
 import { CodexChatRuntimeAdapter } from "./chats/runtime/codex-chat-runtime-adapter.js"
-import { SpawnRuntimeProcessRunner } from "./chats/runtime/process-runner.js"
 import { ChatRuntimeSessionManager } from "./chats/runtime/runtime-session-manager.js"
 import { bootstrapDatabase, type DatabaseRuntime } from "./db/database.js"
 import { AgentHealthMonitor } from "./orchestration/agent-health-monitor.js"
@@ -185,11 +184,12 @@ export async function startBackendScaffold(options?: {
       terminalSessionService,
     )
     const chatService = new ChatService(databaseRuntime.database)
-    const chatRuntimeProcessRunner = new SpawnRuntimeProcessRunner()
     const chatTurnService = new ChatTurnService(
       chatService,
       new ChatRuntimeRegistry([
-        new CodexChatRuntimeAdapter(chatRuntimeProcessRunner),
+        new CodexChatRuntimeAdapter({
+          codexBinaryPath: "codex",
+        }),
         new ClaudeChatRuntimeAdapter({
           pathToClaudeCodeExecutable: "claude",
         }),

@@ -1,20 +1,39 @@
-import type { ChatRuntimeConfig } from "../chat-service.js"
-import {
-  buildSeededPrompt,
-  createToolActivityEvent,
-  extractTextCandidate,
-  extractVendorSessionId,
-  maybeBuildCheckpoint,
-  stringifyUnknown,
-} from "./runtime-helpers.js"
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process"
+
+import { JsonRpcClient } from "./json-rpc-client.js"
+import { buildSeededPrompt } from "./runtime-helpers.js"
 import type {
   ChatRuntimeAdapter,
   ChatRuntimeEvent,
   ChatRuntimeTurnRequest,
   ChatRuntimeTurnResult,
-  RuntimeProcessRunner,
 } from "./types.js"
 import { ChatRuntimeError } from "./types.js"
+import type { ChatRuntimeConfig } from "../chat-service.js"
+
+// ---------------------------------------------------------------------------
+// Config & session types
+// ---------------------------------------------------------------------------
+
+export type CodexAdapterConfig = {
+  codexBinaryPath?: string
+  codexHomePath?: string
+  defaultEnv?: NodeJS.ProcessEnv
+  spawnFn?: (command: string, args: string[], options: SpawnOptions) => ChildProcess
+}
+
+type CodexSession = {
+  child: ChildProcess
+  rpcClient: JsonRpcClient
+  providerThreadId: string | null
+  activeTurnResolve: ((value: void) => void) | null
+  stopped: boolean
+  accumulatedText: string
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function resolveCodexSandbox(
   permissionLevel: ChatRuntimeConfig["permissionLevel"],
@@ -24,241 +43,303 @@ function resolveCodexSandbox(
     : "workspace-write"
 }
 
-function assertSupportedThinkingLevel(thinkingLevel: string): void {
-  if (thinkingLevel !== "default") {
-    throw new ChatRuntimeError(
-      "invalid_config",
-      `Codex adapter does not support thinking level '${thinkingLevel}' yet.`,
-    )
-  }
+function resolveCodexApprovalPolicy(
+  permissionLevel: ChatRuntimeConfig["permissionLevel"],
+): string {
+  return permissionLevel === "full_access" ? "never" : "on-request"
 }
 
-function buildArgs(request: ChatRuntimeTurnRequest): string[] {
-  const sandbox = resolveCodexSandbox(request.config.permissionLevel)
-  const seededPrompt = buildSeededPrompt(request)
-  const baseArgs = ["-a", "never", "exec"]
-
-  if (request.vendorSessionId) {
-    return [
-      ...baseArgs,
-      "resume",
-      request.vendorSessionId,
-      "--json",
-      "-C",
-      request.cwd,
-      "-m",
-      request.config.model,
-      "-s",
-      sandbox,
-      seededPrompt,
-    ]
-  }
-
-  return [
-    ...baseArgs,
-    "--json",
-    "-C",
-    request.cwd,
-    "-m",
-    request.config.model,
-    "-s",
-    sandbox,
-    seededPrompt,
-  ]
-}
-
-export type ParseCodexLineResult = {
-  events: ChatRuntimeEvent[]
-  vendorSessionId?: string
-  finalText?: string
-}
-
-export function parseCodexLine(line: string): ParseCodexLineResult {
-  const events: ChatRuntimeEvent[] = []
-  let vendorSessionId: string | undefined
-  let finalText: string | undefined
-
-  let payload: unknown
-  try {
-    payload = JSON.parse(line)
-  } catch {
-    return { events }
-  }
-
-  const extractedSessionId = extractVendorSessionId(payload)
-  if (extractedSessionId) {
-    vendorSessionId = extractedSessionId
-  }
-
-  const payloadType =
-    typeof (payload as Record<string, unknown>).type === "string"
-      ? ((payload as Record<string, unknown>).type as string)
-      : ""
-  const text = extractTextCandidate(payload)
-  const checkpoint = maybeBuildCheckpoint(payload)
-
-  if (checkpoint) {
-    events.push(
-      createToolActivityEvent("Codex activity", {
-        raw: payload as Record<string, unknown>,
-      }),
-    )
-    events.push({
-      type: "checkpoint_candidate",
-      checkpoint,
-    })
-  }
-
-  if (text) {
-    if (payloadType.includes("delta")) {
-      events.push({ type: "assistant_delta", text })
-    } else {
-      finalText = text
-    }
-  } else if (payloadType.length > 0) {
-    events.push({
-      type: "runtime_notice",
-      message: stringifyUnknown(payload),
-    })
-  }
-
-  return { events, vendorSessionId, finalText }
-}
-
-function parseCodexLines(lines: string[]): {
-  events: ChatRuntimeEvent[]
-  finalText: string
-  vendorSessionId: string | null
-} {
-  const events: ChatRuntimeEvent[] = []
-  const deltas: string[] = []
-  let finalText: string | null = null
-  let vendorSessionId: string | null = null
-
-  for (const line of lines) {
-    const result = parseCodexLine(line)
-
-    events.push(...result.events)
-
-    if (result.vendorSessionId && !vendorSessionId) {
-      vendorSessionId = result.vendorSessionId
-    }
-
-    if (result.finalText) {
-      finalText = result.finalText
-    }
-
-    // Collect delta text for fallback
-    for (const event of result.events) {
-      if (event.type === "assistant_delta") {
-        deltas.push(event.text)
-      }
-    }
-  }
-
-  if (!finalText) {
-    finalText = deltas.join("").trim()
-  }
-
-  return {
-    events,
-    finalText,
-    vendorSessionId,
-  }
-}
+// ---------------------------------------------------------------------------
+// Adapter
+// ---------------------------------------------------------------------------
 
 export class CodexChatRuntimeAdapter implements ChatRuntimeAdapter {
   readonly provider = "codex" as const
 
-  constructor(private readonly processRunner: RuntimeProcessRunner) {}
+  private config: CodexAdapterConfig
+  private sessions = new Map<string, CodexSession>()
+
+  constructor(config: CodexAdapterConfig = {}) {
+    this.config = config
+  }
 
   async runTurn(
     request: ChatRuntimeTurnRequest,
   ): Promise<ChatRuntimeTurnResult> {
-    assertSupportedThinkingLevel(request.config.thinkingLevel)
+    const sessionKey = request.chatSessionId
 
-    // When onEvent is provided, parse and emit events incrementally
-    const streaming = !!request.onEvent
-    const streamEvents: ChatRuntimeEvent[] = []
-    const streamDeltas: string[] = []
-    let streamVendorSessionId: string | null = null
-    let streamFinalText: string | null = null
+    let session = this.sessions.get(sessionKey)
+    if (session?.stopped) {
+      this.destroySession(sessionKey)
+      session = undefined
+    }
 
-    const onLine = streaming
-      ? (line: string) => {
-          const result = parseCodexLine(line)
+    const isResume = !!session
+    if (!session) {
+      session = await this.createSession(request)
+      this.sessions.set(sessionKey, session)
+    }
 
-          for (const event of result.events) {
-            streamEvents.push(event)
-            request.onEvent!(event)
-            if (event.type === "assistant_delta") {
-              streamDeltas.push(event.text)
-            }
-          }
+    // Build turn input
+    const promptText = buildSeededPrompt(request)
+    const turnInput = [{ type: "text" as const, text: promptText, text_elements: [] as never[] }]
 
-          if (result.vendorSessionId && !streamVendorSessionId) {
-            streamVendorSessionId = result.vendorSessionId
-          }
+    // Prepare to collect events
+    const collectedEvents: ChatRuntimeEvent[] = []
+    session.accumulatedText = ""
 
-          if (result.finalText) {
-            streamFinalText = result.finalText
-          }
-        }
-      : undefined
+    const emitEvent = (event: ChatRuntimeEvent) => {
+      collectedEvents.push(event)
+      request.onEvent?.(event)
+      if (event.type === "assistant_delta") {
+        session!.accumulatedText += event.text
+      }
+    }
 
-    const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000
-
-    const diagnostics = await this.processRunner.run({
-      command: "codex",
-      args: buildArgs(request),
-      cwd: request.cwd,
-      timeoutMs: FORTY_EIGHT_HOURS_MS,
-      signal: request.signal,
-      onLine,
+    // Wire up notification handler for this turn
+    const turnComplete = new Promise<void>((resolve) => {
+      session!.activeTurnResolve = resolve
     })
 
-    // Use incrementally-collected results when streaming, otherwise batch-parse
-    const parsed = streaming
-      ? {
-          events: streamEvents,
-          finalText: streamFinalText ?? streamDeltas.join("").trim(),
-          vendorSessionId: streamVendorSessionId,
-        }
-      : parseCodexLines(diagnostics.stdoutLines)
+    session.rpcClient.onNotification((method, params) => {
+      this.handleNotification(session!, method, params as Record<string, unknown>, emitEvent)
+    })
 
-    if (diagnostics.timedOut) {
+    // Auto-approve all approval requests
+    session.rpcClient.onRequest((id, _method, _params) => {
+      session!.rpcClient.respond(id, { decision: "approved" })
+    })
+
+    // Determine whether to start or resume the thread turn
+    const threadId = session.providerThreadId
+    const turnStartParams: Record<string, unknown> = {
+      threadId,
+      input: turnInput,
+      model: request.config.model,
+    }
+
+    try {
+      const response = await session.rpcClient.request<{ turn?: { id?: string } }>(
+        "turn/start",
+        turnStartParams,
+      )
+      const _turnId = response?.turn?.id
+    } catch (error) {
+      this.destroySession(sessionKey)
       throw new ChatRuntimeError(
-        request.vendorSessionId ? "resume_failed" : "launch_failed",
-        "Codex runtime timed out.",
-        diagnostics,
+        isResume ? "resume_failed" : "launch_failed",
+        error instanceof Error ? error.message : "turn/start failed",
       )
     }
 
-    if (diagnostics.exitCode !== 0 && parsed.finalText.length === 0) {
-      throw new ChatRuntimeError(
-        request.vendorSessionId ? "resume_failed" : "unexpected_exit",
-        diagnostics.stderr.trim() || "Codex exited without a final response.",
-        diagnostics,
-      )
-    }
+    // Wait for turn/completed notification
+    await turnComplete
 
-    if (parsed.finalText.length === 0) {
+    const finalText = session.accumulatedText.trim()
+    session.activeTurnResolve = null
+
+    if (finalText.length === 0) {
       throw new ChatRuntimeError(
         "empty_response",
         "Codex returned no assistant text.",
-        diagnostics,
       )
     }
 
+    const finalEvent: ChatRuntimeEvent = { type: "assistant_final", text: finalText }
+    collectedEvents.push(finalEvent)
+    request.onEvent?.(finalEvent)
+
     return {
-      events: [
-        ...parsed.events,
-        { type: "assistant_final", text: parsed.finalText },
-      ],
-      finalText: parsed.finalText,
-      vendorSessionId: parsed.vendorSessionId ?? request.vendorSessionId,
-      diagnostics,
-      resumed: request.vendorSessionId !== null,
+      events: collectedEvents,
+      finalText,
+      vendorSessionId: session.providerThreadId,
+      resumed: isResume,
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Session lifecycle
+  // ---------------------------------------------------------------------------
+
+  private async createSession(
+    request: ChatRuntimeTurnRequest,
+  ): Promise<CodexSession> {
+    const binaryPath = this.config.codexBinaryPath ?? "codex"
+    const spawnFn = this.config.spawnFn ?? spawn
+
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...(this.config.defaultEnv ?? {}),
+      ...(this.config.codexHomePath ? { CODEX_HOME: this.config.codexHomePath } : {}),
+    }
+
+    const child = spawnFn(binaryPath, ["app-server"], {
+      cwd: request.cwd,
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+    })
+
+    const session: CodexSession = {
+      child,
+      rpcClient: new JsonRpcClient(child.stdin!, child.stdout!),
+      providerThreadId: null,
+      activeTurnResolve: null,
+      stopped: false,
+      accumulatedText: "",
+    }
+
+    // Crash detection
+    child.on("exit", () => {
+      session.stopped = true
+      // If a turn is active, resolve it so the awaiting promise unblocks
+      session.activeTurnResolve?.()
+    })
+
+    // Initialize handshake
+    try {
+      await session.rpcClient.request("initialize", {
+        clientInfo: { name: "ultra", version: "1.0.0" },
+        capabilities: { experimentalApi: true },
+      })
+      session.rpcClient.notify("initialized")
+    } catch (error) {
+      this.killChild(session)
+      throw new ChatRuntimeError(
+        "launch_failed",
+        error instanceof Error ? error.message : "Initialize handshake failed",
+      )
+    }
+
+    // Open thread — capture providerThreadId from thread/started notification
+    const threadIdPromise = new Promise<string | null>((resolve) => {
+      const timeout = setTimeout(() => resolve(null), 15_000)
+
+      session.rpcClient.onNotification((method, params) => {
+        if (method === "thread/started") {
+          clearTimeout(timeout)
+          const p = params as { thread?: { id?: string } }
+          resolve(p?.thread?.id ?? null)
+        }
+      })
+    })
+
+    const sandbox = resolveCodexSandbox(request.config.permissionLevel)
+    const approvalPolicy = resolveCodexApprovalPolicy(request.config.permissionLevel)
+
+    const threadMethod = request.vendorSessionId ? "thread/resume" : "thread/start"
+    const threadParams: Record<string, unknown> = {
+      model: request.config.model,
+      approvalPolicy,
+      sandbox,
+      experimentalRawEvents: false,
+      cwd: request.cwd,
+    }
+    if (request.vendorSessionId) {
+      threadParams.threadId = request.vendorSessionId
+    }
+
+    try {
+      await session.rpcClient.request(threadMethod, threadParams)
+    } catch (error) {
+      // If resume fails, fall back to thread/start
+      if (threadMethod === "thread/resume") {
+        try {
+          const { threadId: _removed, ...startParams } = threadParams
+          await session.rpcClient.request("thread/start", startParams)
+        } catch (startError) {
+          this.killChild(session)
+          throw new ChatRuntimeError(
+            "launch_failed",
+            startError instanceof Error ? startError.message : "thread/start failed",
+          )
+        }
+      } else {
+        this.killChild(session)
+        throw new ChatRuntimeError(
+          "launch_failed",
+          error instanceof Error ? error.message : "thread/start failed",
+        )
+      }
+    }
+
+    const providerThreadId = await threadIdPromise
+    session.providerThreadId = providerThreadId
+
+    return session
+  }
+
+  private handleNotification(
+    session: CodexSession,
+    method: string,
+    params: Record<string, unknown>,
+    emitEvent: (event: ChatRuntimeEvent) => void,
+  ): void {
+    switch (method) {
+      case "item/agentMessage/delta": {
+        const delta = typeof params.delta === "string" ? params.delta : ""
+        if (delta) {
+          emitEvent({ type: "assistant_delta", text: delta })
+        }
+        break
+      }
+      case "item/started": {
+        const item = params.item as Record<string, unknown> | undefined
+        const label = typeof item?.type === "string" ? item.type : "activity"
+        emitEvent({ type: "tool_activity", label, metadata: params })
+        break
+      }
+      case "item/completed": {
+        const item = params.item as Record<string, unknown> | undefined
+        const label = typeof item?.type === "string" ? item.type : "activity"
+        emitEvent({ type: "tool_activity", label, metadata: params })
+        break
+      }
+      case "item/commandExecution/outputDelta": {
+        emitEvent({ type: "tool_activity", label: "command_output" })
+        break
+      }
+      case "thread/started": {
+        // Capture provider thread ID for session reuse
+        const thread = params.thread as { id?: string } | undefined
+        if (thread?.id) {
+          session.providerThreadId = thread.id
+        }
+        break
+      }
+      case "turn/completed": {
+        // Signal turn end
+        session.activeTurnResolve?.()
+        break
+      }
+      case "error": {
+        const errorObj = params.error as { message?: string } | undefined
+        const message = typeof errorObj?.message === "string" ? errorObj.message : "Codex error"
+        emitEvent({ type: "runtime_error", message })
+        break
+      }
+    }
+  }
+
+  private destroySession(sessionKey: string): void {
+    const session = this.sessions.get(sessionKey)
+    if (!session) return
+    this.sessions.delete(sessionKey)
+    this.killChild(session)
+  }
+
+  private killChild(session: CodexSession): void {
+    session.stopped = true
+    session.rpcClient.destroy()
+    try {
+      session.child.kill("SIGTERM")
+    } catch {
+      // Process may already be dead
+    }
+  }
+
+  shutdown(): void {
+    for (const [key] of this.sessions) {
+      this.destroySession(key)
     }
   }
 }
