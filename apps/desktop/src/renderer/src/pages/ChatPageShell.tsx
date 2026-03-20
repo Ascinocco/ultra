@@ -14,6 +14,7 @@ import type { ApprovalDividerProps } from "../chats/approval-divider/ApprovalDiv
 import {
   approvePlan,
   approveSpecs,
+  cancelChatTurn,
   fetchChatMessages,
   fetchChatTurn,
   fetchChatTurns,
@@ -410,6 +411,12 @@ export function ChatPageShell({
   const chatTurnSendError = activeChatId
     ? (chatTurns.sendErrorByChatId[activeChatId] ?? null)
     : null
+  const [cancelRequested, setCancelRequested] = useState(false)
+  useEffect(() => {
+    if (!inFlightTurn) {
+      setCancelRequested(false)
+    }
+  }, [inFlightTurn])
   const [runtimeProviderDraft, setRuntimeProviderDraft] =
     useState<RuntimeProvider>(activeChat?.provider ?? "codex")
   const [runtimeModelDraft, setRuntimeModelDraft] = useState(
@@ -847,6 +854,33 @@ export function ChatPageShell({
     })
   }
 
+  function handleCancelTurn() {
+    if (!activeChatId || !activeTurnId || cancelRequested) {
+      return
+    }
+
+    setCancelRequested(true)
+    void cancelChatTurn(activeChatId, activeTurnId).catch((err) => {
+      console.error("[chat] failed to cancel turn:", err)
+      setCancelRequested(false)
+    })
+  }
+
+  function handleChatInputKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey &&
+      !chatInputDisabled &&
+      chatInput.trim().length > 0
+    ) {
+      event.preventDefault()
+      const form = event.currentTarget.closest("form")
+      if (form) {
+        form.requestSubmit()
+      }
+    }
+  }
+
   function handleSelectThread(threadId: string | null) {
     if (!activeProjectId) return
     actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
@@ -1091,21 +1125,34 @@ export function ChatPageShell({
                     }
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
+                    onKeyDown={handleChatInputKeyDown}
                     disabled={chatInputDisabled}
                   />
-                  <button
-                    className="active-chat-pane__send"
-                    type="submit"
-                    disabled={
-                      chatInputDisabled || chatInput.trim().length === 0
-                    }
-                  >
-                    {chatTurnSendStatus === "starting"
-                      ? "Starting…"
-                      : inFlightTurn
-                        ? "Running…"
-                        : "Send"}
-                  </button>
+                  <div className="active-chat-pane__button-stack">
+                    {inFlightTurn ? (
+                      <button
+                        className="active-chat-pane__stop"
+                        type="button"
+                        disabled={cancelRequested}
+                        onClick={handleCancelTurn}
+                      >
+                        {cancelRequested ? "Stopping…" : "Stop"}
+                      </button>
+                    ) : null}
+                    <button
+                      className="active-chat-pane__send"
+                      type="submit"
+                      disabled={
+                        chatInputDisabled || chatInput.trim().length === 0
+                      }
+                    >
+                      {chatTurnSendStatus === "starting"
+                        ? "Starting…"
+                        : inFlightTurn
+                          ? "Running…"
+                          : "Send"}
+                    </button>
+                  </div>
                 </div>
                 {chatTurnsFetchStatus === "error" ? (
                   <p className="active-chat-pane__input-hint active-chat-pane__input-hint--error">
