@@ -5,7 +5,7 @@ import type {
 } from "@ultra/shared"
 import { useRef, useState } from "react"
 
-import { ChatMessage } from "../chat-message/ChatMessage"
+import { CoordinatorMessage } from "./CoordinatorMessage.js"
 import { ThreadTimeline } from "./ThreadTimeline.js"
 
 type DetailTab =
@@ -54,15 +54,21 @@ function CoordinatorConversation({
   onSendMessage: (content: string) => void
 }) {
   const [inputValue, setInputValue] = useState("")
+  const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const trimmed = inputValue.trim()
-    if (!trimmed) return
-    onSendMessage(trimmed)
-    setInputValue("")
+    if (!trimmed || sending) return
+    setSending(true)
+    try {
+      onSendMessage(trimmed)
+      setInputValue("")
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -74,11 +80,7 @@ function CoordinatorConversation({
           </p>
         ) : (
           messages.map((msg) => (
-            <ChatMessage
-              key={msg.id}
-              role={msg.role}
-              content={msg.content.text}
-            />
+            <CoordinatorMessage key={msg.id} message={msg} />
           ))
         )}
         <div ref={messagesEndRef} />
@@ -93,15 +95,23 @@ function CoordinatorConversation({
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && inputValue.trim() && !sending) {
+              e.preventDefault()
+              const form = e.currentTarget.closest("form")
+              if (form) form.requestSubmit()
+            }
+          }}
           placeholder="Message coordinator..."
           aria-label="Message coordinator"
+          disabled={sending}
         />
         <button
           className="coordinator-conversation__send"
           type="submit"
-          disabled={!inputValue.trim()}
+          disabled={!inputValue.trim() || sending}
         >
-          Send
+          {sending ? "Sending..." : "Send"}
         </button>
       </form>
     </div>
