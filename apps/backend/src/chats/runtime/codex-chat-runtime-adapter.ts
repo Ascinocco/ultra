@@ -282,16 +282,15 @@ export class CodexChatRuntimeAdapter implements ChatRuntimeAdapter {
         }
         break
       }
-      case "item/started": {
-        const item = params.item as Record<string, unknown> | undefined
-        const label = typeof item?.type === "string" ? item.type : "activity"
-        emitEvent({ type: "tool_activity", label, metadata: params })
-        break
-      }
+      case "item/started":
       case "item/completed": {
         const item = params.item as Record<string, unknown> | undefined
-        const label = typeof item?.type === "string" ? item.type : "activity"
-        emitEvent({ type: "tool_activity", label, metadata: params })
+        const itemType = typeof item?.type === "string" ? item.type : ""
+        // Only emit tool_activity for actual tool items, not conversation lifecycle
+        const NON_TOOL_TYPES = new Set(["agent_message", "agentMessage", "reasoning", "userMessage", "user_message"])
+        if (itemType && !NON_TOOL_TYPES.has(itemType)) {
+          emitEvent({ type: "tool_activity", label: itemType, metadata: params })
+        }
         break
       }
       case "item/commandExecution/outputDelta": {
