@@ -1,4 +1,4 @@
-import { type ReactElement, useState } from "react"
+import { type ReactElement, useState, useRef, useEffect } from "react"
 import type { ToolEntry } from "./streaming-types.js"
 import { ToolActivityEntry } from "./ToolActivityEntry.js"
 
@@ -9,17 +9,22 @@ type Props = {
 
 export function ToolActivityGroup({ tools, collapsed: initialCollapsed }: Props): ReactElement {
   const [collapsed, setCollapsed] = useState(initialCollapsed)
+  const [expanded, setExpanded] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
-  // Sync with prop when it changes (auto-collapse from hook)
-  // useEffect would work but for simplicity, derive:
-  // The prop controls the initial state; user can override via click
+  // Auto-scroll to bottom when new tools arrive
+  useEffect(() => {
+    if (bodyRef.current && !collapsed) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight
+    }
+  }, [tools.length, collapsed])
 
   const uniqueNames = [...new Set(tools.map((t) => t.toolName))]
   const summaryBadges = uniqueNames.slice(0, 3)
   const moreCount = uniqueNames.length - summaryBadges.length
 
   return (
-    <div className="tool-group">
+    <div className={`tool-group ${expanded ? "tool-group--expanded" : ""}`}>
       <button
         className="tool-group__header"
         type="button"
@@ -38,11 +43,24 @@ export function ToolActivityGroup({ tools, collapsed: initialCollapsed }: Props)
         </div>
       </button>
       {!collapsed && (
-        <div className="tool-group__body">
-          {tools.map((tool) => (
-            <ToolActivityEntry key={tool.id} tool={tool} />
-          ))}
-        </div>
+        <>
+          <div className="tool-group__body" ref={bodyRef}>
+            {tools.map((tool) => (
+              <ToolActivityEntry key={tool.id} tool={tool} />
+            ))}
+          </div>
+          {tools.length > 5 && (
+            <div className="tool-group__footer">
+              <button
+                className="tool-group__expand-btn"
+                type="button"
+                onClick={() => setExpanded((e) => !e)}
+              >
+                {expanded ? "Show less" : "Show more"}
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
