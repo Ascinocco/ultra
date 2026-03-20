@@ -663,3 +663,4 @@ export {
   terminalCommandGenSubscribeInputSchema,
   terminalCommandGenSubscribeRequestSchema,
 } from "./contracts/terminal-command-gen.js"
+export { sanitize, sanitizeObject } from "./utils/sanitizer.js"
