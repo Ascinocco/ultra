@@ -100,7 +100,7 @@ describe("CodexChatRuntimeAdapter", () => {
         expect.objectContaining({ type: "checkpoint_candidate" }),
       ]),
     )
-    expect(result.diagnostics.stderr).toContain("codex diagnostic warning")
+    expect(result.diagnostics?.stderr).toContain("codex diagnostic warning")
   })
 
   it("uses resume mode and rejects unsupported thinking levels", async () => {

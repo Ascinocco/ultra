@@ -190,7 +190,9 @@ export async function startBackendScaffold(options?: {
       chatService,
       new ChatRuntimeRegistry([
         new CodexChatRuntimeAdapter(chatRuntimeProcessRunner),
-        new ClaudeChatRuntimeAdapter(chatRuntimeProcessRunner),
+        new ClaudeChatRuntimeAdapter({
+          pathToClaudeCodeExecutable: "claude",
+        }),
       ]),
       new ChatRuntimeSessionManager(),
     )
