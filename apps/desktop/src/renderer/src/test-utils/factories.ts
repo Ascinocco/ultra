@@ -40,6 +40,8 @@ export function makeChat(
     archivedAt: null,
     lastCompactedAt: null,
     currentSessionId: null,
+    workspaceDescription: null,
+    turnStatus: null,
     createdAt: "2026-03-14T00:00:00Z",
     updatedAt: "2026-03-14T00:00:00Z",
     ...opts,
