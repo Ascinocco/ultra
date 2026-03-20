@@ -119,7 +119,6 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
   }
 
   async runTurn(request: ChatRuntimeTurnRequest): Promise<ChatRuntimeTurnResult> {
-    console.log(`[claude-sdk] runTurn: creating query() with string prompt, resume=${!!request.vendorSessionId}`)
 
     const options: ClaudeQueryOptions = {
       cwd: request.cwd,
@@ -144,7 +143,6 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
 
     try {
       for await (const message of queryRuntime) {
-        console.log(`[claude-sdk] event: type=${(message as any).type}${(message as any).subtype ? ` subtype=${(message as any).subtype}` : ""}`)
 
         const mapped = mapSdkMessage(message)
 
@@ -166,7 +164,6 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error("[claude-sdk] stream error:", errorMessage)
       const errorEvent: ChatRuntimeEvent = { type: "runtime_error", message: errorMessage }
       collectedEvents.push(errorEvent)
       request.onEvent?.(errorEvent)

@@ -53,7 +53,6 @@ export class ClaudeSessionManager {
       env: this.config.defaultEnv ?? process.env,
     }
 
-    console.log(`[claude-session] creating session for chat ${chatId}, resume=${!!sessionConfig.vendorSessionId}`)
 
     let session: SDKSession
     const create = this.config.createSessionFn ?? createSession
