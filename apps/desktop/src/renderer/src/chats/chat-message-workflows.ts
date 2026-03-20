@@ -106,6 +106,17 @@ export async function startChatTurn(
   }
 }
 
+export async function cancelChatTurn(
+  chatId: string,
+  turnId: string,
+  client: WorkflowClient = ipcClient,
+): Promise<void> {
+  await client.command("chats.cancel_turn", {
+    chat_id: chatId,
+    turn_id: turnId,
+  })
+}
+
 type FetchChatTurnsActions = Pick<
   AppActions,
   "setTurnsForChat" | "setChatTurnsFetchStatus"
