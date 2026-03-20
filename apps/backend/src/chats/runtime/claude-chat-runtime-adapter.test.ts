@@ -1,318 +1,303 @@
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi, beforeEach } from "vitest"
+import { ClaudeChatRuntimeAdapter } from "./claude-chat-runtime-adapter.js"
+import type { ChatRuntimeEvent, ChatRuntimeTurnRequest } from "./types.js"
 
-import { ClaudeChatRuntimeAdapter, parseClaudeLine } from "./claude-chat-runtime-adapter.js"
-import type {
-  ChatRuntimeEvent,
-  RuntimeProcessRunner,
-  RuntimeProcessRunOptions,
-  RuntimeProcessResult,
-} from "./types.js"
-
-function createRunner(
-  lines: string[],
-  stderr = "",
-): {
-  runner: RuntimeProcessRunner
-  calls: Array<{ command: string; args: string[]; cwd: string }>
-} {
-  const calls: Array<{ command: string; args: string[]; cwd: string }> = []
-
+// Helper: create a fake SDK message stream
+function createFakeSdkStream(messages: any[]) {
+  let index = 0
   return {
-    calls,
-    runner: {
-      async run(options) {
-        calls.push({
-          command: options.command,
-          args: options.args,
-          cwd: options.cwd,
-        })
-
-        return {
-          exitCode: 0,
-          signal: null,
-          stdout: `${lines.join("\n")}\n`,
-          stderr,
-          stdoutLines: lines,
-          stderrLines: stderr ? [stderr] : [],
-          timedOut: false,
-        }
-      },
+    [Symbol.asyncIterator]() { return this },
+    async next() {
+      if (index >= messages.length) return { done: true, value: undefined }
+      return { done: false, value: messages[index++] }
     },
+    interrupt: vi.fn(async () => {}),
+    setModel: vi.fn(async () => {}),
+    setPermissionMode: vi.fn(async () => {}),
+    setMaxThinkingTokens: vi.fn(async () => {}),
+    close: vi.fn(),
   }
 }
 
-describe("ClaudeChatRuntimeAdapter", () => {
-  it("normalizes verbose stream-json output into runtime events", async () => {
-    const { runner, calls } = createRunner(
-      [
-        JSON.stringify({
-          type: "stream_event",
-          event: {
-            type: "content_block_delta",
-            delta: { type: "text_delta", text: "Working " },
-          },
-          session_id: "vendor_claude_1",
-        }),
-        JSON.stringify({
-          type: "tool_use",
-          tool: "edit",
-          path: "src/app.ts",
-          summary: "Applied edit",
-        }),
-        JSON.stringify({
-          type: "result",
-          subtype: "success",
-          result: "All set",
-        }),
-      ],
-      "claude diagnostic warning",
-    )
-    const adapter = new ClaudeChatRuntimeAdapter(runner)
-
-    const result = await adapter.runTurn({
-      chatId: "chat_1",
-      chatSessionId: "chat_sess_1",
-      cwd: "/repo",
-      prompt: "Fix it",
-      config: {
-        provider: "claude",
-        model: "sonnet",
-        thinkingLevel: "medium",
-        permissionLevel: "supervised",
-      },
-      continuationPrompt: null,
-      seedMessages: [],
-      vendorSessionId: null,
-    })
-
-    expect(calls[0]).toMatchObject({
-      command: "claude",
-      cwd: "/repo",
-    })
-    expect(calls[0]?.args).toEqual(
-      expect.arrayContaining([
-        "-p",
-        "--verbose",
-        "--output-format",
-        "stream-json",
-        "--permission-mode",
-        "auto",
-        "--effort",
-        "medium",
-      ]),
-    )
-    expect(result.vendorSessionId).toBe("vendor_claude_1")
-    expect(result.finalText).toBe("All set")
-    expect(result.events).toEqual(
-      expect.arrayContaining([
-        { type: "assistant_delta", text: "Working " },
-        { type: "assistant_final", text: "All set" },
-        expect.objectContaining({ type: "tool_activity" }),
-        expect.objectContaining({ type: "checkpoint_candidate" }),
-      ]),
-    )
-    expect(result.diagnostics?.stderr).toContain("claude diagnostic warning")
-  })
-
-  it("uses resume mode and rejects unknown thinking levels", async () => {
-    const { runner, calls } = createRunner([
-      JSON.stringify({
-        type: "result",
-        subtype: "success",
-        result: "Resumed",
-      }),
-    ])
-    const adapter = new ClaudeChatRuntimeAdapter(runner)
-
-    await expect(
-      adapter.runTurn({
-        chatId: "chat_1",
-        chatSessionId: "chat_sess_1",
-        cwd: "/repo",
-        prompt: "Continue",
-        config: {
-          provider: "claude",
-          model: "sonnet",
-          thinkingLevel: "default",
-          permissionLevel: "full_access",
-        },
-        continuationPrompt: null,
-        seedMessages: [],
-        vendorSessionId: "vendor_claude_1",
-      }),
-    ).resolves.toMatchObject({
-      finalText: "Resumed",
-      resumed: true,
-    })
-
-    expect(calls[0]?.args).toEqual(
-      expect.arrayContaining([
-        "--resume",
-        "vendor_claude_1",
-        "--permission-mode",
-        "bypassPermissions",
-      ]),
-    )
-
-    await expect(
-      adapter.runTurn({
-        chatId: "chat_1",
-        chatSessionId: "chat_sess_1",
-        cwd: "/repo",
-        prompt: "Continue",
-        config: {
-          provider: "claude",
-          model: "sonnet",
-          thinkingLevel: "extreme",
-          permissionLevel: "supervised",
-        },
-        continuationPrompt: null,
-        seedMessages: [],
-        vendorSessionId: null,
-      }),
-    ).rejects.toThrow(/does not support thinking level 'extreme'/)
-  })
-})
-
-// --- Streaming tests ---
-
-function makeFakeRunner(lines: string[]): RuntimeProcessRunner {
+function makeRequest(overrides?: Partial<ChatRuntimeTurnRequest>): ChatRuntimeTurnRequest {
   return {
-    run: async (options: RuntimeProcessRunOptions): Promise<RuntimeProcessResult> => {
-      if (options.onLine) {
-        for (const line of lines) {
-          options.onLine(line)
-        }
-      }
-      return {
-        exitCode: 0,
-        signal: null,
-        stdout: lines.join("\n"),
-        stderr: "",
-        stdoutLines: lines,
-        stderrLines: [],
-        timedOut: false,
-      }
-    },
-  }
-}
-
-// Test data using the stream_event wrapper format
-const deltaLine1 = JSON.stringify({
-  type: "stream_event",
-  event: { type: "content_block_delta", text: "Hello" },
-})
-
-const deltaLine2 = JSON.stringify({
-  type: "stream_event",
-  event: { type: "content_block_delta", text: " world" },
-})
-
-const resultLine = JSON.stringify({
-  type: "stream_event",
-  event: { type: "result", text: "Hello world" },
-  session_id: "vendor-session-123",
-})
-
-describe("parseClaudeLine", () => {
-  it("parses a delta line into an assistant_delta event", () => {
-    const result = parseClaudeLine(deltaLine1)
-    expect(result.events).toHaveLength(1)
-    expect(result.events[0]).toEqual({ type: "assistant_delta", text: "Hello" })
-    expect(result.finalText).toBeUndefined()
-  })
-
-  it("parses a result line into finalText and extracts vendorSessionId", () => {
-    const result = parseClaudeLine(resultLine)
-    expect(result.events).toHaveLength(0)
-    expect(result.finalText).toBe("Hello world")
-    expect(result.vendorSessionId).toBe("vendor-session-123")
-  })
-
-  it("returns empty events for non-JSON lines", () => {
-    const result = parseClaudeLine("not json at all")
-    expect(result.events).toHaveLength(0)
-    expect(result.vendorSessionId).toBeUndefined()
-    expect(result.finalText).toBeUndefined()
-  })
-
-  it("parses a runtime_notice for typed events without text", () => {
-    const line = JSON.stringify({ type: "system", subtype: "init" })
-    const result = parseClaudeLine(line)
-    expect(result.events).toHaveLength(1)
-    expect(result.events[0].type).toBe("runtime_notice")
-  })
-})
-
-describe("ClaudeChatRuntimeAdapter streaming", () => {
-  const baseRequest = {
-    chatId: "chat_1",
-    chatSessionId: "chat_sess_1",
-    cwd: "/repo",
-    prompt: "hello",
+    chatId: "chat_1" as any,
+    chatSessionId: "sess_1",
+    cwd: "/tmp",
+    prompt: "Hello",
     config: {
-      provider: "claude" as const,
-      model: "sonnet",
+      provider: "claude",
+      model: "claude-sonnet-4-6",
       thinkingLevel: "default",
-      permissionLevel: "full_access" as const,
+      permissionLevel: "full_access",
     },
     continuationPrompt: null,
     seedMessages: [],
     vendorSessionId: null,
+    ...overrides,
   }
+}
 
-  it("emits events incrementally via onEvent and returns all events in final result", async () => {
-    const lines = [deltaLine1, deltaLine2, resultLine]
-    const runner = makeFakeRunner(lines)
-    const adapter = new ClaudeChatRuntimeAdapter(runner)
+describe("ClaudeChatRuntimeAdapter (SDK)", () => {
+  it("streams text_delta events via onEvent", async () => {
+    const events: ChatRuntimeEvent[] = []
+    const sdkMessages = [
+      { type: "content_block_delta", delta: { type: "text_delta", text: "Hello" } },
+      { type: "content_block_delta", delta: { type: "text_delta", text: " world" } },
+      { type: "result", session_id: "sdk_sess_1", message: { content: [{ type: "text", text: "Hello world" }] } },
+    ]
 
-    const emittedEvents: ChatRuntimeEvent[] = []
-    const onEvent = vi.fn((event: ChatRuntimeEvent) => {
-      emittedEvents.push(event)
+    const adapter = new ClaudeChatRuntimeAdapter({
+      createQuery: () => createFakeSdkStream(sdkMessages),
     })
 
-    const result = await adapter.runTurn({ ...baseRequest, onEvent })
-
-    // onEvent should have been called for each delta
-    expect(onEvent).toHaveBeenCalledTimes(2)
-    expect(emittedEvents[0]).toEqual({ type: "assistant_delta", text: "Hello" })
-    expect(emittedEvents[1]).toEqual({ type: "assistant_delta", text: " world" })
-
-    // Final result should contain all events plus assistant_final
-    expect(result.finalText).toBe("Hello world")
-    expect(result.vendorSessionId).toBe("vendor-session-123")
-    expect(result.events).toContainEqual({ type: "assistant_delta", text: "Hello" })
-    expect(result.events).toContainEqual({ type: "assistant_delta", text: " world" })
-    expect(result.events).toContainEqual({ type: "assistant_final", text: "Hello world" })
-  })
-
-  it("works correctly without onEvent (batch path)", async () => {
-    const lines = [deltaLine1, deltaLine2, resultLine]
-    const runner = makeFakeRunner(lines)
-    const adapter = new ClaudeChatRuntimeAdapter(runner)
-
-    const result = await adapter.runTurn({ ...baseRequest })
-
-    expect(result.finalText).toBe("Hello world")
-    expect(result.vendorSessionId).toBe("vendor-session-123")
-    expect(result.events).toContainEqual({ type: "assistant_delta", text: "Hello" })
-    expect(result.events).toContainEqual({ type: "assistant_delta", text: " world" })
-    expect(result.events).toContainEqual({ type: "assistant_final", text: "Hello world" })
-  })
-
-  it("falls back to concatenated deltas for finalText when no result line", async () => {
-    const lines = [deltaLine1, deltaLine2]
-    const runner = makeFakeRunner(lines)
-    const adapter = new ClaudeChatRuntimeAdapter(runner)
-
-    const emittedEvents: ChatRuntimeEvent[] = []
-    const onEvent = vi.fn((event: ChatRuntimeEvent) => {
-      emittedEvents.push(event)
+    const result = await adapter.runTurn({
+      ...makeRequest(),
+      onEvent: (event) => events.push(event),
     })
 
-    const result = await adapter.runTurn({ ...baseRequest, onEvent })
-
+    const deltas = events.filter((e) => e.type === "assistant_delta")
+    expect(deltas).toHaveLength(2)
+    expect(deltas[0]).toEqual({ type: "assistant_delta", text: "Hello" })
+    expect(deltas[1]).toEqual({ type: "assistant_delta", text: " world" })
     expect(result.finalText).toBe("Hello world")
-    expect(onEvent).toHaveBeenCalledTimes(2)
+    expect(result.vendorSessionId).toBe("sdk_sess_1")
+  })
+
+  it("works without onEvent (batch path)", async () => {
+    const sdkMessages = [
+      { type: "content_block_delta", delta: { type: "text_delta", text: "Hi" } },
+      { type: "result", message: { content: [{ type: "text", text: "Hi" }] } },
+    ]
+
+    const adapter = new ClaudeChatRuntimeAdapter({
+      createQuery: () => createFakeSdkStream(sdkMessages),
+    })
+
+    const result = await adapter.runTurn(makeRequest())
+    expect(result.finalText).toBe("Hi")
+    expect(result.events.some((e) => e.type === "assistant_delta")).toBe(true)
+  })
+
+  it("maps tool_use blocks to tool_activity events", async () => {
+    const events: ChatRuntimeEvent[] = []
+    const sdkMessages = [
+      { type: "content_block_start", content_block: { type: "tool_use", name: "bash", id: "tool_1" } },
+      { type: "content_block_delta", delta: { type: "text_delta", text: "Done" } },
+      { type: "result", message: { content: [{ type: "text", text: "Done" }] } },
+    ]
+
+    const adapter = new ClaudeChatRuntimeAdapter({
+      createQuery: () => createFakeSdkStream(sdkMessages),
+    })
+
+    await adapter.runTurn({
+      ...makeRequest(),
+      onEvent: (event) => events.push(event),
+    })
+
+    const toolEvents = events.filter((e) => e.type === "tool_activity")
+    expect(toolEvents).toHaveLength(1)
+    expect(toolEvents[0]).toEqual({
+      type: "tool_activity",
+      label: "bash",
+      metadata: { id: "tool_1" },
+    })
+  })
+
+  it("handles SDK errors gracefully", async () => {
+    const events: ChatRuntimeEvent[] = []
+    const failingStream = {
+      [Symbol.asyncIterator]() { return this },
+      async next() { throw new Error("SDK connection lost") },
+      interrupt: vi.fn(async () => {}),
+      setModel: vi.fn(async () => {}),
+      setPermissionMode: vi.fn(async () => {}),
+      setMaxThinkingTokens: vi.fn(async () => {}),
+      close: vi.fn(),
+    }
+
+    const adapter = new ClaudeChatRuntimeAdapter({
+      createQuery: () => failingStream as any,
+    })
+
+    const result = await adapter.runTurn({
+      ...makeRequest(),
+      onEvent: (event) => events.push(event),
+    })
+
+    const errorEvents = events.filter((e) => e.type === "runtime_error")
+    expect(errorEvents).toHaveLength(1)
+    expect(errorEvents[0]).toEqual({
+      type: "runtime_error",
+      message: "SDK connection lost",
+    })
+  })
+
+  it("reuses sessions across turns", async () => {
+    // Create a stream that yields different results per turn
+    // The iterator stays alive between turns (manual .next() doesn't call return())
+    const messages = [
+      // Turn 1 messages
+      { type: "content_block_delta", delta: { type: "text_delta", text: "Turn 1" } },
+      { type: "result", message: { content: [{ type: "text", text: "Turn 1" }] } },
+      // Turn 2 messages
+      { type: "content_block_delta", delta: { type: "text_delta", text: "Turn 2" } },
+      { type: "result", message: { content: [{ type: "text", text: "Turn 2" }] } },
+    ]
+    let index = 0
+    const longLivedStream = {
+      [Symbol.asyncIterator]() { return this },
+      async next() {
+        if (index >= messages.length) return { done: true, value: undefined }
+        return { done: false, value: messages[index++] }
+      },
+      interrupt: vi.fn(async () => {}),
+      setModel: vi.fn(async () => {}),
+      setPermissionMode: vi.fn(async () => {}),
+      setMaxThinkingTokens: vi.fn(async () => {}),
+      close: vi.fn(),
+    }
+
+    const createQuery = vi.fn(() => longLivedStream as any)
+    const adapter = new ClaudeChatRuntimeAdapter({ createQuery })
+
+    const result1 = await adapter.runTurn(makeRequest())
+    expect(result1.finalText).toBe("Turn 1")
+
+    const result2 = await adapter.runTurn(makeRequest())
+    expect(result2.finalText).toBe("Turn 2")
+
+    // query() should only be called once (session reused, iterator stayed alive)
+    expect(createQuery).toHaveBeenCalledOnce()
+  })
+
+  it("falls back to joining deltas when no explicit finalText", async () => {
+    const sdkMessages = [
+      { type: "content_block_delta", delta: { type: "text_delta", text: "Joined " } },
+      { type: "content_block_delta", delta: { type: "text_delta", text: "text" } },
+      { type: "result", message: { content: [] } },
+    ]
+
+    const adapter = new ClaudeChatRuntimeAdapter({
+      createQuery: () => createFakeSdkStream(sdkMessages),
+    })
+
+    const result = await adapter.runTurn(makeRequest())
+    expect(result.finalText).toBe("Joined text")
+  })
+
+  it("returns diagnostics as undefined", async () => {
+    const sdkMessages = [
+      { type: "result", message: { content: [{ type: "text", text: "Hi" }] } },
+    ]
+
+    const adapter = new ClaudeChatRuntimeAdapter({
+      createQuery: () => createFakeSdkStream(sdkMessages),
+    })
+
+    const result = await adapter.runTurn(makeRequest())
+    expect(result.diagnostics).toBeUndefined()
+  })
+
+  it("maps thinking_delta to runtime_notice", async () => {
+    const events: ChatRuntimeEvent[] = []
+    const sdkMessages = [
+      { type: "content_block_delta", delta: { type: "thinking_delta", thinking: "Let me think..." } },
+      { type: "content_block_delta", delta: { type: "text_delta", text: "Answer" } },
+      { type: "result", message: { content: [{ type: "text", text: "Answer" }] } },
+    ]
+
+    const adapter = new ClaudeChatRuntimeAdapter({
+      createQuery: () => createFakeSdkStream(sdkMessages),
+    })
+
+    await adapter.runTurn({
+      ...makeRequest(),
+      onEvent: (event) => events.push(event),
+    })
+
+    const notices = events.filter((e) => e.type === "runtime_notice")
+    expect(notices).toHaveLength(1)
+    expect(notices[0]).toEqual({ type: "runtime_notice", message: "Let me think..." })
+  })
+
+  it("calls interrupt() on abort signal and returns partial events", async () => {
+    const controller = new AbortController()
+    const events: ChatRuntimeEvent[] = []
+
+    // Create a stream that blocks after first message until aborted
+    let index = 0
+    const messages = [
+      { type: "content_block_delta", delta: { type: "text_delta", text: "Partial" } },
+    ]
+    const blockingStream = {
+      [Symbol.asyncIterator]() { return this },
+      async next() {
+        if (index < messages.length) {
+          return { done: false, value: messages[index++] }
+        }
+        // Block until abort — simulate long-running turn
+        return new Promise(() => {}) // never resolves
+      },
+      interrupt: vi.fn(async () => {}),
+      setModel: vi.fn(async () => {}),
+      setPermissionMode: vi.fn(async () => {}),
+      setMaxThinkingTokens: vi.fn(async () => {}),
+      close: vi.fn(),
+    }
+
+    const adapter = new ClaudeChatRuntimeAdapter({
+      createQuery: () => blockingStream as any,
+    })
+
+    // Start the turn and abort after a tick
+    const turnPromise = adapter.runTurn({
+      ...makeRequest(),
+      signal: controller.signal,
+      onEvent: (event) => events.push(event),
+    })
+    // Let the first message be consumed, then abort
+    await new Promise((r) => setTimeout(r, 10))
+    controller.abort()
+
+    const result = await turnPromise
+    expect(blockingStream.interrupt).toHaveBeenCalled()
+    expect(events.some((e) => e.type === "assistant_delta")).toBe(true)
+  })
+
+  it("destroys session on error and recreates on next turn", async () => {
+    const callCount = { value: 0 }
+    const createQuery = vi.fn(() => {
+      callCount.value++
+      if (callCount.value === 1) {
+        // First call: stream that throws
+        return {
+          [Symbol.asyncIterator]() { return this },
+          async next() { throw new Error("SDK crash") },
+          interrupt: vi.fn(async () => {}),
+          setModel: vi.fn(async () => {}),
+          setPermissionMode: vi.fn(async () => {}),
+          setMaxThinkingTokens: vi.fn(async () => {}),
+          close: vi.fn(),
+        } as any
+      }
+      // Second call: working stream
+      return createFakeSdkStream([
+        { type: "content_block_delta", delta: { type: "text_delta", text: "Recovered" } },
+        { type: "result", message: { content: [{ type: "text", text: "Recovered" }] } },
+      ])
+    })
+
+    const adapter = new ClaudeChatRuntimeAdapter({ createQuery })
+
+    // First turn: error
+    const result1 = await adapter.runTurn(makeRequest())
+    expect(result1.events.some((e) => e.type === "runtime_error")).toBe(true)
+
+    // Second turn: should create new session (createQuery called again)
+    const result2 = await adapter.runTurn(makeRequest())
+    expect(result2.finalText).toBe("Recovered")
+    expect(createQuery).toHaveBeenCalledTimes(2)
   })
 })
