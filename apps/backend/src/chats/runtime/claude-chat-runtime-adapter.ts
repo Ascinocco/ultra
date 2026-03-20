@@ -62,6 +62,71 @@ function validateClaudeThinkingLevel(thinkingLevel: string): void {
   }
 }
 
+export type ParseClaudeLineResult = {
+  events: ChatRuntimeEvent[]
+  vendorSessionId?: string
+  finalText?: string
+}
+
+export function parseClaudeLine(line: string): ParseClaudeLineResult {
+  const events: ChatRuntimeEvent[] = []
+  let vendorSessionId: string | undefined
+  let finalText: string | undefined
+
+  let payload: unknown
+  try {
+    payload = JSON.parse(line)
+  } catch {
+    return { events }
+  }
+
+  const extractedSessionId = extractVendorSessionId(payload)
+  if (extractedSessionId) {
+    vendorSessionId = extractedSessionId
+  }
+
+  // Verbose stream-json wraps streaming events inside {"type":"stream_event","event":{...}}
+  const record = payload as Record<string, unknown>
+  const inner =
+    record.type === "stream_event" &&
+    typeof record.event === "object" &&
+    record.event !== null
+      ? (record.event as Record<string, unknown>)
+      : record
+
+  const payloadType =
+    typeof inner.type === "string" ? (inner.type as string) : ""
+  const text = extractTextCandidate(inner)
+  const checkpoint = maybeBuildCheckpoint(payload)
+
+  if (checkpoint) {
+    events.push(
+      createToolActivityEvent("Claude activity", {
+        raw: payload as Record<string, unknown>,
+      }),
+    )
+    events.push({
+      type: "checkpoint_candidate",
+      checkpoint,
+    })
+  }
+
+  if (text) {
+    if (payloadType.includes("delta")) {
+      events.push({ type: "assistant_delta", text })
+    } else if (payloadType === "result" || payloadType.includes("message")) {
+      finalText = text
+    }
+  } else if (payloadType.length > 0) {
+    events.push({
+      type: "runtime_notice",
+      message: stringifyUnknown(payload),
+    })
+  }
+
+  return { events, vendorSessionId, finalText }
+}
+
 function parseClaudeLines(lines: string[]): {
   events: ChatRuntimeEvent[]
   finalText: string
@@ -73,54 +138,23 @@ function parseClaudeLines(lines: string[]): {
   let vendorSessionId: string | null = null
 
   for (const line of lines) {
-    let payload: unknown
+    const result = parseClaudeLine(line)
 
-    try {
-      payload = JSON.parse(line)
-    } catch {
-      continue
+    events.push(...result.events)
+
+    if (result.vendorSessionId && !vendorSessionId) {
+      vendorSessionId = result.vendorSessionId
     }
 
-    vendorSessionId = extractVendorSessionId(payload) ?? vendorSessionId
-
-    // Verbose stream-json wraps streaming events inside {"type":"stream_event","event":{...}}
-    const record = payload as Record<string, unknown>
-    const inner =
-      record.type === "stream_event" &&
-      typeof record.event === "object" &&
-      record.event !== null
-        ? (record.event as Record<string, unknown>)
-        : record
-
-    const payloadType =
-      typeof inner.type === "string" ? (inner.type as string) : ""
-    const text = extractTextCandidate(inner)
-    const checkpoint = maybeBuildCheckpoint(payload)
-
-    if (checkpoint) {
-      events.push(
-        createToolActivityEvent("Claude activity", {
-          raw: payload as Record<string, unknown>,
-        }),
-      )
-      events.push({
-        type: "checkpoint_candidate",
-        checkpoint,
-      })
+    if (result.finalText) {
+      finalText = result.finalText
     }
 
-    if (text) {
-      if (payloadType.includes("delta")) {
-        deltas.push(text)
-        events.push({ type: "assistant_delta", text })
-      } else if (payloadType === "result" || payloadType.includes("message")) {
-        finalText = text
+    // Collect delta text for fallback
+    for (const event of result.events) {
+      if (event.type === "assistant_delta") {
+        deltas.push(event.text)
       }
-    } else if (payloadType.length > 0) {
-      events.push({
-        type: "runtime_notice",
-        message: stringifyUnknown(payload),
-      })
     }
   }
 
@@ -153,12 +187,42 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
 
     const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000
 
+    // When onEvent is provided, parse and emit events incrementally
+    const streaming = !!request.onEvent
+    const streamEvents: ChatRuntimeEvent[] = []
+    const streamDeltas: string[] = []
+    let streamVendorSessionId: string | null = null
+    let streamFinalText: string | null = null
+
+    const onLine = streaming
+      ? (line: string) => {
+          const result = parseClaudeLine(line)
+
+          for (const event of result.events) {
+            streamEvents.push(event)
+            request.onEvent!(event)
+            if (event.type === "assistant_delta") {
+              streamDeltas.push(event.text)
+            }
+          }
+
+          if (result.vendorSessionId && !streamVendorSessionId) {
+            streamVendorSessionId = result.vendorSessionId
+          }
+
+          if (result.finalText) {
+            streamFinalText = result.finalText
+          }
+        }
+      : undefined
+
     const diagnostics = await this.processRunner.run({
       command: "claude",
       args,
       cwd: request.cwd,
       timeoutMs: FORTY_EIGHT_HOURS_MS,
       signal: request.signal,
+      onLine,
     })
 
     console.log("[claude-runtime] exit code:", diagnostics.exitCode)
@@ -186,7 +250,14 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       }
     }
 
-    const parsed = parseClaudeLines(diagnostics.stdoutLines)
+    // Use incrementally-collected results when streaming, otherwise batch-parse
+    const parsed = streaming
+      ? {
+          events: streamEvents,
+          finalText: streamFinalText ?? streamDeltas.join("").trim(),
+          vendorSessionId: streamVendorSessionId,
+        }
+      : parseClaudeLines(diagnostics.stdoutLines)
 
     console.log("[claude-runtime] parsed finalText length:", parsed.finalText.length)
     console.log(
