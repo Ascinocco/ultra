@@ -72,7 +72,7 @@ Ultra should do something more opinionated:
 - requiring an embedded browser in v1
 - building a custom terminal emulator
 - surfacing worktrees as a primary user-facing concept
-- surfacing internal Overstory/Seeds mechanics as the main UX
+- surfacing internal orchestration mechanics as the main UX
 - owning MCP configuration for the user
 
 ## Core Product Objects
@@ -135,7 +135,7 @@ The active sandbox determines:
 - external handoff target
 
 The user-facing concept is `sandbox`, not `worktree`.
-Internally, a sandbox may be backed by the project root or an Overstory-managed worktree.
+Internally, a sandbox may be backed by the project root or an orchestration-managed worktree.
 
 ## User Experience Overview
 
@@ -194,7 +194,7 @@ This workflow lives inside the main chat workspace instead of a separate Editor 
 7. User reviews and approves the specs.
 8. User chooses to start work.
 9. Ultra creates a thread and starts execution through the project coordinator.
-10. Overstory-backed workers execute behind that thread, but the user stays focused on the chat and thread surfaces.
+10. Sub-agents execute behind that thread, but the user stays focused on the chat and thread surfaces.
 11. The thread appears in the right pane with live status and one coordinator conversation that represents the execution context.
 12. When review is ready, the user selects the relevant sandbox from thread UI or the top bar.
 13. Ultra syncs runtime files and opens or reuses a terminal in that sandbox.
@@ -206,7 +206,7 @@ This workflow lives inside the main chat workspace instead of a separate Editor 
 - chat-first, not sidebar-assistant-first
 - projects and chats are first-class everyday objects
 - threads are the visible unit of autonomous execution
-- Overstory remains the default execution backend for thread work, but it stays behind the product boundary
+- Ultra's orchestration layer remains the default execution backend for thread work, but it stays behind the product boundary
 - testing and debugging should happen through a sandbox-aware terminal workflow
 - the user should not need to recreate env files or remember the right cwd for a thread sandbox
 - Ultra should keep the user inside one shell for the core test-and-approve loop while staying pragmatic about external handoff
@@ -238,7 +238,7 @@ This customization boundary applies to the external tool, not the Ultra app shel
 - threads are created from approved chat work
 - thread identity remains stable even if the coordinator restarts
 - one project has one top-level coordinator
-- Overstory may fan out as many workers as it wants behind that coordinator
+- Ultra's orchestration layer may fan out as many sub-agents as it wants behind that coordinator
 - Ultra monitors coordinator and worker health through thread projections rather than exposing raw orchestration primitives as the main UX
 - the coordinator remains the stable conversational identity for the thread even if providers or workers change underneath
 
@@ -277,7 +277,7 @@ The current v1 direction assumes:
 - multiple projects in one shell
 - a right-side thread panel tied to the active chat context
 - a sandbox-aware terminal workflow for local testing
-- Overstory as the default backend for thread execution
+- Ultra's orchestration layer as the default backend for thread execution
 - external handoff for full editor, diff, and browser tasks when needed
 - local speech-to-text input for chat surfaces
 
