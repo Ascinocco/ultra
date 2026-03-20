@@ -111,6 +111,7 @@ type AppActions = {
     status: "idle" | "loading" | "error",
   ) => void
   upsertChat: (chat: ChatSummary) => void
+  updateChatTurnStatus: (chatId: string, turnStatus: ChatSummary["turnStatus"]) => void
   removeChat: (chatId: string, projectId: string) => void
   setConnectionStatus: (status: ConnectionStatus) => void
   setBackendStatus: (status: BackendStatusSnapshot) => void
@@ -356,6 +357,7 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       setChatsForProject: () => undefined,
       setChatsFetchStatus: () => undefined,
       upsertChat: () => undefined,
+      updateChatTurnStatus: () => undefined,
       removeChat: () => undefined,
       setConnectionStatus: () => undefined,
       setBackendStatus: () => undefined,
@@ -500,6 +502,23 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
                 [chat.projectId]: updated,
               },
             },
+          }
+        }),
+      updateChatTurnStatus: (chatId, turnStatus) =>
+        set((state) => {
+          const updatedByProject = { ...state.sidebar.chatsByProjectId }
+          for (const [projectId, chats] of Object.entries(updatedByProject)) {
+            const index = chats.findIndex((c) => c.id === chatId)
+            if (index >= 0) {
+              updatedByProject[projectId] = chats.map((c) =>
+                c.id === chatId ? { ...c, turnStatus } : c,
+              )
+              break
+            }
+          }
+          return {
+            ...state,
+            sidebar: { ...state.sidebar, chatsByProjectId: updatedByProject },
           }
         }),
       removeChat: (chatId, projectId) =>
