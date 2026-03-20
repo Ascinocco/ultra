@@ -173,7 +173,7 @@ describe("database bootstrap", () => {
 
     expect(secondRuntime.migrationResult.appliedMigrationIds).toEqual([])
     expect(secondRuntime.migrationResult.latestMigrationId).toBe(
-      "0011_chat_turn_persistence",
+      "0012_workspace_description",
     )
 
     secondRuntime.close()

@@ -632,4 +632,10 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON chat_turn_events(chat_id, recorded_at);
     `,
   },
+  {
+    id: "0012_workspace_description",
+    sql: `
+      ALTER TABLE chats ADD COLUMN workspace_description TEXT;
+    `,
+  },
 ]
