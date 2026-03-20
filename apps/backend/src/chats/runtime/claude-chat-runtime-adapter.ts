@@ -9,7 +9,6 @@ import type {
 
 /**
  * Maps an SDK message to zero or more ChatRuntimeEvent objects.
- * Only maps events we care about — text deltas, tool activity, final result, errors.
  */
 function mapSdkMessage(message: SDKMessage): {
   events: ChatRuntimeEvent[]
@@ -20,43 +19,73 @@ function mapSdkMessage(message: SDKMessage): {
   let finalText: string | undefined
   let vendorSessionId: string | undefined
 
-  // Extract session ID from any message that carries it
-  if ("session_id" in message && typeof message.session_id === "string") {
-    vendorSessionId = message.session_id
+  const msg = message as any
+
+  // Extract session ID
+  if (msg.session_id && typeof msg.session_id === "string") {
+    vendorSessionId = msg.session_id
   }
 
-  if (message.type === "content_block_delta") {
-    const delta = (message as any).delta
-    if (delta?.type === "text_delta" && typeof delta.text === "string") {
-      events.push({ type: "assistant_delta", text: delta.text })
-    } else if (delta?.type === "thinking_delta" && typeof delta.thinking === "string") {
-      events.push({ type: "runtime_notice", message: delta.thinking })
+  switch (msg.type) {
+    case "assistant": {
+      // Full assistant message — extract text from content blocks
+      if (msg.message?.content && Array.isArray(msg.message.content)) {
+        for (const block of msg.message.content) {
+          if (block.type === "text" && typeof block.text === "string") {
+            events.push({ type: "assistant_delta", text: block.text })
+          } else if (block.type === "tool_use") {
+            events.push({
+              type: "tool_activity",
+              label: block.name ?? "tool",
+              metadata: { id: block.id, input: block.input },
+            })
+          }
+        }
+      }
+      break
     }
-  } else if (message.type === "content_block_start") {
-    const block = (message as any).content_block
-    if (block?.type === "tool_use" && typeof block.name === "string") {
-      events.push({
-        type: "tool_activity",
-        label: block.name,
-        metadata: { id: block.id },
-      })
+    case "content_block_delta": {
+      const delta = msg.delta
+      if (delta?.type === "text_delta" && typeof delta.text === "string") {
+        events.push({ type: "assistant_delta", text: delta.text })
+      } else if (delta?.type === "thinking_delta" && typeof delta.thinking === "string") {
+        events.push({ type: "runtime_notice", message: delta.thinking })
+      }
+      break
     }
-  } else if (message.type === "result") {
-    const resultMessage = message as any
-    // Extract final text from the result's message content
-    if (resultMessage.message?.content && Array.isArray(resultMessage.message.content)) {
-      const textParts = resultMessage.message.content
-        .filter((block: any) => block.type === "text")
-        .map((block: any) => block.text)
-      finalText = textParts.join("")
+    case "content_block_start": {
+      const block = msg.content_block
+      if (block?.type === "tool_use" && typeof block.name === "string") {
+        events.push({
+          type: "tool_activity",
+          label: block.name,
+          metadata: { id: block.id },
+        })
+      }
+      break
     }
-    if (resultMessage.session_id) {
-      vendorSessionId = resultMessage.session_id
+    case "result": {
+      // Extract final text
+      if (msg.message?.content && Array.isArray(msg.message.content)) {
+        const textParts = msg.message.content
+          .filter((b: any) => b.type === "text")
+          .map((b: any) => b.text)
+        finalText = textParts.join("")
+      }
+      if (msg.session_id) {
+        vendorSessionId = msg.session_id
+      }
+      if (msg.is_error || msg.subtype === "error") {
+        const errorText = msg.error?.message ?? msg.result ?? "Unknown SDK error"
+        events.push({ type: "runtime_error", message: String(errorText) })
+      }
+      break
     }
-    // Check for errors
-    if (resultMessage.is_error || resultMessage.subtype === "error") {
-      const errorText = resultMessage.error?.message ?? "Unknown SDK error"
-      events.push({ type: "runtime_error", message: errorText })
+    case "system": {
+      if (msg.subtype === "init" && msg.session_id) {
+        vendorSessionId = msg.session_id
+      }
+      break
     }
   }
 
@@ -80,40 +109,24 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       vendorSessionId: request.vendorSessionId,
     })
 
-    console.log(`[claude-sdk] runTurn called for chat ${request.chatId}, onEvent=${!!request.onEvent}`)
+    console.log(`[claude-sdk] runTurn: sending message to session`)
 
-    // Build the SDK user message in the correct format
-    const userMessage = {
-      type: "user" as const,
-      message: {
-        role: "user" as const,
-        content: [{ type: "text" as const, text: request.prompt }],
-      },
-      parent_tool_use_id: null,
-      session_id: session.vendorSessionId,
-    }
+    // Send the user message
+    await session.session.send(request.prompt)
 
-    // Push user message to the session's prompt stream
-    session.promptQueue.push(userMessage as any)
+    console.log(`[claude-sdk] runTurn: message sent, streaming responses...`)
 
-    // Consume SDK messages
+    // Consume SDK messages from stream()
     const collectedEvents: ChatRuntimeEvent[] = []
     let finalText = ""
     let vendorSessionId: string | null = session.vendorSessionId
     const deltas: string[] = []
 
-    // Wire abort signal — use a promise we can reject to unblock iterator.next()
+    // Wire abort signal
     let abortHandler: (() => void) | undefined
-    let rejectOnAbort: ((reason: Error) => void) | undefined
-    const abortPromise = new Promise<never>((_, reject) => {
-      rejectOnAbort = reject
-    })
-
     if (request.signal) {
       abortHandler = () => {
-        session.queryRuntime.interrupt().catch(() => {})
         session.stopped = true
-        rejectOnAbort?.(new DOMException("The operation was aborted.", "AbortError"))
       }
       if (request.signal.aborted) {
         abortHandler()
@@ -122,28 +135,15 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       }
     }
 
-    // IMPORTANT: Do NOT use `for await` — it calls iterator.return() on break,
-    // which terminates the SDK stream permanently. Use manual .next() calls instead
-    // so the session can be reused across turns.
-    console.log("[claude-sdk] getting iterator from queryRuntime...")
-    const iterator = session.queryRuntime[Symbol.asyncIterator]()
-    console.log("[claude-sdk] calling first iterator.next()...")
-    console.log("[claude-sdk] queryRuntime keys:", Object.keys(session.queryRuntime))
-    console.log("[claude-sdk] queryRuntime type:", Object.prototype.toString.call(session.queryRuntime))
-
     try {
-      while (!session.stopped) {
-        // Race iterator.next() against abort so we don't block forever
-        const iterResult = request.signal
-          ? await Promise.race([iterator.next(), abortPromise])
-          : await iterator.next()
-        const { done, value: message } = iterResult
-        if (done || !message) break
+      for await (const message of session.session.stream()) {
+        if (session.stopped) break
+
+        console.log(`[claude-sdk] event: type=${(message as any).type}`)
 
         const mapped = mapSdkMessage(message)
 
         for (const event of mapped.events) {
-          console.log(`[claude-sdk] event: ${event.type}`, "text" in event ? (event as any).text?.slice(0, 30) : "")
           collectedEvents.push(event)
           request.onEvent?.(event)
 
@@ -161,15 +161,17 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
         }
 
         // Result message means this turn is done
-        if (message.type === "result") {
+        if ((message as any).type === "result") {
           break
         }
       }
     } catch (error) {
-      // AbortError is expected when the signal fires — not a real error
-      const isAbort = error instanceof DOMException && error.name === "AbortError"
-      if (!isAbort) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        // Abort is expected control flow, not an error
+        console.log("[claude-sdk] turn aborted")
+      } else {
         const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error("[claude-sdk] stream error:", errorMessage)
         const errorEvent: ChatRuntimeEvent = { type: "runtime_error", message: errorMessage }
         collectedEvents.push(errorEvent)
         request.onEvent?.(errorEvent)
@@ -203,9 +205,6 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
     }
   }
 
-  /**
-   * Destroy all sessions (called on backend shutdown).
-   */
   shutdown(): void {
     this.sessionManager.destroyAll()
   }

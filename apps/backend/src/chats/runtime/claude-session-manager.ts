@@ -1,8 +1,9 @@
 import {
-  query,
-  type Options as ClaudeQueryOptions,
+  unstable_v2_createSession as createSession,
+  unstable_v2_resumeSession as resumeSession,
+  type SDKSession,
+  type SDKSessionOptions,
   type SDKMessage,
-  type SDKUserMessage,
   type CanUseTool,
 } from "@anthropic-ai/claude-agent-sdk"
 import { randomUUID } from "node:crypto"
@@ -15,44 +16,26 @@ export type ClaudeSessionConfig = {
   vendorSessionId?: string | null
 }
 
-export type ClaudeQueryRuntime = AsyncIterable<SDKMessage> & {
-  readonly interrupt: () => Promise<void>
-  readonly setModel: (model?: string) => Promise<void>
-  readonly setPermissionMode: (mode: string) => Promise<void>
-  readonly setMaxThinkingTokens: (maxThinkingTokens: number | null) => Promise<void>
-  readonly close: () => void
-}
-
-type CreateQueryFn = (input: {
-  readonly prompt: AsyncIterable<SDKUserMessage>
-  readonly options: ClaudeQueryOptions
-}) => ClaudeQueryRuntime
-
 export type ClaudeSessionContext = {
   chatId: string
-  queryRuntime: ClaudeQueryRuntime
-  promptQueue: SDKUserMessage[]
-  promptResolve: ((value: IteratorResult<SDKUserMessage>) => void) | null
-  vendorSessionId: string
+  session: SDKSession
+  vendorSessionId: string | null
   stopped: boolean
 }
 
 export type ClaudeSessionManagerConfig = {
   pathToClaudeCodeExecutable?: string
   defaultEnv?: NodeJS.ProcessEnv
-  createQuery?: CreateQueryFn
+  createSessionFn?: (options: SDKSessionOptions) => SDKSession
+  resumeSessionFn?: (sessionId: string, options: SDKSessionOptions) => SDKSession
 }
 
 export class ClaudeSessionManager {
   private sessions = new Map<string, ClaudeSessionContext>()
-  private createQueryFn: CreateQueryFn
   private config: ClaudeSessionManagerConfig
 
   constructor(config: ClaudeSessionManagerConfig = {}) {
     this.config = config
-    this.createQueryFn = config.createQuery ?? ((input) =>
-      query({ prompt: input.prompt, options: input.options }) as ClaudeQueryRuntime
-    )
   }
 
   getOrCreate(chatId: string, sessionConfig: ClaudeSessionConfig): ClaudeSessionContext {
@@ -61,105 +44,33 @@ export class ClaudeSessionManager {
       return existing
     }
 
-    const vendorSessionId = sessionConfig.vendorSessionId ?? randomUUID()
-
-    // Build an async iterable prompt stream that we can push messages to
-    const pendingMessages: SDKUserMessage[] = []
-    let waitingResolve: ((value: IteratorResult<SDKUserMessage>) => void) | null = null
-    let done = false
-
-    const promptIterable: AsyncIterable<SDKUserMessage> = {
-      [Symbol.asyncIterator]() {
-        return {
-          next(): Promise<IteratorResult<SDKUserMessage>> {
-            console.log(`[prompt-stream] next() called, pending=${pendingMessages.length}, done=${done}`)
-            if (pendingMessages.length > 0) {
-              console.log("[prompt-stream] returning queued message immediately")
-              return Promise.resolve({ done: false, value: pendingMessages.shift()! })
-            }
-            if (done) {
-              return Promise.resolve({ done: true, value: undefined })
-            }
-            console.log("[prompt-stream] waiting for message...")
-            return new Promise((resolve) => {
-              waitingResolve = resolve
-            })
-          },
-          return(): Promise<IteratorResult<SDKUserMessage>> {
-            done = true
-            return Promise.resolve({ done: true, value: undefined })
-          },
-        }
-      },
-    }
-
-    const permissionMode = this.mapPermissionMode(sessionConfig.permissionLevel)
-
-    const queryOptions: ClaudeQueryOptions = {
-      cwd: sessionConfig.cwd,
+    const options: SDKSessionOptions = {
       model: sessionConfig.model,
       pathToClaudeCodeExecutable: this.config.pathToClaudeCodeExecutable ?? "claude",
-      permissionMode,
-      includePartialMessages: true,
+      permissionMode: "bypassPermissions",
+      allowDangerouslySkipPermissions: true,
       canUseTool: this.buildCanUseTool(sessionConfig.permissionLevel),
       env: this.config.defaultEnv ?? process.env,
-      ...(sessionConfig.vendorSessionId
-        ? { resume: sessionConfig.vendorSessionId }
-        : { sessionId: vendorSessionId }),
-      ...(permissionMode === "bypassPermissions"
-        ? { allowDangerouslySkipPermissions: true }
-        : {}),
     }
 
-    console.log("[claude-session] calling createQuery/query()...", JSON.stringify({
-      cwd: queryOptions.cwd,
-      model: queryOptions.model,
-      permissionMode,
-      pathToClaudeCodeExecutable: queryOptions.pathToClaudeCodeExecutable,
-      hasResume: !!sessionConfig.vendorSessionId,
-      sessionId: vendorSessionId,
-    }))
-    let queryRuntime: ClaudeQueryRuntime
-    try {
-      queryRuntime = this.createQueryFn({
-        prompt: promptIterable,
-        options: queryOptions,
-      })
-      console.log("[claude-session] query() returned successfully, type:", typeof queryRuntime)
-    } catch (err) {
-      console.error("[claude-session] query() threw:", err)
-      throw err
+    console.log(`[claude-session] creating session for chat ${chatId}, resume=${!!sessionConfig.vendorSessionId}`)
+
+    let session: SDKSession
+    const create = this.config.createSessionFn ?? createSession
+    const resume = this.config.resumeSessionFn ?? resumeSession
+
+    if (sessionConfig.vendorSessionId) {
+      session = resume(sessionConfig.vendorSessionId, options)
+    } else {
+      session = create(options)
     }
 
     const context: ClaudeSessionContext = {
       chatId,
-      queryRuntime,
-      promptQueue: pendingMessages,
-      promptResolve: null,
-      vendorSessionId,
+      session,
+      vendorSessionId: sessionConfig.vendorSessionId ?? null,
       stopped: false,
     }
-
-    // Wire the prompt push mechanism
-    const originalPush = pendingMessages.push.bind(pendingMessages)
-    context.promptQueue = new Proxy(pendingMessages, {
-      get(target, prop) {
-        if (prop === "push") {
-          return (...items: SDKUserMessage[]) => {
-            console.log(`[prompt-stream] push() called, waitingResolve=${!!waitingResolve}`)
-            const result = originalPush(...items)
-            if (waitingResolve && pendingMessages.length > 0) {
-              console.log("[prompt-stream] resolving waiting next()")
-              const resolve = waitingResolve
-              waitingResolve = null
-              resolve({ done: false, value: pendingMessages.shift()! })
-            }
-            return result
-          }
-        }
-        return Reflect.get(target, prop)
-      },
-    })
 
     this.sessions.set(chatId, context)
     return context
@@ -169,7 +80,7 @@ export class ClaudeSessionManager {
     const context = this.sessions.get(chatId)
     if (context) {
       context.stopped = true
-      context.queryRuntime.close()
+      context.session.close()
       this.sessions.delete(chatId)
     }
   }
@@ -180,18 +91,8 @@ export class ClaudeSessionManager {
     }
   }
 
-  private mapPermissionMode(permissionLevel: string): string {
-    // For now, always bypass permissions — the SDK subprocess hangs on interactive
-    // permission prompts. ULR-34 will implement proper supervised approval routing.
-    console.log(`[claude-session] permissionLevel=${permissionLevel}, forcing bypassPermissions`)
-    return "bypassPermissions"
-  }
-
   private buildCanUseTool(permissionLevel: string): CanUseTool {
-    if (permissionLevel === "full_access") {
-      return async () => ({ allowed: true as const })
-    }
-    // Supervised mode — for now, auto-approve (ULR-34 will wire the UI)
+    // Always auto-approve for now. ULR-34 will wire supervised approval routing.
     return async () => ({ allowed: true as const })
   }
 }
