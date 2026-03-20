@@ -1,0 +1,123 @@
+/* streaming.css */
+
+/* Tool Group */
+.tool-group {
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  margin: 8px 0;
+  overflow: hidden;
+}
+
+.tool-group__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.tool-group__header:hover {
+  background: var(--surface-border);
+}
+
+.tool-group__chevron {
+  color: var(--text-muted);
+  font-size: 0.625rem;
+  width: 12px;
+}
+
+.tool-group__title {
+  font-weight: 600;
+}
+
+.tool-group__count {
+  background: var(--surface-border);
+  color: var(--text-muted);
+  font-size: 0.625rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.tool-group__badges {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.tool-group__badge {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+  font-size: 0.5625rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.tool-group__badge--more {
+  background: var(--surface-border);
+  color: var(--text-muted);
+}
+
+.tool-group__body {
+  border-top: 1px solid var(--surface-border);
+  padding: 4px 0;
+}
+
+/* Tool Entry */
+.tool-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 0.6875rem;
+}
+
+.tool-entry__icon {
+  font-size: 0.8125rem;
+  width: 18px;
+  text-align: center;
+}
+
+.tool-entry__name {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.tool-entry__detail {
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 0.625rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.tool-entry__status {
+  margin-left: auto;
+  font-size: 0.625rem;
+}
+
+.tool-entry__status--running {
+  color: var(--warning);
+  animation: tool-pulse 1.4s ease-in-out infinite;
+}
+
+.tool-entry__status--done {
+  color: var(--success);
+}
+
+.tool-entry__status--error {
+  color: var(--danger);
+}
+
+@keyframes tool-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
