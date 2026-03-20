@@ -31,6 +31,7 @@ export type ChatRuntimeTurnRequest = {
   continuationPrompt: string | null
   seedMessages: ChatMessageSnapshot[]
   vendorSessionId: string | null
+  signal?: AbortSignal
 }
 
 export type RuntimeProcessRunOptions = {
@@ -40,6 +41,7 @@ export type RuntimeProcessRunOptions = {
   stdin?: string
   timeoutMs?: number
   env?: NodeJS.ProcessEnv
+  signal?: AbortSignal
 }
 
 export type RuntimeProcessResult = {
