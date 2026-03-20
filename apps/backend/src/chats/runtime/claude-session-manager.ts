@@ -72,12 +72,15 @@ export class ClaudeSessionManager {
       [Symbol.asyncIterator]() {
         return {
           next(): Promise<IteratorResult<SDKUserMessage>> {
+            console.log(`[prompt-stream] next() called, pending=${pendingMessages.length}, done=${done}`)
             if (pendingMessages.length > 0) {
+              console.log("[prompt-stream] returning queued message immediately")
               return Promise.resolve({ done: false, value: pendingMessages.shift()! })
             }
             if (done) {
               return Promise.resolve({ done: true, value: undefined })
             }
+            console.log("[prompt-stream] waiting for message...")
             return new Promise((resolve) => {
               waitingResolve = resolve
             })
@@ -128,8 +131,10 @@ export class ClaudeSessionManager {
       get(target, prop) {
         if (prop === "push") {
           return (...items: SDKUserMessage[]) => {
+            console.log(`[prompt-stream] push() called, waitingResolve=${!!waitingResolve}`)
             const result = originalPush(...items)
             if (waitingResolve && pendingMessages.length > 0) {
+              console.log("[prompt-stream] resolving waiting next()")
               const resolve = waitingResolve
               waitingResolve = null
               resolve({ done: false, value: pendingMessages.shift()! })
