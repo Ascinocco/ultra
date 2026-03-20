@@ -26,6 +26,7 @@ type ChatRow = {
   archived_at: string | null
   last_compacted_at: string | null
   current_session_id: string | null
+  workspace_description: string | null
   created_at: string
   updated_at: string
 }
@@ -155,6 +156,7 @@ const CHAT_SELECT_COLUMNS = `
     archived_at,
     last_compacted_at,
     current_session_id,
+    workspace_description,
     created_at,
     updated_at
   FROM chats
@@ -192,6 +194,8 @@ function mapChatRow(row: ChatRow): ChatSnapshot {
     archivedAt: row.archived_at,
     lastCompactedAt: row.last_compacted_at,
     currentSessionId: row.current_session_id,
+    workspaceDescription: row.workspace_description,
+    turnStatus: null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -452,6 +456,15 @@ export class ChatService {
     })
 
     return this.get(chatId)
+  }
+
+  updateWorkspaceDescription(chatId: ChatId, description: string): void {
+    const timestamp = this.now()
+    this.database
+      .prepare(
+        "UPDATE chats SET workspace_description = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(description, timestamp, chatId)
   }
 
   approvePlan(chatId: ChatId): ChatMessageSnapshot {

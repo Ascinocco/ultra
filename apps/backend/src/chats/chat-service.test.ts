@@ -334,4 +334,43 @@ describe("ChatService", () => {
 
     runtime.close()
   })
+
+  it("returns workspaceDescription as null for new chats", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-19T12:00:00Z",
+    )
+    const project = projectService.open({ path: projectPath })
+
+    const chat = chatService.create(project.id)
+    expect(chat.workspaceDescription).toBeNull()
+
+    runtime.close()
+  })
+
+  it("returns workspaceDescription after update", () => {
+    const { databasePath, projectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const chatService = new ChatService(
+      runtime.database,
+      () => "2026-03-19T12:00:00Z",
+    )
+    const project = projectService.open({ path: projectPath })
+
+    const chat = chatService.create(project.id)
+    chatService.updateWorkspaceDescription(
+      chat.id,
+      "ULR-93: Fixing archived chat persistence",
+    )
+    const updated = chatService.get(chat.id)
+    expect(updated.workspaceDescription).toBe(
+      "ULR-93: Fixing archived chat persistence",
+    )
+
+    runtime.close()
+  })
 })
