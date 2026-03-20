@@ -21,6 +21,7 @@ export const runtimeComponentTypeSchema = z.enum([
   "coordinator",
   "watchdog",
   "ov_watch",
+  "agent",
 ])
 export const runtimeDetailsSchema = z.record(z.string(), z.unknown())
 
