@@ -61,4 +61,8 @@ export class AgentRegistry {
   allActive(): AgentNode[] {
     return [...this.agents.values()].filter((a) => ACTIVE_STATES.has(a.state))
   }
+
+  getAll(): AgentNode[] {
+    return [...this.agents.values()]
+  }
 }
