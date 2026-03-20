@@ -51,6 +51,9 @@ coverage/
 # Claude Code worktrees
 .claude/worktrees/
 
+# Agent worktrees (managed by OrchestrationService)
+.ultra/worktrees/
+
 # Superpowers brainstorm artifacts
 .superpowers/
 docs/superpowers/plans/
