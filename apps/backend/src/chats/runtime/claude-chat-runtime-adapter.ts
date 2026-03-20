@@ -34,6 +34,18 @@ function mapSdkMessage(message: SDKMessage): {
     vendorSessionId = msg.session_id
   }
 
+  // Handle stream_event wrapper — unwrap and process the inner event
+  if (msg.type === "stream_event" && msg.event) {
+    const inner = msg.event as any
+    // Recurse into the inner event
+    const innerResult = mapSdkMessage(inner as SDKMessage)
+    return {
+      events: [...events, ...innerResult.events],
+      finalText: innerResult.finalText ?? finalText,
+      vendorSessionId: innerResult.vendorSessionId ?? vendorSessionId,
+    }
+  }
+
   switch (msg.type) {
     case "assistant": {
       if (msg.message?.content && Array.isArray(msg.message.content)) {
