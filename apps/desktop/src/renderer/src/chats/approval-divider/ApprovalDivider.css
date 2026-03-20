@@ -1,0 +1,26 @@
+.approval-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+}
+
+.approval-divider__line {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--success) 30%, transparent);
+}
+
+.approval-divider__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--success);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.approval-divider__check {
+  font-size: 0.875rem;
+}
