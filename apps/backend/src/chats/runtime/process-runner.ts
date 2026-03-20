@@ -8,6 +8,7 @@ import type {
 } from "./types.js"
 
 const DEFAULT_TIMEOUT_MS = 120_000
+const SIGKILL_GRACE_MS = 3_000
 
 function splitLines(input: string): string[] {
   return input
@@ -38,6 +39,23 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
         child.kill("SIGKILL")
       }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
 
+      let killEscalationTimeout: ReturnType<typeof setTimeout> | null = null
+
+      if (options.signal) {
+        const onAbort = () => {
+          child.kill("SIGTERM")
+          killEscalationTimeout = setTimeout(() => {
+            child.kill("SIGKILL")
+          }, SIGKILL_GRACE_MS)
+        }
+
+        if (options.signal.aborted) {
+          onAbort()
+        } else {
+          options.signal.addEventListener("abort", onAbort, { once: true })
+        }
+      }
+
       child.stdout.on("data", (chunk) => {
         stdout += chunk.toString()
       })
@@ -46,6 +64,7 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
       })
       child.once("error", (error) => {
         clearTimeout(timeout)
+        if (killEscalationTimeout) clearTimeout(killEscalationTimeout)
         if (!settled) {
           settled = true
           reject(error)
@@ -53,6 +72,7 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
       })
       child.once("close", (code, signal) => {
         clearTimeout(timeout)
+        if (killEscalationTimeout) clearTimeout(killEscalationTimeout)
         if (settled) {
           return
         }
