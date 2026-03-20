@@ -82,10 +82,15 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
 
     console.log(`[claude-sdk] runTurn called for chat ${request.chatId}, onEvent=${!!request.onEvent}`)
 
-    // Build the user message
+    // Build the SDK user message in the correct format
     const userMessage = {
-      role: "user" as const,
-      content: request.prompt,
+      type: "user" as const,
+      message: {
+        role: "user" as const,
+        content: [{ type: "text" as const, text: request.prompt }],
+      },
+      parent_tool_use_id: null,
+      session_id: session.vendorSessionId,
     }
 
     // Push user message to the session's prompt stream
