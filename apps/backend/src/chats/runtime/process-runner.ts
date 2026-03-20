@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import { spawn as ptySpawn } from "node-pty"
 
 import type {
   RuntimeProcessResult,
@@ -23,19 +24,118 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
   ) {}
 
   async run(options: RuntimeProcessRunOptions): Promise<RuntimeProcessResult> {
+    // Use PTY when streaming is requested — forces the CLI to line-buffer output
+    if (options.onLine) {
+      return this.runWithPty(options)
+    }
+    return this.runWithPipe(options)
+  }
+
+  /**
+   * PTY-based execution: forces child process to use line-buffered stdout,
+   * enabling real-time streaming of output lines.
+   */
+  private runWithPty(
+    options: RuntimeProcessRunOptions,
+  ): Promise<RuntimeProcessResult> {
     return new Promise((resolve, reject) => {
-      let stdout = ""
-      let stderr = ""
+      let output = ""
       let lineBuffer = ""
       let timedOut = false
       let settled = false
-      console.log(`[process-runner] spawning: ${options.command} ${options.args.join(" ")}`)
+
+      const pty = ptySpawn(options.command, options.args, {
+        cwd: options.cwd,
+        env: (options.env ?? process.env) as Record<string, string>,
+        cols: 200,
+        rows: 24,
+      })
+
+      const timeout = setTimeout(() => {
+        timedOut = true
+        pty.kill()
+      }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+
+      if (options.signal) {
+        const onAbort = () => {
+          pty.kill()
+        }
+
+        if (options.signal.aborted) {
+          onAbort()
+        } else {
+          options.signal.addEventListener("abort", onAbort, { once: true })
+        }
+      }
+
+      const disposeData = pty.onData((data) => {
+        output += data
+
+        // Line buffering — split on \n and emit complete lines
+        lineBuffer += data
+        const parts = lineBuffer.split("\n")
+        lineBuffer = parts.pop()!
+        for (const part of parts) {
+          // PTY may include \r — strip it
+          const cleaned = part.replace(/\r$/u, "")
+          if (cleaned.length > 0) {
+            options.onLine!(cleaned)
+          }
+        }
+      })
+
+      const disposeExit = pty.onExit(({ exitCode, signal }) => {
+        clearTimeout(timeout)
+        disposeData.dispose()
+        disposeExit.dispose()
+
+        if (settled) return
+        settled = true
+
+        // Flush remaining buffer
+        if (lineBuffer.length > 0) {
+          const cleaned = lineBuffer.replace(/\r$/u, "")
+          if (cleaned.length > 0) {
+            options.onLine!(cleaned)
+          }
+          lineBuffer = ""
+        }
+
+        // PTY merges stdout and stderr into a single stream.
+        // We put everything in stdout; stderr is empty.
+        resolve({
+          exitCode,
+          signal: null,
+          stdout: output,
+          stderr: "",
+          stdoutLines: splitLines(output),
+          stderrLines: [],
+          timedOut,
+        })
+      })
+
+      if (options.stdin) {
+        pty.write(options.stdin)
+      }
+    })
+  }
+
+  /**
+   * Pipe-based execution: original behavior, used when streaming is not needed.
+   */
+  private runWithPipe(
+    options: RuntimeProcessRunOptions,
+  ): Promise<RuntimeProcessResult> {
+    return new Promise((resolve, reject) => {
+      let stdout = ""
+      let stderr = ""
+      let timedOut = false
+      let settled = false
       const child = this.spawnProcess(options.command, options.args, {
         cwd: options.cwd,
         env: options.env,
         stdio: "pipe",
       })
-      console.log(`[process-runner] spawned pid: ${child.pid}`)
 
       const timeout = setTimeout(() => {
         timedOut = true
@@ -60,21 +160,7 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
       }
 
       child.stdout.on("data", (chunk) => {
-        const text = chunk.toString()
-        console.log(`[process-runner] stdout data event: ${text.length} bytes at ${Date.now()}`)
-        stdout += text
-
-        if (options.onLine) {
-          lineBuffer += text
-          const parts = lineBuffer.split("\n")
-          // Last element is incomplete (no trailing \n yet) — keep in buffer
-          lineBuffer = parts.pop()!
-          for (const part of parts) {
-            if (part.length > 0) {
-              options.onLine(part)
-            }
-          }
-        }
+        stdout += chunk.toString()
       })
       child.stderr.on("data", (chunk) => {
         stderr += chunk.toString()
@@ -95,11 +181,6 @@ export class SpawnRuntimeProcessRunner implements RuntimeProcessRunner {
         }
 
         settled = true
-
-        if (options.onLine && lineBuffer.length > 0) {
-          options.onLine(lineBuffer)
-          lineBuffer = ""
-        }
 
         resolve({
           exitCode: code,
