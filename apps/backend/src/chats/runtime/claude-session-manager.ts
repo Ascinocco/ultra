@@ -111,10 +111,18 @@ export class ClaudeSessionManager {
         : {}),
     }
 
-    const queryRuntime = this.createQueryFn({
-      prompt: promptIterable,
-      options: queryOptions,
-    })
+    console.log("[claude-session] calling createQuery/query()...")
+    let queryRuntime: ClaudeQueryRuntime
+    try {
+      queryRuntime = this.createQueryFn({
+        prompt: promptIterable,
+        options: queryOptions,
+      })
+      console.log("[claude-session] query() returned successfully, type:", typeof queryRuntime)
+    } catch (err) {
+      console.error("[claude-session] query() threw:", err)
+      throw err
+    }
 
     const context: ClaudeSessionContext = {
       chatId,

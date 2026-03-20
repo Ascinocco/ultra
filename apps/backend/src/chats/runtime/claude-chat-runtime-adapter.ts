@@ -120,7 +120,9 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
     // IMPORTANT: Do NOT use `for await` — it calls iterator.return() on break,
     // which terminates the SDK stream permanently. Use manual .next() calls instead
     // so the session can be reused across turns.
+    console.log("[claude-sdk] getting iterator from queryRuntime...")
     const iterator = session.queryRuntime[Symbol.asyncIterator]()
+    console.log("[claude-sdk] calling first iterator.next()...")
 
     try {
       while (!session.stopped) {
