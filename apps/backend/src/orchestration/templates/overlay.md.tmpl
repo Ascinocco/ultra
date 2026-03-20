@@ -1,0 +1,33 @@
+{{BASE_DEFINITION}}
+
+---
+
+# Assignment
+
+- **Agent ID:** {{AGENT_ID}}
+- **Thread ID:** {{THREAD_ID}}
+- **Branch:** {{BRANCH_NAME}}
+- **Worktree:** {{WORKTREE_PATH}}
+- **Parent Agent:** {{PARENT_AGENT_ID}}
+
+## Task
+
+{{TASK_DESCRIPTION}}
+
+## File Scope
+
+{{FILE_SCOPE}}
+
+## Quality Gates
+
+{{QUALITY_GATES}}
+
+## NDJSON Communication Protocol
+
+Emit structured events on stdout as single-line JSON:
+
+- `{"type": "status", "summary": "what you're doing"}` — progress update
+- `{"type": "agent_message", "content": "message text"}` — message to coordinator
+- `{"type": "agent_done", "summary": "what was accomplished", "result": "success|failure"}` — completion
+
+{{SPAWN_INSTRUCTIONS}}
