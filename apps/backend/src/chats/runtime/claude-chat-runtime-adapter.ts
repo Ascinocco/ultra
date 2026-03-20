@@ -92,7 +92,7 @@ function mapSdkMessage(message: SDKMessage): {
         const textParts = msg.message.content
           .filter((b: any) => b.type === "text")
           .map((b: any) => b.text)
-        finalText = textParts.join("")
+        finalText = textParts.join("\n\n")
       }
       if (msg.session_id) {
         vendorSessionId = msg.session_id
