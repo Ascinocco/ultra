@@ -841,6 +841,27 @@ button {
   cursor: not-allowed;
 }
 
+.active-chat-pane__button-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.active-chat-pane__stop {
+  padding: 0.375rem 0.75rem;
+  background: var(--color-danger, #e53e3e);
+  color: #fff;
+  border: none;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.active-chat-pane__stop:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .active-chat-pane__input-hint {
   margin: 0;
   font-size: 0.78rem;
