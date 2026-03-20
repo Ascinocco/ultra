@@ -72,3 +72,27 @@ describe("ChatMessage", () => {
     expect(html).toContain("chat-message--coordinator")
   })
 })
+
+describe("ChatMessage streaming", () => {
+  it("renders typing indicator when streaming with empty content", () => {
+    const html = renderToStaticMarkup(
+      <ChatMessage role="assistant" content="" isStreaming />,
+    )
+    expect(html).toContain("chat-message__typing")
+  })
+
+  it("renders content normally when streaming with content", () => {
+    const html = renderToStaticMarkup(
+      <ChatMessage role="assistant" content="Hello world" isStreaming />,
+    )
+    expect(html).toContain("Hello world")
+    expect(html).not.toContain("chat-message__typing")
+  })
+
+  it("returns null for empty content when NOT streaming", () => {
+    const html = renderToStaticMarkup(
+      <ChatMessage role="assistant" content="" />,
+    )
+    expect(html).toBe("")
+  })
+})

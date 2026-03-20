@@ -6,6 +6,7 @@ import "./ChatMessage.css"
 interface ChatMessageProps {
   role: "user" | "coordinator" | "assistant" | "system"
   content: string
+  isStreaming?: boolean
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -17,10 +18,10 @@ const ROLE_LABELS: Record<string, string> = {
 
 const ASSISTANT_ROLES = new Set(["coordinator", "assistant"])
 
-export function ChatMessage({ role, content }: ChatMessageProps): ReactElement | null {
+export function ChatMessage({ role, content, isStreaming }: ChatMessageProps): ReactElement | null {
   const [copied, setCopied] = useState(false)
 
-  if (!content.trim()) return null
+  if (!content.trim() && !isStreaming) return null
 
   const label = ROLE_LABELS[role] || role
 
@@ -39,13 +40,19 @@ export function ChatMessage({ role, content }: ChatMessageProps): ReactElement |
     <div className={"chat-message chat-message--" + cssRole}>
       <div className="chat-message__label">{label}</div>
       <div className="chat-message__content">
-        {isAssistant ? (
+        {isStreaming && !content.trim() ? (
+          <div className="chat-message__typing">
+            <span className="chat-message__typing-dot" />
+            <span className="chat-message__typing-dot" />
+            <span className="chat-message__typing-dot" />
+          </div>
+        ) : isAssistant ? (
           <MarkdownRenderer content={content} />
         ) : (
           <p className="chat-message__text">{content}</p>
         )}
       </div>
-      {isAssistant && (
+      {isAssistant && content.trim() && (
         <button
           className="chat-message__copy"
           onClick={handleCopy}
