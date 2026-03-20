@@ -64,7 +64,7 @@ export type ChatRuntimeTurnResult = {
   events: ChatRuntimeEvent[]
   finalText: string
   vendorSessionId: string | null
-  diagnostics: RuntimeProcessResult
+  diagnostics?: RuntimeProcessResult
   resumed: boolean
 }
 

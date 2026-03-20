@@ -111,7 +111,7 @@ describe("ClaudeChatRuntimeAdapter", () => {
         expect.objectContaining({ type: "checkpoint_candidate" }),
       ]),
     )
-    expect(result.diagnostics.stderr).toContain("claude diagnostic warning")
+    expect(result.diagnostics?.stderr).toContain("claude diagnostic warning")
   })
 
   it("uses resume mode and rejects unknown thinking levels", async () => {
