@@ -8,13 +8,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { ChatMessage } from "../chat-message/ChatMessage"
 
+import { ApprovalBar } from "../chats/approval-bar/ApprovalBar.js"
+import { ApprovalDivider } from "../chats/approval-divider/ApprovalDivider.js"
+import type { ApprovalDividerProps } from "../chats/approval-divider/ApprovalDivider.js"
 import {
+  approvePlan,
+  approveSpecs,
   fetchChatMessages,
   fetchChatTurn,
   fetchChatTurns,
   replayChatTurnEvents,
   selectCurrentTurn,
   startChatTurn,
+  startThreadFromChat,
   subscribeToChatMessages,
   subscribeToChatTurnEvents,
 } from "../chats/chat-message-workflows.js"
@@ -24,6 +30,7 @@ import {
   RUNTIME_PROVIDER_LABELS,
   type RuntimeProvider,
 } from "../runtime-options.js"
+import { useApprovalState } from "../chats/hooks/useApprovalState.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { updateChatRuntimeConfig } from "../sidebar/chat-workflows.js"
 import { useAppStore } from "../state/app-store.js"
@@ -359,6 +366,26 @@ export function ChatPageShell({
   const activeChatMessages = activeChatId
     ? (chatMessages.messagesByChatId[activeChatId] ?? [])
     : []
+  const approvalState = useApprovalState(activeChatMessages)
+
+  const handleApprovePlan = async () => {
+    await approvePlan(activeChatId!, actions)
+  }
+
+  const handleApproveSpecs = async () => {
+    await approveSpecs(activeChatId!, actions)
+  }
+
+  const handleStartWork = async () => {
+    await startThreadFromChat({
+      chatId: activeChatId!,
+      title: activeChat!.title,
+      planApprovalMessageId: approvalState.planApprovalMessageId!,
+      specApprovalMessageId: approvalState.specApprovalMessageId!,
+      confirmStart: true,
+    })
+  }
+
   const chatMessagesFetchStatus = activeChatId
     ? (chatMessages.fetchStatusByChatId[activeChatId] ?? "idle")
     : "idle"
@@ -901,17 +928,33 @@ export function ChatPageShell({
                         No messages yet. Send a prompt to start a turn.
                       </p>
                     ) : null}
-                    {activeChatMessages.map((message) => (
-                      <ChatMessage
-                        key={message.id}
-                        role={message.role as "user" | "assistant" | "system"}
-                        content={
-                          message.contentMarkdown ??
-                          message.structuredPayloadJson ??
-                          "No text content."
-                        }
-                      />
-                    ))}
+                    {activeChatMessages.map((message) => {
+                      if (
+                        message.messageType === "plan_approval" ||
+                        message.messageType === "spec_approval" ||
+                        message.messageType === "thread_start_request"
+                      ) {
+                        return (
+                          <ApprovalDivider
+                            key={message.id}
+                            messageType={
+                              message.messageType as ApprovalDividerProps["messageType"]
+                            }
+                          />
+                        )
+                      }
+                      return (
+                        <ChatMessage
+                          key={message.id}
+                          role={message.role as "user" | "assistant" | "system"}
+                          content={
+                            message.contentMarkdown ??
+                            message.structuredPayloadJson ??
+                            "No text content."
+                          }
+                        />
+                      )
+                    })}
                   </div>
                 </section>
 
@@ -958,6 +1001,16 @@ export function ChatPageShell({
                   </dl>
                 </aside>
               </div>
+
+              {activeChat ? (
+                <ApprovalBar
+                  step={approvalState.step}
+                  threadTitle={activeChat.title}
+                  onApprovePlan={handleApprovePlan}
+                  onApproveSpecs={handleApproveSpecs}
+                  onStartWork={handleStartWork}
+                />
+              ) : null}
 
               <form
                 className="active-chat-pane__input-dock"
