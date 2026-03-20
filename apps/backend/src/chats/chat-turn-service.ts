@@ -919,7 +919,6 @@ export class ChatTurnService {
     try {
       const timestamp = new Date().toISOString()
       const streamingOnEvent = (runtimeEvent: ChatRuntimeEvent) => {
-        console.log("[streaming] onEvent fired:", runtimeEvent.type, "text" in runtimeEvent ? runtimeEvent.text?.slice(0, 30) : "")
         const mapped = this.mapRuntimeEventToTurnEvent(runtimeEvent)
         const persisted = this.appendTurnEventInternal({
           chatId,

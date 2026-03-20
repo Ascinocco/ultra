@@ -206,10 +206,13 @@ export class CodexChatRuntimeAdapter implements ChatRuntimeAdapter {
         }
       : undefined
 
+    const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000
+
     const diagnostics = await this.processRunner.run({
       command: "codex",
       args: buildArgs(request),
       cwd: request.cwd,
+      timeoutMs: FORTY_EIGHT_HOURS_MS,
       signal: request.signal,
       onLine,
     })
