@@ -327,14 +327,14 @@ export class ChatService {
     return this.get(chatId)
   }
 
-  list(projectId: ProjectId): ChatsListResult {
+  list(projectId: ProjectId, includeArchived: boolean = false): ChatsListResult {
     this.assertProjectExists(projectId)
 
     const rows = this.database
       .prepare(
         `
           ${CHAT_SELECT_COLUMNS}
-          WHERE project_id = ?
+          WHERE project_id = ?${includeArchived ? "" : " AND status = 'active'"}
           ORDER BY is_pinned DESC, updated_at DESC
         `,
       )
