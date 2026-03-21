@@ -20,6 +20,9 @@ export type InputDockProps = {
   thinkingLevel: string
   permissionLevel: string
   availableModels: string[]
+  onPlanMarker?: (markerType: "open" | "close") => void
+  onPromote?: () => void
+  planMarkerOpen?: boolean
   onSend: (prompt: string, attachments: File[]) => void
   onRuntimeConfigChange: (config: {
     provider?: string
@@ -50,6 +53,9 @@ export function InputDock({
   thinkingLevel,
   permissionLevel,
   availableModels,
+  onPlanMarker,
+  onPromote,
+  planMarkerOpen,
   onSend,
   onRuntimeConfigChange,
 }: InputDockProps): ReactElement {
@@ -78,6 +84,16 @@ export function InputDock({
 
   const handleSend = useCallback(() => {
     const trimmed = prompt.trim()
+    if (trimmed === "/plan") {
+      onPlanMarker?.(planMarkerOpen ? "close" : "open")
+      setPrompt("")
+      return
+    }
+    if (trimmed === "/promote") {
+      onPromote?.()
+      setPrompt("")
+      return
+    }
     if (!trimmed && files.length === 0) return
     onSend(trimmed, files)
     setPrompt("")
@@ -85,7 +101,7 @@ export function InputDock({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
     }
-  }, [prompt, files, onSend])
+  }, [prompt, files, onSend, onPlanMarker, onPromote, planMarkerOpen])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {

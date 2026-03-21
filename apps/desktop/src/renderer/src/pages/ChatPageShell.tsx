@@ -12,13 +12,17 @@ import { ApprovalBar } from "../chats/approval-bar/ApprovalBar.js"
 import { InputDock } from "../chats/input-dock/InputDock.js"
 import { ApprovalDivider } from "../chats/approval-divider/ApprovalDivider.js"
 import type { ApprovalDividerProps } from "../chats/approval-divider/ApprovalDivider.js"
+import { PromoteDrawer } from "../chats/promote-drawer/PromoteDrawer.js"
 import {
   approvePlan,
   approveSpecs,
   cancelChatTurn,
+  createPlanMarker,
   fetchChatMessages,
   fetchChatTurn,
   fetchChatTurns,
+  gatherPromoteContext,
+  promoteToThread,
   replayChatTurnEvents,
   selectCurrentTurn,
   startChatTurn,
@@ -380,6 +384,30 @@ export function ChatPageShell({
     ? (chatMessages.messagesByChatId[activeChatId] ?? [])
     : []
   const approvalState = useApprovalState(activeChatMessages)
+  const [planMarkerOpen, setPlanMarkerOpen] = useState(false)
+
+  const contextMessageIds = activeChatMessages ? gatherPromoteContext(activeChatMessages) : []
+
+  const hasPromotedRecently = activeChatMessages?.some(
+    (m, i) =>
+      m.messageType === "thread_start_request" &&
+      !activeChatMessages.slice(i + 1).some(
+        (m2) => m2.role === "user" && !m2.messageType?.startsWith("plan_marker")
+      ),
+  ) ?? false
+
+  function handlePlanMarker(markerType: "open" | "close") {
+    if (!activeChatId) return
+    setPlanMarkerOpen(markerType === "open")
+    void createPlanMarker(activeChatId, markerType, actions)
+  }
+
+  async function handlePromote() {
+    if (!activeChatId || !activeChat || contextMessageIds.length === 0) return
+    const title = `Thread: ${activeChat.title}`
+    await promoteToThread(activeChatId, title, contextMessageIds)
+    await fetchChatMessages(activeChatId, actions)
+  }
 
   const handleApprovePlan = async () => {
     await approvePlan(activeChatId!, actions)
@@ -977,7 +1005,9 @@ export function ChatPageShell({
                       if (
                         message.messageType === "plan_approval" ||
                         message.messageType === "spec_approval" ||
-                        message.messageType === "thread_start_request"
+                        message.messageType === "thread_start_request" ||
+                        message.messageType === "plan_marker_open" ||
+                        message.messageType === "plan_marker_close"
                       ) {
                         return (
                           <ApprovalDivider
@@ -1081,6 +1111,11 @@ export function ChatPageShell({
                 </aside>
               </div>
 
+              <PromoteDrawer
+                messageCount={contextMessageIds.length}
+                disabled={hasPromotedRecently || contextMessageIds.length === 0}
+                onPromote={() => void handlePromote()}
+              />
               <InputDock
                 chatId={activeChatId!}
                 disabled={chatInputDisabled}
@@ -1090,6 +1125,9 @@ export function ChatPageShell({
                 thinkingLevel={activeChat.thinkingLevel}
                 permissionLevel={activeChat.permissionLevel}
                 availableModels={availableModels}
+                onPlanMarker={handlePlanMarker}
+                onPromote={() => void handlePromote()}
+                planMarkerOpen={planMarkerOpen}
                 onSend={handleSend}
                 onRuntimeConfigChange={handleRuntimeConfigChange}
               />
