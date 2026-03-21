@@ -57,7 +57,10 @@ import {
   fetchThreadMessages,
   fetchThreads,
   sendThreadMessage,
+  subscribeToThreadMessages,
+  subscribeToThreadTurnEvents,
 } from "../threads/thread-workflows.js"
+import { useThreadStreaming } from "../threads/hooks/useThreadStreaming.js"
 
 const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
@@ -718,6 +721,32 @@ export function ChatPageShell({
   }, [activeProjectId, actions])
 
   useEffect(() => {
+    const threadId = selectedThreadId
+    if (!threadId) return
+
+    let cancelled = false
+    let messageUnsub: (() => Promise<void>) | null = null
+    let turnUnsub: (() => Promise<void>) | null = null
+
+    subscribeToThreadMessages(threadId, actions).then((unsub) => {
+      if (cancelled) { void unsub(); return }
+      messageUnsub = unsub
+    })
+
+    subscribeToThreadTurnEvents(threadId, actions).then((unsub) => {
+      if (cancelled) { void unsub(); return }
+      turnUnsub = unsub
+    })
+
+    return () => {
+      cancelled = true
+      void messageUnsub?.()
+      void turnUnsub?.()
+      actions.setActiveThreadTurn(null)
+    }
+  }, [selectedThreadId, actions])
+
+  useEffect(() => {
     if (!activeChatId) {
       turnSequenceRef.current = {}
     }
@@ -958,11 +987,36 @@ export function ChatPageShell({
     })
   }
 
-  function handleSendMessage(threadId: string, content: string) {
-    sendThreadMessage(threadId, content, actions).catch((err) => {
-      console.error("[threads] failed to send message:", err)
-    })
-  }
+  const threadTurnEvents = selectedThreadId
+    ? (threads.turnEventsByThreadId[selectedThreadId] ?? [])
+    : []
+  const isCoordinatorActive = threads.activeThreadTurnId === selectedThreadId
+  const threadMessages = selectedThreadId
+    ? (threads.messagesByThreadId[selectedThreadId] ?? [])
+    : []
+
+  const threadStreaming = useThreadStreaming(
+    threadTurnEvents,
+    isCoordinatorActive,
+    threadMessages.length,
+  )
+
+  const streamingBlocksByThreadId = useMemo(() => {
+    if (!selectedThreadId || !threadStreaming.blocks) return {}
+    return { [selectedThreadId]: threadStreaming.blocks }
+  }, [selectedThreadId, threadStreaming.blocks])
+
+  const isStreamingByThreadId = useMemo(() => {
+    if (!selectedThreadId) return {}
+    return { [selectedThreadId]: threadStreaming.isStreaming }
+  }, [selectedThreadId, threadStreaming.isStreaming])
+
+  const handleSendThreadMessage = useCallback(
+    async (threadId: string, content: string, _files: File[]) => {
+      await sendThreadMessage(threadId, content, actions)
+    },
+    [actions],
+  )
 
   return (
     <div className="chat-frame" ref={chatFrameRef} data-page="chat">
@@ -1180,10 +1234,13 @@ export function ChatPageShell({
             threads={projectThreads}
             selectedThreadId={selectedThreadId}
             messagesByThreadId={threads.messagesByThreadId}
+            streamingBlocksByThreadId={streamingBlocksByThreadId}
+            isStreamingByThreadId={isStreamingByThreadId}
+            activeThreadTurnId={threads.activeThreadTurnId}
             fetchStatus={threadFetchStatus}
             onSelectThread={handleSelectThread}
             onFetchMessages={handleFetchMessages}
-            onSendMessage={handleSendMessage}
+            onSendMessage={handleSendThreadMessage}
           />
         </div>
 
