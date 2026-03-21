@@ -30,6 +30,9 @@ const TOOL_MAP: Record<string, ToolConfig> = {
   file_change:        { icon: "pencil",   extractDetail: (m) => codexPath(m) },
   fileRead:           { icon: "file",     extractDetail: (m) => codexPath(m) },
   file_read:          { icon: "file",     extractDetail: (m) => codexPath(m) },
+  // Special tool types
+  AskUserQuestion:    { icon: "question", extractDetail: (m) => m?.input?.question ?? m?.input?.text ?? "" },
+  Skill:              { icon: "skill",    extractDetail: (m) => m?.input?.skill ?? "" },
 }
 
 const FILTERED_LABELS = new Set(["command_output", "file_change_output"])
