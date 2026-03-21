@@ -923,12 +923,6 @@ export function ChatPageShell({
         </aside>
 
         <section className="chat-frame__main">
-          <div className="surface__header">
-            <p className="surface__eyebrow">Active Chat</p>
-            <h2 className="surface__title">
-              {activeChat ? activeChat.title : "Command center"}
-            </h2>
-          </div>
           {activeChat ? (
             <section className="active-chat-pane" aria-label="Active chat pane">
               <div className={`active-chat-pane__body${referencesOpen ? "" : " active-chat-pane__body--refs-hidden"}`}>

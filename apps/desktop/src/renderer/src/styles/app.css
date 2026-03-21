@@ -566,7 +566,7 @@ button {
 }
 
 .chat-frame__main {
-  padding: 20px;
+  padding: 4px;
   border-right: 1px solid var(--panel-border);
   grid-row: 1;
   overflow: hidden;
@@ -588,9 +588,6 @@ button {
   flex-direction: column;
   min-height: 0;
   flex: 1;
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-lg);
-  background: rgba(14, 17, 26, 0.36);
   overflow: hidden;
 }
 
@@ -638,9 +635,9 @@ button {
 .active-chat-pane__transcript {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   min-height: 0;
-  padding: 14px;
+  padding: 6px 8px;
   border-right: 1px solid var(--panel-border);
 }
 
