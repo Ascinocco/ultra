@@ -39,6 +39,24 @@ export function deriveStreamingBlocks(
       const label = payload.label ?? ""
       if (shouldFilterToolEvent(label)) continue
 
+      // AskUserQuestion: emit as text block instead of tool_group
+      if (label === "AskUserQuestion") {
+        const questionText = (payload.metadata as any)?.input?.question
+          ?? (payload.metadata as any)?.input?.text
+          ?? ""
+        if (questionText) {
+          hasContent = true
+          const last = blocks[blocks.length - 1]
+          if (last && last.type === "text") {
+            last.content += "\n\n" + questionText
+          } else {
+            blocks.push({ type: "text", content: questionText })
+          }
+          continue
+        }
+        // If no question text, fall through to normal tool handling
+      }
+
       hasContent = true
       const metadata = payload.metadata
       const toolId = extractToolId(metadata) ?? `anon_${event.sequenceNumber}`
