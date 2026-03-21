@@ -387,14 +387,23 @@ export class BackendSocketClient {
 
     let messages: ChatMessageSnapshot[]
     try {
-      messages = parseChatsGetMessagesResult(
+      const parsed = parseChatsGetMessagesResult(
         getMessagesResponse.result,
-      ).messages
+      )
+      messages = parsed.messages
     } catch {
       return this.createErrorResponse(
         startTurnResponse.request_id,
         "internal_error",
         "Invalid chats.get_messages response while handling chats.send_message.",
+      )
+    }
+
+    if (!messages || !Array.isArray(messages)) {
+      return this.createErrorResponse(
+        startTurnResponse.request_id,
+        "internal_error",
+        "Invalid messages array in chats.get_messages response.",
       )
     }
 
