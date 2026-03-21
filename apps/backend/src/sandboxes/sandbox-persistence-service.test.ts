@@ -308,4 +308,151 @@ describe("SandboxPersistenceService", () => {
 
     runtime.close()
   })
+
+  it("creates user_worktree sandboxes and derives display names from branch", () => {
+    const { databasePath, firstProjectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const sandboxService = new SandboxPersistenceService(
+      runtime.database,
+      () => "2026-03-20T12:00:00Z",
+    )
+    const project = projectService.open({ path: firstProjectPath })
+
+    const worktree = sandboxService.upsertUserWorktree({
+      projectId: project.id,
+      path: join(firstProjectPath, ".worktrees/auth-flow"),
+      branchName: "feature/auth-flow",
+    })
+
+    expect(worktree.sandboxType).toBe("user_worktree")
+    expect(worktree.displayName).toBe("auth-flow")
+    expect(worktree.branchName).toBe("feature/auth-flow")
+    expect(worktree.isMainCheckout).toBe(false)
+    expect(worktree.threadId).toBeNull()
+
+    // Upsert again — should update, not duplicate
+    const updated = sandboxService.upsertUserWorktree({
+      projectId: project.id,
+      path: join(firstProjectPath, ".worktrees/auth-flow"),
+      branchName: "feature/auth-flow-v2",
+    })
+
+    expect(updated.sandboxId).toBe(worktree.sandboxId)
+    expect(updated.displayName).toBe("auth-flow-v2")
+
+    runtime.close()
+  })
+
+  it("removes stale user_worktree rows but keeps main_checkout and thread_sandbox", () => {
+    const { databasePath, firstProjectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const sandboxService = new SandboxPersistenceService(
+      runtime.database,
+      () => "2026-03-20T12:00:00Z",
+    )
+    const project = projectService.open({ path: firstProjectPath })
+
+    // Create two user worktrees
+    const wt1Path = join(firstProjectPath, ".worktrees/one")
+    const wt2Path = join(firstProjectPath, ".worktrees/two")
+    sandboxService.upsertUserWorktree({
+      projectId: project.id,
+      path: wt1Path,
+      branchName: "feature/one",
+    })
+    sandboxService.upsertUserWorktree({
+      projectId: project.id,
+      path: wt2Path,
+      branchName: "feature/two",
+    })
+
+    // Only wt1 is still active — wt2 should be removed
+    const removed = sandboxService.removeStaleWorktrees(
+      project.id,
+      new Set([wt1Path]),
+    )
+
+    expect(removed).toBe(1)
+
+    const listed = sandboxService.listSandboxes(project.id)
+    expect(listed).toHaveLength(2) // main_checkout + one user_worktree
+    expect(listed.some((s) => s.sandboxType === "user_worktree" && s.displayName === "one")).toBe(true)
+    expect(listed.some((s) => s.displayName === "two")).toBe(false)
+
+    runtime.close()
+  })
+
+  it("user_worktree sandboxes appear in list alongside main_checkout", () => {
+    const { databasePath, firstProjectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const sandboxService = new SandboxPersistenceService(
+      runtime.database,
+      () => "2026-03-20T12:00:00Z",
+    )
+    const project = projectService.open({ path: firstProjectPath })
+
+    sandboxService.upsertUserWorktree({
+      projectId: project.id,
+      path: join(firstProjectPath, ".worktrees/my-branch"),
+      branchName: "my-branch",
+    })
+
+    const listed = sandboxService.listSandboxes(project.id)
+    expect(listed).toHaveLength(2)
+    expect(listed[0].sandboxType).toBe("main_checkout") // main first
+    expect(listed[1].sandboxType).toBe("user_worktree")
+    expect(listed[1].displayName).toBe("my-branch")
+
+    runtime.close()
+  })
+
+  it("switching to a user_worktree sandbox sets it as active", () => {
+    const { databasePath, firstProjectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const sandboxService = new SandboxPersistenceService(
+      runtime.database,
+      () => "2026-03-20T12:00:00Z",
+    )
+    const project = projectService.open({ path: firstProjectPath })
+
+    const worktree = sandboxService.upsertUserWorktree({
+      projectId: project.id,
+      path: join(firstProjectPath, ".worktrees/test"),
+      branchName: "test",
+    })
+
+    const activated = sandboxService.setActiveSandbox(project.id, worktree.sandboxId)
+    expect(activated.sandboxId).toBe(worktree.sandboxId)
+
+    const active = sandboxService.getActiveSandbox(project.id)
+    expect(active.sandboxId).toBe(worktree.sandboxId)
+    expect(active.sandboxType).toBe("user_worktree")
+
+    runtime.close()
+  })
+
+  it("derives display name from directory when no branch is provided", () => {
+    const { databasePath, firstProjectPath } = createWorkspace()
+    const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
+    const projectService = new ProjectService(runtime.database)
+    const sandboxService = new SandboxPersistenceService(
+      runtime.database,
+      () => "2026-03-20T12:00:00Z",
+    )
+    const project = projectService.open({ path: firstProjectPath })
+
+    const worktree = sandboxService.upsertUserWorktree({
+      projectId: project.id,
+      path: join(firstProjectPath, ".worktrees/my-detached-worktree"),
+      branchName: null,
+    })
+
+    expect(worktree.displayName).toBe("my-detached-worktree")
+
+    runtime.close()
+  })
 })

@@ -638,4 +638,29 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
       ALTER TABLE chats ADD COLUMN workspace_description TEXT;
     `,
   },
+  {
+    id: "0013_user_worktree_sandbox_type",
+    sql: `
+      -- SQLite doesn't support ALTER CHECK. Recreate the table with the updated constraint.
+      CREATE TABLE sandbox_contexts_new (
+        sandbox_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL REFERENCES projects(id),
+        thread_id TEXT,
+        path TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        sandbox_type TEXT NOT NULL CHECK (sandbox_type IN ('main_checkout', 'thread_sandbox', 'user_worktree')),
+        branch_name TEXT,
+        base_branch TEXT,
+        is_main_checkout INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_used_at TEXT
+      );
+      INSERT INTO sandbox_contexts_new SELECT * FROM sandbox_contexts;
+      DROP TABLE sandbox_contexts;
+      ALTER TABLE sandbox_contexts_new RENAME TO sandbox_contexts;
+      CREATE INDEX IF NOT EXISTS idx_sandbox_contexts_project_type
+        ON sandbox_contexts(project_id, sandbox_type);
+    `,
+  },
 ]
