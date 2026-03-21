@@ -135,6 +135,8 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       allowDangerouslySkipPermissions: true,
       includePartialMessages: true,
       env: this.config.defaultEnv ?? process.env,
+      // Load user's plugins, MCP servers, and settings from ~/.claude/
+      settingSources: ["user", "project", "local"],
       ...(request.vendorSessionId
         ? { resume: request.vendorSessionId }
         : {}),
