@@ -343,13 +343,26 @@ export async function switchActiveSandbox(
     parseTerminalListSavedCommandsResult(commandsResult).commands,
   )
 
-  // Auto-focus a terminal session for the new sandbox (if one exists)
+  // Auto-focus a terminal session for the new sandbox, or create one
   const sessions = parseTerminalListSessionsResult(sessionsResult).sessions
   const sandboxSession = sessions.find(
     (s) => s.status === "running" && s.sandboxId === sandboxId,
   )
   if (sandboxSession) {
     actions.setFocusedTerminalSession(projectId, sandboxSession.sessionId)
+  } else {
+    // No session for this sandbox — create one
+    try {
+      const terminalResult = await client.command("terminal.open", {
+        project_id: projectId,
+        sandbox_id: sandboxId,
+      })
+      const newSession = parseTerminalSessionSnapshot(terminalResult)
+      actions.upsertTerminalSession(projectId, newSession)
+      actions.setFocusedTerminalSession(projectId, newSession.sessionId)
+    } catch {
+      // Terminal creation failure should not block sandbox switching
+    }
   }
 }
 
