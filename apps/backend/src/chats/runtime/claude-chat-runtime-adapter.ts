@@ -4,6 +4,7 @@ import {
   type Options as ClaudeQueryOptions,
   type SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk"
+import { getSkillBundle } from "@ultra/shared/skills"
 import type {
   ChatRuntimeAdapter,
   ChatRuntimeEvent,
@@ -127,6 +128,8 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
 
   async runTurn(request: ChatRuntimeTurnRequest): Promise<ChatRuntimeTurnResult> {
 
+    const skillBundle = getSkillBundle(request.sessionType ?? "chat")
+
     const options: ClaudeQueryOptions = {
       cwd: request.cwd,
       model: request.config.model,
@@ -137,6 +140,12 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       env: this.config.defaultEnv ?? process.env,
       // Load user's plugins, MCP servers, and settings from ~/.claude/
       settingSources: ["user", "project", "local"],
+      // Inject workflow skills based on session type (chat = planning, thread = all)
+      systemPrompt: {
+        type: "preset",
+        preset: "claude_code",
+        append: skillBundle,
+      },
       ...(request.vendorSessionId
         ? { resume: request.vendorSessionId }
         : {}),

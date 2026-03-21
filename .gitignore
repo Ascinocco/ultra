@@ -60,3 +60,4 @@ coverage/
 # Superpowers brainstorm artifacts
 .superpowers/
 docs/superpowers/plans/
+packages/shared/src/generated/

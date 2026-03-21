@@ -9,6 +9,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./skills": {
+      "types": "./dist/generated/bundled-skills.d.ts",
+      "import": "./dist/generated/bundled-skills.js",
+      "default": "./dist/generated/bundled-skills.js"
     }
   },
   "scripts": {

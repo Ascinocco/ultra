@@ -28,6 +28,7 @@ export type ChatRuntimeTurnRequest = {
   cwd: string
   prompt: string
   config: ChatRuntimeConfig
+  sessionType?: "chat" | "thread"
   continuationPrompt: string | null
   seedMessages: ChatMessageSnapshot[]
   vendorSessionId: string | null
