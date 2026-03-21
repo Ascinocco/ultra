@@ -6,19 +6,20 @@ import type { ToolEntry } from "./streaming-types.js"
 
 type PersistedBlock =
   | { type: "text"; content: string }
-  | { type: "tools"; tools: Array<{ name: string; detail: string }> }
+  | { type: "tools"; tools: Array<{ name: string; detail: string; subtype?: string }> }
 
 type Props = {
   blocks: PersistedBlock[]
 }
 
-function toToolEntries(tools: Array<{ name: string; detail: string }>): ToolEntry[] {
+function toToolEntries(tools: Array<{ name: string; detail: string; subtype?: string }>): ToolEntry[] {
   return tools.map((t, i) => ({
     id: `persisted-${i}`,
     toolName: t.name,
     detail: t.detail,
     icon: getToolConfig(t.name).icon,
     status: "done" as const,
+    subtype: t.subtype,
   }))
 }
 

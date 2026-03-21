@@ -6,6 +6,7 @@ export type ToolEntry = {
   detail: string
   icon: string
   status: ToolEntryStatus
+  subtype?: string
 }
 
 export type StreamingBlock =
