@@ -118,7 +118,7 @@ export function Sidebar({
   return (
     <div className="sidebar">
       <div className="sidebar__body">
-        <p className="sidebar__section-label">Chats</p>
+        <p className="sidebar__section-label">Projects</p>
 
         {projects.allIds.length === 0 ? (
           <p className="sidebar__status-copy">
