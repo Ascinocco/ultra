@@ -930,20 +930,15 @@ export function ChatPageShell({
                   className="active-chat-pane__transcript"
                   aria-label="Chat transcript"
                 >
-                  <div className="active-chat-pane__section-header">
-                    <h3 className="active-chat-pane__section-title">
-                      Transcript
-                    </h3>
-                    <button
-                      type="button"
-                      className="active-chat-pane__debug-toggle"
-                      onClick={() => setReferencesOpen((prev) => !prev)}
-                      title="Toggle debug info"
-                      aria-label="Toggle references panel"
-                    >
-                      ℹ
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="active-chat-pane__debug-toggle"
+                    onClick={() => setReferencesOpen((prev) => !prev)}
+                    title="Toggle debug info"
+                    aria-label="Toggle references panel"
+                  >
+                    ℹ
+                  </button>
                   <div className="active-chat-pane__transcript-scroll" ref={transcriptScrollRef}>
                     {chatMessagesFetchStatus === "loading" &&
                     activeChatMessages.length === 0 ? (
