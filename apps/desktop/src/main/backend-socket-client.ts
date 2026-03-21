@@ -51,7 +51,9 @@ export class BackendSocketClient {
       return this.sendMessageWithTurnCompatibility(payload)
     }
 
-    return this.sendRequest("command", name, payload, this.timeoutMs)
+    // Thread promotion involves LLM title generation + DB transaction — needs more time
+    const timeout = name === "chats.promote_to_thread" ? 30_000 : this.timeoutMs
+    return this.sendRequest("command", name, payload, timeout)
   }
 
   async subscribe(

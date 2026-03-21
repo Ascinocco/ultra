@@ -585,6 +585,12 @@ export class ThreadService {
     return this.getThread(threadId)
   }
 
+  updateThreadTitle(threadId: ThreadId, title: string): void {
+    this.database
+      .prepare("UPDATE threads SET title = ?, updated_at = ? WHERE id = ?")
+      .run(title, this.now(), threadId)
+  }
+
   listByProject(projectId: ProjectId): ThreadsListResult {
     this.assertProjectExists(projectId)
 

@@ -177,6 +177,64 @@ function assertCommandRequest(
   return request
 }
 
+async function generateThreadTitle(
+  chatId: string,
+  contextMessageIds: string[],
+  chatService: ChatService,
+): Promise<string> {
+  const { execFile: execFileCb } = await import("node:child_process")
+  const { promisify } = await import("node:util")
+  const { buildThreadTitlePrompt, getThreadTitleSystemPrompt, selectSummaryModel } = await import("../chats/workspace-summary.js")
+  const execFileAsync = promisify(execFileCb)
+
+  try {
+    const allMessages = chatService.listMessages(chatId)
+    const contextSet = new Set(contextMessageIds)
+    const contextMessages = allMessages
+      .filter((m) => contextSet.has(m.id))
+      .slice(-10)
+      .map((m) => ({ role: m.role, content: m.contentMarkdown ?? "" }))
+
+    if (contextMessages.length === 0) return ""
+
+    const userPrompt = buildThreadTitlePrompt(contextMessages)
+    const systemPrompt = getThreadTitleSystemPrompt()
+    const chat = chatService.get(chatId)
+    const { provider, model } = selectSummaryModel(chat.provider)
+
+    let title: string
+    if (provider === "claude") {
+      const { stdout } = await execFileAsync(
+        "claude",
+        ["-p", userPrompt, "--system-prompt", systemPrompt, "--model", model, "--output-format", "text"],
+        { timeout: 20_000 },
+      )
+      title = stdout.trim().slice(0, 80)
+    } else {
+      const { stdout } = await execFileAsync(
+        "codex",
+        ["-a", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", "-m", model, userPrompt],
+        { timeout: 20_000 },
+      )
+      const lines = stdout.split("\n")
+      let finalText = ""
+      for (const line of lines) {
+        try {
+          const payload = JSON.parse(line) as Record<string, unknown>
+          if (typeof payload.content === "string" && payload.content.length > 0) finalText = payload.content
+          else if (typeof payload.text === "string" && payload.text.length > 0) finalText = payload.text
+        } catch { /* skip non-JSON lines */ }
+      }
+      title = finalText.trim().slice(0, 80)
+    }
+
+    return title || ""
+  } catch {
+    // If LLM call fails, return empty — caller uses chat title as fallback
+    return ""
+  }
+}
+
 export async function routeIpcRequest(
   raw: unknown,
   services: {
@@ -710,12 +768,19 @@ export async function routeIpcRequest(
         const parsed = chatsPromoteToThreadInputSchema.parse(
           promoteCommand.payload,
         )
+        // Generate title from context before creating the thread
+        const generatedTitle = await generateThreadTitle(
+          parsed.chat_id,
+          parsed.context_message_ids,
+          services.chatService,
+        )
+        const promoteResult = services.threadService.promoteToThread(
+          { ...parsed, title: generatedTitle || parsed.title },
+          services.chatService,
+        )
         return createSuccessResponse(
           promoteCommand.request_id,
-          services.threadService.promoteToThread(
-            parsed,
-            services.chatService,
-          ),
+          promoteResult,
         )
       }
       case "sandboxes.list": {

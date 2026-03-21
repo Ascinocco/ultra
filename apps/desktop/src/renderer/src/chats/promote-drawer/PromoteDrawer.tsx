@@ -4,6 +4,7 @@ import "./promote-drawer.css"
 type Props = {
   messageCount: number
   disabled: boolean
+  promoting: boolean
   onPromote: () => void
 }
 
@@ -25,10 +26,30 @@ function ChevronDown() {
   )
 }
 
-export function PromoteDrawer({ messageCount, disabled, onPromote }: Props): ReactElement | null {
+export function PromoteDrawer({ messageCount, disabled, promoting, onPromote }: Props): ReactElement | null {
   const [expanded, setExpanded] = useState(false)
 
-  if (messageCount < 3) return null
+  if (messageCount < 3 && !promoting) return null
+
+  // Show loading bar when promoting (regardless of expanded state)
+  if (promoting) {
+    return (
+      <div className="promote-drawer__expanded">
+        <span className="promote-drawer__chevron">
+          <ChevronDown />
+        </span>
+        <div className="promote-drawer__info">
+          <div>
+            <span className="promote-drawer__label">Creating thread...</span>
+            <span className="promote-drawer__count">generating title</span>
+          </div>
+          <button className="promote-drawer__button" disabled type="button">
+            Creating...
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   if (!expanded) {
     return (

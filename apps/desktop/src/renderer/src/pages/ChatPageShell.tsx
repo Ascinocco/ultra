@@ -379,7 +379,16 @@ export function ChatPageShell({
   const activeChatMessages = activeChatId
     ? (chatMessages.messagesByChatId[activeChatId] ?? [])
     : []
-  const [planMarkerOpen, setPlanMarkerOpen] = useState(false)
+  // Derive plan marker state from messages — odd count of markers = open
+  const planMarkerOpen = useMemo(() => {
+    let count = 0
+    for (const m of activeChatMessages) {
+      if (m.messageType === "plan_marker_open" || m.messageType === "plan_marker_close") {
+        count++
+      }
+    }
+    return count % 2 === 1
+  }, [activeChatMessages])
 
   const contextMessageIds = activeChatMessages ? gatherPromoteContext(activeChatMessages) : []
 
@@ -391,17 +400,23 @@ export function ChatPageShell({
       ),
   ) ?? false
 
+  const [promoting, setPromoting] = useState(false)
+
   function handlePlanMarker(markerType: "open" | "close") {
     if (!activeChatId) return
-    setPlanMarkerOpen(markerType === "open")
     void createPlanMarker(activeChatId, markerType, actions)
   }
 
   async function handlePromote() {
-    if (!activeChatId || !activeChat || contextMessageIds.length === 0) return
-    const title = `Thread: ${activeChat.title}`
-    await promoteToThread(activeChatId, title, contextMessageIds)
-    await fetchChatMessages(activeChatId, actions)
+    if (!activeChatId || !activeChat || !activeProjectId || contextMessageIds.length === 0) return
+    setPromoting(true)
+    try {
+      await promoteToThread(activeChatId, activeChat.title, contextMessageIds)
+      await fetchChatMessages(activeChatId, actions)
+      await fetchThreads(activeProjectId, actions)
+    } finally {
+      setPromoting(false)
+    }
   }
 
   const chatMessagesFetchStatus = activeChatId
@@ -534,6 +549,7 @@ export function ChatPageShell({
 
   const projectThreads = activeProjectId
     ? (threads.threadsByProjectId[activeProjectId] ?? [])
+      .filter((t) => !activeChatId || t.sourceChatId === activeChatId)
     : []
   const selectedThreadId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.selectedThreadId ?? null)
@@ -1091,6 +1107,7 @@ export function ChatPageShell({
               <PromoteDrawer
                 messageCount={contextMessageIds.length}
                 disabled={hasPromotedRecently || contextMessageIds.length === 0}
+                promoting={promoting}
                 onPromote={() => void handlePromote()}
               />
               <InputDock
