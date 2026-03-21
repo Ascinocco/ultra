@@ -842,6 +842,17 @@ button {
   color: var(--text-secondary);
 }
 
+.terminal-drawer__hint {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  opacity: 0.5;
+  cursor: default;
+  padding: 1px 4px;
+  border: 1px solid var(--surface-border);
+  border-radius: 3px;
+  margin-left: 6px;
+}
+
 .terminal-drawer__sync-status {
   font-size: 0.72rem;
   color: var(--text-muted);
