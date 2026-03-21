@@ -14,6 +14,9 @@ export function StreamingMessage({ blocks, isStreaming }: Props): ReactElement {
     (b) => (b.type === "text" && b.content.length > 0) || b.type === "tool_group",
   )
 
+  const lastBlock = blocks[blocks.length - 1]
+  const showWaiting = !isStreaming && hasContent && lastBlock?.type === "text"
+
   return (
     <div className="streaming-message chat-message chat-message--coordinator">
       <div className="chat-message__label">Assistant</div>
@@ -38,6 +41,12 @@ export function StreamingMessage({ blocks, isStreaming }: Props): ReactElement {
               />
             )
           })
+        )}
+        {showWaiting && (
+          <div className="streaming-message__waiting">
+            <span className="streaming-message__waiting-dot" />
+            Waiting for your response
+          </div>
         )}
       </div>
     </div>
