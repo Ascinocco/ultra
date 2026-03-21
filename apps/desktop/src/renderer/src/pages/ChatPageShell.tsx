@@ -208,7 +208,10 @@ function TerminalDrawer({
       />
       <div className="terminal-drawer__header">
         <span className="terminal-drawer__title">Terminal</span>
-        <span className="terminal-drawer__hint" title="⌘K to generate a command">⌘K</span>
+        <span className="terminal-drawer__hint-wrapper">
+          <span className="terminal-drawer__hint-icon">ℹ</span>
+          <span className="terminal-drawer__hint-tooltip">⌘K to generate a command</span>
+        </span>
         <div className="terminal-drawer__header-actions">
           <button
             className="terminal-drawer__close"

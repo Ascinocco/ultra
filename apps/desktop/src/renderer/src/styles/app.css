@@ -842,15 +842,43 @@ button {
   color: var(--text-secondary);
 }
 
-.terminal-drawer__hint {
-  font-size: 0.625rem;
-  color: var(--text-muted);
-  opacity: 0.5;
-  cursor: default;
-  padding: 1px 4px;
-  border: 1px solid var(--surface-border);
-  border-radius: 3px;
+.terminal-drawer__hint-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   margin-left: 6px;
+}
+
+.terminal-drawer__hint-icon {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.4;
+  cursor: default;
+}
+
+.terminal-drawer__hint-tooltip {
+  display: none;
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 30;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.terminal-drawer__hint-wrapper:hover .terminal-drawer__hint-icon {
+  opacity: 0.8;
+}
+
+.terminal-drawer__hint-wrapper:hover .terminal-drawer__hint-tooltip {
+  display: block;
 }
 
 .terminal-drawer__sync-status {
