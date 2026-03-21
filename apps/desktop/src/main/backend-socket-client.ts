@@ -275,7 +275,6 @@ export class BackendSocketClient {
   private async sendMessageWithTurnCompatibility(
     payload: unknown,
   ): Promise<IpcResponseEnvelope> {
-    console.log("[send_message_compat] CALLED — something is using chats.send_message")
     const requestId = this.createRequestId()
     const parsedPayload = chatsSendMessageInputSchema.safeParse(payload)
 
@@ -401,7 +400,6 @@ export class BackendSocketClient {
     }
 
     if (!messages || !Array.isArray(messages)) {
-      console.error("[send_message_compat] messages is not array:", typeof messages, messages)
       return this.createErrorResponse(
         startTurnResponse.request_id,
         "internal_error",
@@ -409,7 +407,6 @@ export class BackendSocketClient {
       )
     }
 
-    console.log("[send_message_compat] messages.length:", messages.length, "turn.userMessageId:", turn.userMessageId)
     const userMessage = messages.find(
       (message) => message.id === turn.userMessageId,
     )

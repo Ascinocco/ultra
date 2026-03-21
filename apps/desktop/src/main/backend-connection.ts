@@ -102,7 +102,6 @@ export class BackendConnection {
 
     if (!response.ok) {
       const errorMessage = response.error?.message ?? `Backend request failed`
-      console.error(`[backend-connection] command "${name}" error:`, errorMessage)
       throw new Error(errorMessage)
     }
 
