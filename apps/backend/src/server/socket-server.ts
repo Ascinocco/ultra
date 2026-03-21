@@ -22,6 +22,7 @@ import {
   terminalOutputSubscribeInputSchema,
   terminalSessionsSubscribeInputSchema,
   threadsMessagesSubscribeInputSchema,
+  threadsTurnEventsSubscribeInputSchema,
 } from "@ultra/shared"
 
 import type { ArtifactCaptureService } from "../artifacts/artifact-capture-service.js"
@@ -38,6 +39,7 @@ import type { TerminalCommandGenService } from "../terminal/terminal-command-gen
 import type { TerminalService } from "../terminal/terminal-service.js"
 import type { TerminalSessionService } from "../terminal/terminal-session-service.js"
 import type { ThreadService } from "../threads/thread-service.js"
+import type { ThreadTurnService } from "../threads/thread-turn-service.js"
 
 type Logger = {
   info: (message: string) => void
@@ -77,6 +79,7 @@ export async function startSocketServer(
     runtimeRegistry: RuntimeRegistry
 
     threadService: ThreadService
+    threadTurnService: ThreadTurnService
     sandboxService: SandboxService
     terminalCommandGenService: TerminalCommandGenService
     terminalSessionService: TerminalSessionService
@@ -123,8 +126,8 @@ export async function startSocketServer(
             systemService,
             projectService: services.projectService,
             runtimeRegistry: services.runtimeRegistry,
-            watchService: services.watchService,
             threadService: services.threadService,
+            threadTurnService: services.threadTurnService,
             sandboxService: services.sandboxService,
             terminalCommandGenService: services.terminalCommandGenService,
             terminalSessionService: services.terminalSessionService,
@@ -166,6 +169,7 @@ async function handleLine(
     runtimeRegistry: RuntimeRegistry
 
     threadService: ThreadService
+    threadTurnService: ThreadTurnService
     sandboxService: SandboxService
     terminalCommandGenService: TerminalCommandGenService
     terminalSessionService: TerminalSessionService
@@ -309,6 +313,7 @@ function handleSubscribeRequest(
     runtimeRegistry: RuntimeRegistry
 
     threadService: ThreadService
+    threadTurnService: ThreadTurnService
     sandboxService: SandboxService
     terminalCommandGenService: TerminalCommandGenService
     terminalSessionService: TerminalSessionService
@@ -481,6 +486,33 @@ function handleSubscribeRequest(
                 subscriptionId,
                 "threads.messages",
                 message,
+              ),
+            )}\n`,
+          )
+        },
+      )
+
+      subscriptionRuntime.cleanupBySubscriptionId.set(subscriptionId, cleanup)
+
+      return {
+        response: createSuccessResponse(request.request_id, {
+          subscription_id: subscriptionId,
+        }),
+      }
+    }
+    case "threads.turn_events": {
+      const { thread_id } = threadsTurnEventsSubscribeInputSchema.parse(
+        request.payload,
+      )
+      const cleanup = services.threadTurnService.addEventListener(
+        thread_id,
+        (event) => {
+          socket.write(
+            `${JSON.stringify(
+              createSubscriptionEvent(
+                subscriptionId,
+                "threads.turn_events",
+                event,
               ),
             )}\n`,
           )

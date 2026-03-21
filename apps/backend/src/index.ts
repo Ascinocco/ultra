@@ -203,6 +203,7 @@ export async function startBackendScaffold(options?: {
       terminalSessionService,
       terminalService,
       threadService,
+      threadTurnService,
     })
   } else {
     console.log(
