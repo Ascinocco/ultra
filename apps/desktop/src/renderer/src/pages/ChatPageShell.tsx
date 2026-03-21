@@ -954,7 +954,7 @@ export function ChatPageShell({
                     {chatMessagesFetchStatus !== "loading" &&
                     activeChatMessages.length === 0 ? (
                       <p className="active-chat-pane__empty-copy">
-                        No messages yet. Send a prompt to start a turn.
+                        Start building with Ultra
                       </p>
                     ) : null}
                     {activeChatMessages.map((message) => {
