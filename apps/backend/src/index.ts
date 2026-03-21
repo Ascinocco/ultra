@@ -42,6 +42,7 @@ import { RuntimeSyncService } from "./terminal/runtime-sync-service.js"
 import { TerminalCommandGenService } from "./terminal/terminal-command-gen-service.js"
 import { TerminalService } from "./terminal/terminal-service.js"
 import { TerminalSessionService } from "./terminal/terminal-session-service.js"
+import { createThreadStatusMcpServer } from "./threads/thread-status-mcp.js"
 import { ThreadService } from "./threads/thread-service.js"
 import { ThreadTurnService } from "./threads/thread-turn-service.js"
 
@@ -86,6 +87,7 @@ export async function startBackendScaffold(options?: {
   if (socketPath) {
     const projectService = new ProjectService(databaseRuntime.database)
     const threadService = new ThreadService(databaseRuntime.database)
+    const threadStatusMcpServer = createThreadStatusMcpServer(threadService)
     const sandboxPersistenceService = new SandboxPersistenceService(
       databaseRuntime.database,
     )
@@ -183,6 +185,9 @@ export async function startBackendScaffold(options?: {
         }),
         new ClaudeChatRuntimeAdapter({
           pathToClaudeCodeExecutable: "claude",
+          chatMcpServers: {
+            "ultra-thread-status": threadStatusMcpServer,
+          },
         }),
       ]),
       new ChatRuntimeSessionManager(),

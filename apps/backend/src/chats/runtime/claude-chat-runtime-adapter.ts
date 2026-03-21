@@ -18,6 +18,7 @@ export type ClaudeSdkAdapterConfig = {
   pathToClaudeCodeExecutable?: string
   defaultEnv?: NodeJS.ProcessEnv
   queryFn?: QueryFn  // injectable for testing
+  chatMcpServers?: Record<string, unknown>  // MCP servers for chat sessions only
 }
 
 /**
@@ -130,6 +131,10 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
 
     const skillBundle = getSkillBundle(request.sessionType ?? "chat")
 
+    const mcpServers = request.sessionType !== "thread" && this.config.chatMcpServers
+      ? this.config.chatMcpServers
+      : undefined
+
     const options: ClaudeQueryOptions = {
       cwd: request.cwd,
       model: request.config.model,
@@ -146,6 +151,7 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
         preset: "claude_code",
         append: skillBundle,
       },
+      ...(mcpServers ? { mcpServers: mcpServers as any } : {}),
       ...(request.vendorSessionId
         ? { resume: request.vendorSessionId }
         : {}),
