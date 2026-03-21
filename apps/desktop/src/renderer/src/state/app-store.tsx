@@ -14,6 +14,7 @@ import type {
   TerminalSessionSnapshot,
   ThreadMessageSnapshot,
   ThreadSnapshot,
+  ThreadTurnEventSnapshot,
 } from "@ultra/shared"
 import {
   createContext,
@@ -100,6 +101,8 @@ type ThreadsSlice = {
   threadsByProjectId: Record<string, ThreadSnapshot[]>
   messagesByThreadId: Record<string, ThreadMessageSnapshot[]>
   threadFetchStatus: Record<string, "idle" | "loading" | "error">
+  turnEventsByThreadId: Record<string, ThreadTurnEventSnapshot[]>
+  activeThreadTurnId: string | null
 }
 
 type AppActions = {
@@ -197,6 +200,9 @@ type AppActions = {
     projectId: string,
     status: "idle" | "loading" | "error",
   ) => void
+  appendThreadTurnEvent: (event: ThreadTurnEventSnapshot) => void
+  setActiveThreadTurn: (threadId: string | null) => void
+  clearThreadTurnEvents: (threadId: string) => void
 }
 
 export type AppStoreState = {
@@ -281,6 +287,8 @@ const defaultThreadsState: ThreadsSlice = {
   threadsByProjectId: {},
   messagesByThreadId: {},
   threadFetchStatus: {},
+  turnEventsByThreadId: {},
+  activeThreadTurnId: null,
 }
 
 const DEFAULT_LAYOUT: ProjectLayoutState = {
@@ -397,6 +405,9 @@ function buildInitialState(overrides?: Partial<AppSlice>): AppStoreState {
       setMessagesForThread: () => undefined,
       appendMessage: () => undefined,
       setThreadFetchStatus: () => undefined,
+      appendThreadTurnEvent: () => undefined,
+      setActiveThreadTurn: () => undefined,
+      clearThreadTurnEvents: () => undefined,
     },
   }
 }
@@ -1021,6 +1032,39 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
             threadFetchStatus: {
               ...state.threads.threadFetchStatus,
               [projectId]: status,
+            },
+          },
+        })),
+      appendThreadTurnEvent: (event) =>
+        set((state) => ({
+          ...state,
+          threads: {
+            ...state.threads,
+            turnEventsByThreadId: {
+              ...state.threads.turnEventsByThreadId,
+              [event.threadId]: [
+                ...(state.threads.turnEventsByThreadId[event.threadId] ?? []),
+                event,
+              ],
+            },
+          },
+        })),
+      setActiveThreadTurn: (threadId) =>
+        set((state) => ({
+          ...state,
+          threads: {
+            ...state.threads,
+            activeThreadTurnId: threadId,
+          },
+        })),
+      clearThreadTurnEvents: (threadId) =>
+        set((state) => ({
+          ...state,
+          threads: {
+            ...state.threads,
+            turnEventsByThreadId: {
+              ...state.threads.turnEventsByThreadId,
+              [threadId]: [],
             },
           },
         })),
