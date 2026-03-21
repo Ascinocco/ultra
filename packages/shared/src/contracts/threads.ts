@@ -250,6 +250,25 @@ export const threadDetailResultSchema = z.object({
   ticketRefs: z.array(threadTicketRefSnapshotSchema),
 })
 
+export const chatsPromoteToThreadInputSchema = z.object({
+  chat_id: chatIdSchema,
+  title: z.string().min(1),
+  context_message_ids: z.array(opaqueIdSchema).min(1),
+})
+
+export type ChatsPromoteToThreadInput = z.infer<typeof chatsPromoteToThreadInputSchema>
+
+export const chatsPromoteToThreadCommandSchema =
+  commandRequestEnvelopeSchema.extend({
+    name: z.literal("chats.promote_to_thread"),
+    payload: chatsPromoteToThreadInputSchema,
+  })
+
+export const chatsPromoteToThreadSuccessResponseSchema =
+  successResponseEnvelopeSchema.extend({
+    result: threadDetailResultSchema,
+  })
+
 export const threadsListResultSchema = z.object({
   threads: z.array(threadSummarySchema),
 })

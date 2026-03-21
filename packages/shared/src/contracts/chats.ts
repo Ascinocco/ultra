@@ -233,6 +233,11 @@ export const chatsApproveSpecsInputSchema = z.object({
   chat_id: chatIdSchema,
 })
 
+export const chatsCreatePlanMarkerInputSchema = z.object({
+  chat_id: chatIdSchema,
+  marker_type: z.enum(["open", "close"]),
+})
+
 export const chatsCreateCommandSchema = commandRequestEnvelopeSchema.extend({
   name: z.literal("chats.create"),
   payload: chatsCreateInputSchema,

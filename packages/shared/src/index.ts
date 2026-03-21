@@ -115,6 +115,7 @@ export {
   chatsCancelTurnSuccessResponseSchema,
   chatsCreateCommandSchema,
   chatsCreateInputSchema,
+  chatsCreatePlanMarkerInputSchema,
   chatsCreateSuccessResponseSchema,
   chatsGetInputSchema,
   chatsGetMessagesInputSchema,
@@ -556,6 +557,7 @@ export {
   terminalCommandGenSubscribeRequestSchema,
 } from "./contracts/terminal-command-gen.js"
 export type {
+  ChatsPromoteToThreadInput,
   ChatsPromoteWorkToThreadInput,
   ChatsStartThreadInput,
   FileChangeType,
@@ -596,6 +598,9 @@ export type {
   ThreadTicketRefSnapshot,
 } from "./contracts/threads.js"
 export {
+  chatsPromoteToThreadCommandSchema,
+  chatsPromoteToThreadInputSchema,
+  chatsPromoteToThreadSuccessResponseSchema,
   chatsPromoteWorkToThreadCommandSchema,
   chatsPromoteWorkToThreadInputSchema,
   chatsPromoteWorkToThreadSuccessResponseSchema,
