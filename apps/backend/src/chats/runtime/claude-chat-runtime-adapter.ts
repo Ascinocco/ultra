@@ -140,9 +140,9 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
         : {}),
     }
 
-    // Build prompt — string for text-only, SDKUserMessage for multimodal
+    // Build prompt — string for text-only, AsyncIterable<SDKUserMessage> for multimodal
     const queryFn = this.config.queryFn ?? query
-    let prompt: string | any = request.prompt
+    let prompt: string | AsyncIterable<any> = request.prompt
 
     if (request.attachments && request.attachments.length > 0) {
       const content: any[] = []
@@ -164,11 +164,19 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
         }
       }
       content.push({ type: "text", text: request.prompt })
-      prompt = {
+
+      const userMessage = {
         type: "user" as const,
         message: { role: "user" as const, content },
         parent_tool_use_id: null,
         session_id: "",
+      }
+
+      // Wrap as single-element async iterable
+      prompt = {
+        async *[Symbol.asyncIterator]() {
+          yield userMessage
+        },
       }
     }
 
