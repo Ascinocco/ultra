@@ -29,52 +29,73 @@ Three ways to promote:
 ### `/plan` Markers
 
 - `/plan` is intercepted by the frontend before sending — it is NOT sent to the LLM
-- First `/plan` creates a `plan_marker_open` message, renders as `── PLANNING ──` divider
-- Second `/plan` creates a `plan_marker_close` message, renders as `── PLANNING COMPLETE ──` divider
+- Odd occurrences are opens, even occurrences are closes (simple toggle)
+- Open creates a `plan_marker_open` message, renders as `── PLANNING ──` divider
+- Close creates a `plan_marker_close` message, renders as `── PLANNING COMPLETE ──` divider
 - Markers scope which messages get bundled as thread context
+- Nesting is not supported — each `/plan` simply toggles between open and closed
 
 ### `/promote` Command
 
 - Intercepted by the frontend, NOT sent to the LLM
 - Triggers the same promote flow as clicking the drawer button
+- If the chat has fewer than 1 user message + 1 assistant message, show error toast: "Not enough context to promote"
 
 ## Context Gathering
 
-`gatherPromoteContext(chatId, messages)` determines which messages to send:
+`gatherPromoteContext(chatId, messages)` determines which message IDs to send:
 
-1. **If `/plan` markers exist:** all messages between the most recent `plan_marker_open` and `plan_marker_close`
-2. **If no markers:** all messages since the last thread was created from this chat
-3. **If no threads exist:** all messages in the chat
+1. **If `/plan` markers exist (matched open+close pair):** all message IDs between the most recent `plan_marker_open` and `plan_marker_close`
+2. **If unclosed `/plan` marker:** all message IDs from the `plan_marker_open` to the end of the chat
+3. **If no markers:** all message IDs since the last thread was created from this chat
+4. **If no threads exist:** all message IDs in the chat
 
-Context messages are sent as seed input to the thread coordinator LLM.
+Returns an array of message IDs (not full snapshots — the backend looks them up from the database to avoid stale data).
+
+## Thread Title
+
+Auto-generated from the chat title: `"Thread: {chatTitle}"`. Can be renamed later via the existing inline rename flow (ULR-92).
 
 ## What Happens on Promote
 
-1. Frontend calls `chats.start_thread` with simplified params: `{ chat_id, title, context_messages, summary? }`
-2. Backend creates a thread record linked to the parent chat
-3. Context messages are stored as the coordinator's seed prompt
-4. Backend dispatches to coordinator (if wired — ULR-84)
-5. Backend returns `ThreadDetailResult`
-6. Frontend renders a "Thread created" divider in the chat transcript
-7. Thread appears in the thread pane
-8. Promote drawer collapses
+1. Frontend calls `gatherPromoteContext()` to get message IDs
+2. Frontend calls the new `chats.promote_to_thread` IPC command with `{ chat_id, title, context_message_ids }`
+3. Backend looks up the messages by ID, creates a thread record linked to the parent chat
+4. Backend stores context messages as `seed_context_json` on the thread record
+5. Backend creates a `thread_start_request` message in the chat (for the divider)
+6. Backend dispatches to coordinator (if wired — ULR-84)
+7. Backend returns `ThreadDetailResult`
+8. Frontend renders a "Thread created" divider in the chat transcript
+9. Thread appears in the thread pane
+10. Promote drawer collapses and becomes disabled for this context window
+
+## Idempotency
+
+- After a successful promote, the drawer disables the promote button (grayed out) until new messages are added to the chat
+- `/promote` command similarly shows "Already promoted — add more context before promoting again" if no new messages exist since the last thread creation
+- Backend checks: if a `thread_start_request` message already exists with no subsequent user messages, reject with a clear error
 
 ## Backend Changes
 
-### Simplified `chats.start_thread` input
+### New IPC command: `chats.promote_to_thread`
 
-Drop the mandatory `planApprovalMessageId` / `specApprovalMessageId` requirements. New input:
+A new command that replaces the old `chats.start_thread` for the promote flow. The existing `chats.start_thread` and `chats.promote_work_to_thread` remain as-is for backwards compatibility but are effectively dead code.
 
 ```typescript
-{
+// New schema
+chatsPromoteToThreadInputSchema = {
   chat_id: string
   title: string
-  context_messages: ChatMessageSnapshot[]  // gathered by frontend
-  summary?: string | null
+  context_message_ids: string[]  // message IDs gathered by frontend
 }
 ```
 
-The old 3-step approval validation (plan → specs → start) is bypassed.
+**Backend handler:**
+1. Look up messages by IDs from the database
+2. Create thread record with `seed_context_json` containing the message contents
+3. Create a `thread_start_request` message in the chat
+4. Dispatch to coordinator handler (if configured)
+5. Return `ThreadDetailResult`
 
 ### New message types
 
@@ -82,6 +103,10 @@ The old 3-step approval validation (plan → specs → start) is bypassed.
 - `plan_marker_close` — created when user types `/plan` (closing)
 
 These are `user` role messages with no content sent to the LLM. They serve as transcript markers only.
+
+### `seed_context_json` on thread record
+
+A new nullable TEXT column on the `threads` table storing the JSON-serialized context messages. The coordinator reads this when starting work. Migration required.
 
 ## Frontend Changes
 
@@ -92,6 +117,7 @@ These are `user` role messages with no content sent to the LLM. They serve as tr
 - Collapsed: thin bar with up-chevron
 - Expanded: single row with label, message count, promote button
 - Only renders when chat has 3+ messages
+- Disabled state after promote (until new messages arrive)
 - On promote: calls workflow, collapses, divider appears
 
 ### Modified Components
@@ -99,7 +125,7 @@ These are `user` role messages with no content sent to the LLM. They serve as tr
 **`InputDock`**
 - Intercepts `/plan` and `/promote` before sending to LLM
 - `/plan` → creates marker message via IPC, toggles plan state
-- `/promote` → triggers promote flow
+- `/promote` → triggers promote flow (with minimum message guard)
 - All other messages pass through normally
 
 **`ChatPageShell`**
@@ -111,8 +137,9 @@ These are `user` role messages with no content sent to the LLM. They serve as tr
 
 - `ApprovalBar` component and CSS
 - `useApprovalState` hook
-- `approvePlan`, `approveSpecs` workflow functions
+- `approvePlan`, `approveSpecs` workflow functions in `chat-message-workflows.ts`
 - `handleApprovePlan`, `handleApproveSpecs`, `handleStartWork` handlers in ChatPageShell
+- Related imports of `approvePlan`, `approveSpecs` from `chat-message-workflows.ts`
 
 ## Out of Scope
 
@@ -134,3 +161,5 @@ These are `user` role messages with no content sent to the LLM. They serve as tr
 - `apps/backend/src/chats/chat-service.ts`
 - `apps/backend/src/threads/thread-service.ts`
 - `packages/shared/src/contracts/chats.ts`
+- `packages/shared/src/contracts/threads.ts`
+- `apps/backend/src/db/migrations.ts` (new migration for `seed_context_json`)
