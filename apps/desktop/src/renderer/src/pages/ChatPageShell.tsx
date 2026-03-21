@@ -379,16 +379,21 @@ export function ChatPageShell({
   const activeChatMessages = activeChatId
     ? (chatMessages.messagesByChatId[activeChatId] ?? [])
     : []
-  // Derive plan marker state from messages — odd count of markers = open
-  const planMarkerOpen = useMemo(() => {
-    let count = 0
-    for (const m of activeChatMessages) {
-      if (m.messageType === "plan_marker_open" || m.messageType === "plan_marker_close") {
-        count++
-      }
+  // Derive plan state from messages
+  const planState = useMemo((): "idle" | "planning" | "ready" => {
+    let lastOpen = -1
+    let lastClose = -1
+    for (let i = activeChatMessages.length - 1; i >= 0; i--) {
+      const mt = activeChatMessages[i]!.messageType
+      if (mt === "plan_marker_open" && lastOpen === -1) lastOpen = i
+      if (mt === "plan_marker_close" && lastClose === -1) lastClose = i
     }
-    return count % 2 === 1
+    if (lastOpen !== -1 && (lastClose === -1 || lastOpen > lastClose)) return "planning"
+    if (lastClose !== -1 && lastClose > lastOpen) return "ready"
+    return "idle"
   }, [activeChatMessages])
+
+  const planMarkerOpen = planState === "planning"
 
   const contextMessageIds = activeChatMessages ? gatherPromoteContext(activeChatMessages) : []
 
@@ -405,6 +410,22 @@ export function ChatPageShell({
   function handlePlanMarker(markerType: "open" | "close") {
     if (!activeChatId) return
     void createPlanMarker(activeChatId, markerType, actions)
+  }
+
+  function handleStartPlan() {
+    handlePlanMarker("open")
+  }
+
+  function handleFinishPlan() {
+    handlePlanMarker("close")
+  }
+
+  function handleNewPlan() {
+    if (!activeChatId) return
+    // Close current plan, then immediately open a new one
+    void createPlanMarker(activeChatId, "close", actions).then(() => {
+      void createPlanMarker(activeChatId, "open", actions)
+    })
   }
 
   async function handlePromote() {
@@ -1104,10 +1125,15 @@ export function ChatPageShell({
                 </aside>
               </div>
 
+              <div className="chat-input-stack">
               <PromoteDrawer
                 messageCount={contextMessageIds.length}
-                disabled={hasPromotedRecently || contextMessageIds.length === 0}
+                planState={planState}
                 promoting={promoting}
+                hasPromotedRecently={hasPromotedRecently}
+                onStartPlan={handleStartPlan}
+                onFinishPlan={handleFinishPlan}
+                onNewPlan={handleNewPlan}
                 onPromote={() => void handlePromote()}
               />
               <InputDock
@@ -1125,6 +1151,7 @@ export function ChatPageShell({
                 onSend={handleSend}
                 onRuntimeConfigChange={handleRuntimeConfigChange}
               />
+              </div>
             </section>
           ) : (
             <section

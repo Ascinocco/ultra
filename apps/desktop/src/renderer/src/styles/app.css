@@ -591,6 +591,17 @@ button {
   overflow: hidden;
 }
 
+/* Input stack: action bar peeks from behind input dock */
+.chat-input-stack {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.chat-input-stack .input-dock {
+  position: relative;
+  z-index: 2;
+}
+
 .active-chat-pane--empty {
   justify-content: center;
   align-items: center;

@@ -1,37 +1,177 @@
-.promote-drawer__lip {
+/* Plan Action Bar — peeks out above input dock */
+
+.plan-action-bar__lip {
   display: flex;
   justify-content: center;
-  padding: 3px 0;
+  padding: 2px 0;
   background: #1e2030;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px 6px 0 0;
   cursor: pointer;
 }
 
-.promote-drawer__lip:hover { background: #232538; }
+.plan-action-bar__lip:hover { background: #232538; }
 
-.promote-drawer__expanded {
+.plan-action-bar__bar {
   background: #1e2030;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
-  padding: 6px 16px;
+  border-radius: 6px 6px 0 0;
+  padding: 5px 14px 12px 14px;
+  margin-bottom: -8px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
 }
 
-.promote-drawer__chevron { cursor: pointer; flex-shrink: 0; color: #565f89; }
-.promote-drawer__info { flex: 1; display: flex; align-items: center; justify-content: space-between; }
-.promote-drawer__label { color: #c0caf5; font-size: 12px; font-weight: 500; }
-.promote-drawer__count { color: #565f89; font-size: 11px; margin-left: 8px; }
+.plan-action-bar__bar--planning {
+  border-top: 1px solid rgba(122, 162, 247, 0.15);
+}
 
-.promote-drawer__button {
-  background: rgba(187, 154, 247, 0.15);
+.plan-action-bar__bar--ready {
+  border-top: 1px solid rgba(187, 154, 247, 0.15);
+}
+
+.plan-action-bar__bar--creating {
+  border-top: 1px solid rgba(187, 154, 247, 0.15);
+}
+
+.plan-action-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-action-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-action-bar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #7aa2f7;
+  flex-shrink: 0;
+}
+
+.plan-action-bar__status {
+  font-size: 10px;
+  color: #7aa2f7;
+}
+
+.plan-action-bar__status--ready {
+  color: #c0caf5;
+}
+
+.plan-action-bar__status--creating {
   color: #bb9af7;
-  border: 1px solid rgba(187, 154, 247, 0.3);
-  border-radius: 5px;
-  padding: 4px 12px;
+}
+
+.plan-action-bar__check {
+  color: #9ece6a;
+  font-size: 10px;
+}
+
+.plan-action-bar__count {
+  color: #565f89;
+  font-size: 10px;
+}
+
+.plan-action-bar__chevron {
+  cursor: pointer;
+  color: #565f89;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+}
+
+.plan-action-bar__chevron:hover {
+  color: #8494b0;
+}
+
+.plan-action-bar__btn {
+  background: none;
+  border: 1px solid rgba(122, 162, 247, 0.25);
+  color: #7aa2f7;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.plan-action-bar__btn:hover {
+  background: rgba(122, 162, 247, 0.1);
+}
+
+.plan-action-bar__btn--promote {
+  background: rgba(187, 154, 247, 0.12);
+  border: 1px solid rgba(187, 154, 247, 0.25);
+  color: #bb9af7;
+}
+
+.plan-action-bar__btn--promote:hover {
+  background: rgba(187, 154, 247, 0.2);
+}
+
+.plan-action-bar__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Confirmation modal */
+.plan-action-bar__modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.plan-action-bar__modal {
+  background: #24283b;
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 360px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.plan-action-bar__modal-title {
+  color: #c0caf5;
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 0 8px 0;
+}
+
+.plan-action-bar__modal-text {
+  color: #8494b0;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 16px 0;
+}
+
+.plan-action-bar__modal-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  color: #565f89;
   font-size: 11px;
   cursor: pointer;
 }
 
-.promote-drawer__button:hover { background: rgba(187, 154, 247, 0.25); }
-.promote-drawer__button:disabled { opacity: 0.4; cursor: default; }
+.plan-action-bar__modal-check input {
+  accent-color: #7aa2f7;
+}
+
+.plan-action-bar__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
