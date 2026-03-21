@@ -679,6 +679,42 @@ export class ThreadService {
       .run(title, this.now(), threadId)
   }
 
+  getSeedContext(threadId: ThreadId): string | null {
+    const row = this.database
+      .prepare("SELECT seed_context_json FROM threads WHERE id = ?")
+      .get(threadId) as { seed_context_json: string | null } | undefined
+    return row?.seed_context_json ?? null
+  }
+
+  updateVendorSessionId(threadId: ThreadId, vendorSessionId: string): void {
+    this.database
+      .prepare("UPDATE threads SET vendor_session_id = ?, updated_at = ? WHERE id = ?")
+      .run(vendorSessionId, this.now(), threadId)
+  }
+
+  updateExecutionState(
+    threadId: ThreadId,
+    executionState: string,
+    failureReason: string | null,
+  ): void {
+    const updates: string[] = ["execution_state = ?", "updated_at = ?"]
+    const params: unknown[] = [executionState, this.now()]
+
+    if (failureReason !== null) {
+      updates.push("failure_reason = ?")
+      params.push(failureReason)
+    }
+
+    if (executionState === "awaiting_review") {
+      updates.push("review_state = 'ready'")
+    }
+
+    params.push(threadId)
+    this.database
+      .prepare(`UPDATE threads SET ${updates.join(", ")} WHERE id = ?`)
+      .run(...params)
+  }
+
   listByProject(projectId: ProjectId): ThreadsListResult {
     this.assertProjectExists(projectId)
 
