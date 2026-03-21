@@ -309,8 +309,10 @@ export async function switchActiveSandbox(
 
   actions.setActiveSandboxIdForProject(projectId, activeSandbox.sandboxId)
 
-  // Close the terminal drawer so it opens fresh with the new sandbox
+  // Close the terminal drawer and clear focused session so reopening
+  // creates a fresh session for the new sandbox
   actions.setTerminalDrawerOpen(projectId, false)
+  actions.setFocusedTerminalSession(projectId, "")
 
   // Refresh all state
   const [sandboxesResult, runtimeResult, sessionsResult, commandsResult] =
