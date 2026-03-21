@@ -296,6 +296,93 @@ export async function subscribeToChatTurnEvents(
   )
 }
 
+export function gatherPromoteContext(messages: ChatMessageSnapshot[]): string[] {
+  const markerTypes = new Set(["plan_marker_open", "plan_marker_close"])
+
+  let lastOpenIndex = -1
+  let lastCloseIndex = -1
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    if (!msg) continue
+    if (lastCloseIndex === -1 && msg.messageType === "plan_marker_close") {
+      lastCloseIndex = i
+    }
+    if (lastOpenIndex === -1 && msg.messageType === "plan_marker_open") {
+      lastOpenIndex = i
+      break
+    }
+  }
+
+  let ids: string[]
+
+  if (lastOpenIndex !== -1 && lastCloseIndex !== -1 && lastCloseIndex > lastOpenIndex) {
+    // Matched open+close pair: return IDs between them (exclusive)
+    ids = messages
+      .slice(lastOpenIndex + 1, lastCloseIndex)
+      .filter((m) => !markerTypes.has(m.messageType))
+      .map((m) => m.id)
+  } else if (lastOpenIndex !== -1 && (lastCloseIndex === -1 || lastCloseIndex < lastOpenIndex)) {
+    // Unclosed open marker: return IDs from after open to end
+    ids = messages
+      .slice(lastOpenIndex + 1)
+      .filter((m) => !markerTypes.has(m.messageType))
+      .map((m) => m.id)
+  } else {
+    // No markers: find last thread_start_request
+    let lastStartIndex = -1
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m?.messageType === "thread_start_request") {
+        lastStartIndex = i
+        break
+      }
+    }
+
+    if (lastStartIndex !== -1) {
+      ids = messages
+        .slice(lastStartIndex + 1)
+        .filter((m) => !markerTypes.has(m.messageType))
+        .map((m) => m.id)
+    } else {
+      ids = messages
+        .filter((m) => !markerTypes.has(m.messageType))
+        .map((m) => m.id)
+    }
+  }
+
+  return ids
+}
+
+export async function promoteToThread(
+  chatId: string,
+  title: string,
+  contextMessageIds: string[],
+  client: WorkflowClient = ipcClient,
+): Promise<ThreadDetailResult> {
+  const result = await client.command("chats.promote_to_thread", {
+    chat_id: chatId,
+    title,
+    context_message_ids: contextMessageIds,
+  })
+  return parseThreadDetailResult(result)
+}
+
+export async function createPlanMarker(
+  chatId: string,
+  markerType: "open" | "close",
+  actions: Pick<AppActions, "upsertChatMessage">,
+  client: WorkflowClient = ipcClient,
+): Promise<ChatMessageSnapshot> {
+  const result = await client.command("chats.create_plan_marker", {
+    chat_id: chatId,
+    marker_type: markerType,
+  })
+  const marker = parseChatMessageSnapshot(result)
+  actions.upsertChatMessage(chatId, marker)
+  return marker
+}
+
 export function selectCurrentTurn(
   turns: ChatTurnSnapshot[],
 ): ChatTurnSnapshot | null {
