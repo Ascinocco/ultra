@@ -69,6 +69,25 @@ export type UpsertThreadSandboxInput = {
   lastUsedAt?: string | null
 }
 
+/**
+ * Derive a display name from a branch name or worktree path.
+ * "feature/auth-flow" → "auth-flow"
+ * "fix/login-bug" → "login-bug"
+ * No branch → directory name from path
+ */
+function deriveWorktreeDisplayName(
+  branchName: string | null,
+  path: string,
+): string {
+  if (branchName) {
+    const lastSlash = branchName.lastIndexOf("/")
+    return lastSlash >= 0 ? branchName.slice(lastSlash + 1) : branchName
+  }
+  // Fall back to directory name
+  const segments = path.replace(/\/+$/u, "").split("/")
+  return segments[segments.length - 1] ?? "worktree"
+}
+
 function readSandboxContextRow(result: unknown): SandboxContextRow | null {
   if (!result || typeof result !== "object") {
     return null
@@ -676,6 +695,102 @@ export class SandboxPersistenceService {
       )
 
     return this.getSandboxSnapshot(sandboxId)
+  }
+
+  upsertUserWorktree(input: {
+    projectId: ProjectId
+    path: string
+    branchName: string | null
+  }): SandboxContextSnapshot {
+    const existing = this.getSandboxByPathRow(input.path)
+    const timestamp = this.now()
+    const displayName = deriveWorktreeDisplayName(input.branchName, input.path)
+
+    if (existing) {
+      this.database
+        .prepare(
+          `
+            UPDATE sandbox_contexts
+            SET
+              project_id = ?,
+              display_name = ?,
+              sandbox_type = 'user_worktree',
+              branch_name = ?,
+              is_main_checkout = 0,
+              updated_at = ?
+            WHERE sandbox_id = ?
+          `,
+        )
+        .run(
+          input.projectId,
+          displayName,
+          input.branchName,
+          timestamp,
+          existing.sandbox_id,
+        )
+
+      return this.getSandboxSnapshot(existing.sandbox_id)
+    }
+
+    const sandboxId = `sandbox_${randomUUID()}`
+
+    this.database
+      .prepare(
+        `
+          INSERT INTO sandbox_contexts (
+            sandbox_id,
+            project_id,
+            thread_id,
+            path,
+            display_name,
+            sandbox_type,
+            branch_name,
+            base_branch,
+            is_main_checkout,
+            created_at,
+            updated_at,
+            last_used_at
+          ) VALUES (?, ?, NULL, ?, ?, 'user_worktree', ?, NULL, 0, ?, ?, NULL)
+        `,
+      )
+      .run(
+        sandboxId,
+        input.projectId,
+        input.path,
+        displayName,
+        input.branchName,
+        timestamp,
+        timestamp,
+      )
+
+    return this.getSandboxSnapshot(sandboxId)
+  }
+
+  removeStaleWorktrees(
+    projectId: ProjectId,
+    activePaths: Set<string>,
+  ): number {
+    const userWorktrees = this.database
+      .prepare(
+        `
+          SELECT sandbox_id, path
+          FROM sandbox_contexts
+          WHERE project_id = ? AND sandbox_type = 'user_worktree'
+        `,
+      )
+      .all(projectId) as Array<{ sandbox_id: string; path: string }>
+
+    let removed = 0
+    for (const row of userWorktrees) {
+      if (!activePaths.has(row.path)) {
+        this.database
+          .prepare("DELETE FROM sandbox_contexts WHERE sandbox_id = ?")
+          .run(row.sandbox_id)
+        removed++
+      }
+    }
+
+    return removed
   }
 
   private persistActiveSandbox(projectId: ProjectId, sandboxId: string): void {
