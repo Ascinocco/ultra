@@ -319,11 +319,12 @@ export async function switchActiveSandbox(
       project_id: projectId,
       sandbox_id: sandboxId,
     })
+    console.log(`[sandbox-switch] terminal.open raw result:`, JSON.stringify(terminalResult).slice(0, 200))
     const session = parseTerminalSessionSnapshot(terminalResult)
     newSessionId = session.sessionId
     console.log(`[sandbox-switch] terminal session: ${session.sessionId}, cwd: ${session.cwd}, sandboxId: ${session.sandboxId}`)
-  } catch (err) {
-    console.error("[sandbox-switch] terminal.open failed:", err)
+  } catch (err: any) {
+    console.error("[sandbox-switch] terminal.open failed:", err?.message ?? err)
     // Terminal open failure should not block sandbox switching
   }
 
