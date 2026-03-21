@@ -38,6 +38,7 @@ import { useAutoScroll } from "../chats/hooks/useAutoScroll.js"
 import { useStreamingBlocks } from "../chats/hooks/useStreamingBlocks.js"
 import { StreamingMessage } from "../chats/streaming/StreamingMessage.js"
 import { PersistedAssistantMessage } from "../chats/streaming/PersistedAssistantMessage.js"
+import { hydrateSandboxes } from "../sandbox/sandbox-workflows.js"
 import { Sidebar } from "../sidebar/Sidebar.js"
 import { updateChatRuntimeConfig } from "../sidebar/chat-workflows.js"
 import { useAppStore } from "../state/app-store.js"
@@ -704,6 +705,11 @@ export function ChatPageShell({
         event.eventType === "chat.turn_started"
       ) {
         actions.setActiveChatTurn(chatId, event.turnId)
+      }
+
+      // Refresh sandboxes after turn completes (LLM may have created worktrees)
+      if (event.eventType === "chat.turn_completed" && activeProjectId) {
+        void hydrateSandboxes(activeProjectId, actions).catch(() => {})
       }
 
       fetchChatTurn(chatId, event.turnId, actions).catch((err) => {
