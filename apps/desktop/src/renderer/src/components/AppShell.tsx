@@ -51,13 +51,23 @@ export function AppShell() {
   const handleToggleTerminal = useCallback(() => {
     if (!activeProjectId) return
     const isOpen = terminal.drawerOpenByProjectId[activeProjectId] ?? false
-    const hasRunningSessions = (
-      terminal.sessionsByProjectId[activeProjectId] ?? []
-    ).some((s) => s.status === "running")
+    const currentSandboxId = sandboxes.activeByProjectId[activeProjectId] ?? null
+    const sessions = terminal.sessionsByProjectId[activeProjectId] ?? []
 
-    if (!isOpen && !hasRunningSessions) {
-      // No running sessions: create one and open the drawer
-      void openTerminal(activeProjectId, actions)
+    // Only consider sessions for the active sandbox
+    const sandboxSessions = currentSandboxId
+      ? sessions.filter((s) => s.status === "running" && s.sandboxId === currentSandboxId)
+      : sessions.filter((s) => s.status === "running")
+
+    if (!isOpen && sandboxSessions.length === 0) {
+      // No running sessions for this sandbox: create one and open the drawer
+      void openTerminal(activeProjectId, actions, undefined,
+        currentSandboxId ? { sandboxId: currentSandboxId } : undefined,
+      )
+    } else if (!isOpen && sandboxSessions.length > 0) {
+      // Has sessions for this sandbox — focus the first one and open
+      actions.setFocusedTerminalSession(activeProjectId, sandboxSessions[0].sessionId)
+      actions.setTerminalDrawerOpen(activeProjectId, true)
     } else {
       actions.setTerminalDrawerOpen(activeProjectId, !isOpen)
     }
@@ -66,6 +76,7 @@ export function AppShell() {
     actions,
     terminal.drawerOpenByProjectId,
     terminal.sessionsByProjectId,
+    sandboxes.activeByProjectId,
   ])
 
   const handleToggleSidebar = useCallback(() => {

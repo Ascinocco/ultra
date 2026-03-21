@@ -336,6 +336,7 @@ export function ChatPageShell({
   const connectionStatus = useAppStore((state) => state.app.connectionStatus)
   const capabilities = useAppStore((state) => state.app.capabilities)
   const terminal = useAppStore((state) => state.terminal)
+  const sandboxes = useAppStore((state) => state.sandboxes)
   const sidebar = useAppStore((state) => state.sidebar)
   const layout = useAppStore((state) => state.layout)
   const chatMessages = useAppStore((state) => state.chatMessages)
@@ -491,9 +492,15 @@ export function ChatPageShell({
     inFlightTurn ||
     runtimeUpdateStatus === "saving" ||
     !selectedProviderReady
+  const activeSandboxId = activeProjectId
+    ? (sandboxes.activeByProjectId[activeProjectId] ?? null)
+    : null
   const terminalSessions = activeProjectId
     ? (terminal.sessionsByProjectId[activeProjectId] ?? [])
-        .filter((s) => s.status === "running")
+        .filter((s) =>
+          s.status === "running" &&
+          (!activeSandboxId || s.sandboxId === activeSandboxId),
+        )
         .slice()
         .sort((a, b) => {
           if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
