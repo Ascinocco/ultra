@@ -536,7 +536,14 @@ export class ThreadService {
       })
     }
 
-    const seedContextJson = JSON.stringify(contextMessages)
+    // Scan turn events for LLM-generated artifacts (specs, plans under .ultra/docs/superpowers/)
+    const artifacts = this.collectArtifacts(input.chat_id, input.context_message_ids)
+
+    const seedContext = {
+      messages: contextMessages,
+      ...(artifacts.length > 0 ? { artifacts } : {}),
+    }
+    const seedContextJson = JSON.stringify(seedContext)
 
     const startRequestMessage = chatService.appendMessage({
       chatId: input.chat_id,
@@ -601,6 +608,69 @@ export class ThreadService {
     }
 
     return this.getThread(threadId)
+  }
+
+  /**
+   * Scan turn events for Write/Edit tool calls that created files under
+   * .ultra/docs/superpowers/. Read those files from disk and return them
+   * as artifact entries for the thread seed context.
+   */
+  private collectArtifacts(
+    chatId: string,
+    contextMessageIds: string[],
+  ): Array<{ type: "artifact"; path: string; content: string }> {
+    // Find turns associated with context messages
+    const placeholders = contextMessageIds.map(() => "?").join(",")
+    const turnRows = this.database
+      .prepare(
+        `SELECT DISTINCT t.turn_id FROM chat_turns t
+         WHERE t.chat_id = ? AND t.user_message_id IN (${placeholders})`,
+      )
+      .all(chatId, ...contextMessageIds) as Array<{ turn_id: string }>
+
+    if (turnRows.length === 0) return []
+
+    // Find turn events with tool_activity containing Write/Edit
+    const turnIds = turnRows.map((r) => r.turn_id)
+    const turnPlaceholders = turnIds.map(() => "?").join(",")
+    const eventRows = this.database
+      .prepare(
+        `SELECT payload_json FROM chat_turn_events
+         WHERE turn_id IN (${turnPlaceholders})
+         AND event_type = 'chat.turn_progress'`,
+      )
+      .all(...turnIds) as Array<{ payload_json: string }>
+
+    // Extract file paths from Write/Edit tool calls
+    const artifactPaths = new Set<string>()
+    for (const row of eventRows) {
+      try {
+        const payload = JSON.parse(row.payload_json)
+        if (payload.stage !== "tool_activity") continue
+        const label = payload.label ?? ""
+        if (label !== "Write" && label !== "Edit") continue
+        const filePath = payload.metadata?.input?.file_path ?? ""
+        if (typeof filePath === "string" && filePath.includes(".ultra/docs/superpowers")) {
+          artifactPaths.add(filePath)
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (artifactPaths.size === 0) return []
+
+    // Read files from disk
+    const { readFileSync, existsSync } = require("node:fs") as typeof import("node:fs")
+    const artifacts: Array<{ type: "artifact"; path: string; content: string }> = []
+
+    for (const filePath of artifactPaths) {
+      if (!existsSync(filePath)) continue
+      try {
+        const content = readFileSync(filePath, "utf-8")
+        artifacts.push({ type: "artifact", path: filePath, content })
+      } catch { /* skip unreadable files */ }
+    }
+
+    return artifacts
   }
 
   updateThreadTitle(threadId: ThreadId, title: string): void {

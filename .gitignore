@@ -51,8 +51,8 @@ coverage/
 # Claude Code worktrees
 .claude/worktrees/
 
-# Agent worktrees (managed by OrchestrationService)
-.ultra/worktrees/
+# Ultra local project data (worktrees, docs, artifacts)
+.ultra/
 
 # Superpowers worktrees
 .worktrees/
