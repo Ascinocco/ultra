@@ -543,6 +543,17 @@ export class ChatService {
     })
   }
 
+  createPlanMarker(chatId: ChatId, markerType: "open" | "close"): ChatMessageSnapshot {
+    this.get(chatId)
+
+    return this.appendMessage({
+      chatId,
+      role: "user",
+      messageType: markerType === "open" ? "plan_marker_open" : "plan_marker_close",
+      contentMarkdown: markerType === "open" ? "Planning started" : "Planning complete",
+    })
+  }
+
   confirmStartWork(
     chatId: ChatId,
     input?: {

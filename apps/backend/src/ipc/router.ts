@@ -6,6 +6,7 @@ import type {
 import {
   artifactsCaptureRuntimeInputSchema,
   chatsApprovePlanInputSchema,
+  chatsCreatePlanMarkerInputSchema,
   chatsApproveSpecsInputSchema,
   chatsArchiveInputSchema,
   chatsCancelTurnInputSchema,
@@ -528,6 +529,14 @@ export async function routeIpcRequest(
           approvePlanCommand.request_id,
           services.chatService.approvePlan(chat_id),
         )
+      }
+      case "chats.create_plan_marker": {
+        const markerCommand = assertCommandRequest(request)
+        const { chat_id, marker_type } = chatsCreatePlanMarkerInputSchema.parse(
+          markerCommand.payload,
+        )
+        const marker = services.chatService.createPlanMarker(chat_id, marker_type)
+        return createSuccessResponse(markerCommand.request_id, marker)
       }
       case "chats.approve_specs": {
         const approveSpecsCommand = assertCommandRequest(request)
