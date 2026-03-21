@@ -663,4 +663,10 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
         ON sandbox_contexts(project_id, sandbox_type);
     `,
   },
+  {
+    id: "0014_thread_seed_context",
+    sql: `
+      ALTER TABLE threads ADD COLUMN seed_context_json TEXT;
+    `,
+  },
 ]
