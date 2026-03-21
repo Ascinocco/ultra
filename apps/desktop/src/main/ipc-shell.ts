@@ -49,8 +49,14 @@ export function registerShellIpc(connection: BackendConnection): () => void {
   )
   ipcMain.handle(
     IPC_COMMAND_CHANNEL,
-    (_event, name: string, payload: unknown) =>
-      connection.command(name as CommandMethodName, payload),
+    async (_event, name: string, payload: unknown) => {
+      try {
+        return await connection.command(name as CommandMethodName, payload)
+      } catch (err) {
+        console.error(`[ipc-command] CRASH in "${name}":`, err)
+        throw err
+      }
+    },
   )
   ipcMain.handle(
     IPC_SUBSCRIBE_CHANNEL,
