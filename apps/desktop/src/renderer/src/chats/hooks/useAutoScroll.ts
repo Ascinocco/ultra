@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react"
 
-const NEAR_BOTTOM_THRESHOLD = 50
+const NEAR_BOTTOM_THRESHOLD = 80
 
 export function shouldAutoScroll(
   scrollBottom: number,
@@ -15,12 +15,16 @@ export function useAutoScroll(
   deps: unknown[],
 ): void {
   const isNearBottomRef = useRef(true)
+  const programmaticScrollRef = useRef(false)
 
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
 
     function handleScroll() {
+      // Ignore scroll events triggered by our own scrollTo
+      if (programmaticScrollRef.current) return
+
       const el = scrollRef.current
       if (!el) return
       isNearBottomRef.current = shouldAutoScroll(
@@ -36,9 +40,11 @@ export function useAutoScroll(
 
   useEffect(() => {
     if (isNearBottomRef.current && scrollRef.current) {
-      scrollRef.current.scrollTo({
-        top: scrollRef.current.scrollHeight,
-        behavior: "smooth",
+      programmaticScrollRef.current = true
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      // Reset flag after a tick so subsequent user scrolls are detected
+      requestAnimationFrame(() => {
+        programmaticScrollRef.current = false
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
