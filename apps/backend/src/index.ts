@@ -43,6 +43,7 @@ import { TerminalCommandGenService } from "./terminal/terminal-command-gen-servi
 import { TerminalService } from "./terminal/terminal-service.js"
 import { TerminalSessionService } from "./terminal/terminal-session-service.js"
 import { ThreadService } from "./threads/thread-service.js"
+import { ThreadTurnService } from "./threads/thread-turn-service.js"
 
 export function createBackendBanner(): string {
   const target = buildPlaceholderProjectLabel(APP_NAME)
@@ -137,20 +138,18 @@ export async function startBackendScaffold(options?: {
       agentRegistry,
       overlayGenerator: { generateOverlay },
     })
+    const threadTurnService = new ThreadTurnService(
+      threadService,
+      new ClaudeChatRuntimeAdapter({
+        pathToClaudeCodeExecutable: "claude",
+      }),
+    )
     threadService.setCoordinatorDispatchHandler({
-      sendThreadMessage: (input) =>
-        coordinatorService.sendThreadMessage({
-          ...input,
-          threadId: input.threadId,
-        }),
+      sendThreadMessage: (input) => {
+        void threadTurnService.sendMessage(input.threadId, input.contentMarkdown)
+      },
       startThread: ({ input, thread }) => {
-        const repoRoot = process.env.ULTRA_REPO_ROOT ?? process.cwd()
-        const baseBranch = process.env.ULTRA_BASE_BRANCH ?? "main"
-        void orchestrationService.startThread(thread.thread.id, {
-          specMarkdown: input.summary ?? input.title,
-          baseBranch,
-          repoRoot,
-        })
+        void threadTurnService.startCoordinator(thread.thread.id)
       },
     })
     const runtimeProfileService = new RuntimeProfileService(
