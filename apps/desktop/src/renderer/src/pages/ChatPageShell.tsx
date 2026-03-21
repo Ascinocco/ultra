@@ -990,7 +990,7 @@ export function ChatPageShell({
   const threadTurnEvents = selectedThreadId
     ? (threads.turnEventsByThreadId[selectedThreadId] ?? [])
     : []
-  const isCoordinatorActive = threads.activeThreadTurnId === selectedThreadId
+  const isCoordinatorActive = selectedThreadId != null && threads.activeThreadTurnId === selectedThreadId
   const threadMessages = selectedThreadId
     ? (threads.messagesByThreadId[selectedThreadId] ?? [])
     : []

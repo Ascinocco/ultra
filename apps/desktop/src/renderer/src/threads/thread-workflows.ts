@@ -108,13 +108,14 @@ export async function subscribeToThreadTurnEvents(
   client: SubscribeWorkflowClient = ipcClient,
 ): Promise<() => Promise<void>> {
   actions.clearThreadTurnEvents(threadId)
-  actions.setActiveThreadTurn(threadId)
 
   return client.subscribe(
     "threads.turn_events",
     { thread_id: threadId },
     (event) => {
       const parsed = parseThreadsTurnEventsEvent(event)
+      // Set active on first event — means coordinator is actually running
+      actions.setActiveThreadTurn(threadId)
       actions.appendThreadTurnEvent(parsed.payload)
     },
   )
