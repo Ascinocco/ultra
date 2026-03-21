@@ -12,7 +12,7 @@
   background: var(--surface-1);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-lg);
-  width: 420px;
+  width: 520px;
   max-width: 90vw;
   box-shadow: var(--shadow-lg);
 }
@@ -69,6 +69,7 @@
 
 .project-settings-modal__textarea {
   width: 100%;
+  box-sizing: border-box;
   background: var(--surface-2);
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-md);

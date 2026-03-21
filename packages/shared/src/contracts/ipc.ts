@@ -66,6 +66,7 @@ export const commandMethodSchema = z.enum([
   "terminal.close_session",
   "terminal.rename_session",
   "terminal.pin_session",
+  "terminal.update_runtime_file_paths",
   "sandboxes.set_active",
   "projects.open",
   "projects.set_layout",
