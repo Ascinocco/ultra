@@ -41,7 +41,7 @@ const NON_TOOL_LABELS = new Set([
 
 type StructuredBlock =
   | { type: "text"; content: string }
-  | { type: "tools"; tools: Array<{ name: string; detail: string; id?: string | null }> }
+  | { type: "tools"; tools: Array<{ name: string; detail: string; id?: string | null; subtype?: string }> }
 
 /**
  * Build interleaved text + tool blocks from runtime events for the structured payload.
@@ -61,9 +61,20 @@ function buildStructuredBlocks(events: ChatRuntimeEvent[]): StructuredBlock[] {
       } else {
         blocks.push({ type: "text", content: event.text })
       }
+    } else if (event.type === "tool_activity" && event.label === "AskUserQuestion") {
+      const questionText = extractToolDetail("AskUserQuestion", event.metadata)
+      if (questionText) {
+        const last = lastBlock()
+        if (last?.type === "text") {
+          last.content += "\n\n" + questionText
+        } else {
+          blocks.push({ type: "text", content: questionText })
+        }
+      }
     } else if (event.type === "tool_activity" && !NON_TOOL_LABELS.has(event.label)) {
       const detail = extractToolDetail(event.label, event.metadata)
       const toolId = (event.metadata as any)?.id ?? (event.metadata as any)?.item?.id ?? null
+      const subtype = event.label === "Skill" ? "skill" : undefined
       const last = lastBlock()
 
       // Deduplicate: if a tool with the same ID exists in the current group, update it
@@ -76,9 +87,9 @@ function buildStructuredBlocks(events: ChatRuntimeEvent[]): StructuredBlock[] {
       }
 
       if (last?.type === "tools") {
-        last.tools.push({ name: event.label, detail, id: toolId })
+        last.tools.push({ name: event.label, detail, id: toolId, subtype })
       } else {
-        blocks.push({ type: "tools", tools: [{ name: event.label, detail, id: toolId }] })
+        blocks.push({ type: "tools", tools: [{ name: event.label, detail, id: toolId, subtype }] })
       }
     }
   }
@@ -107,6 +118,10 @@ function extractToolDetail(label: string, metadata?: Record<string, unknown>): s
     case "Grep":
     case "Glob":
       return m?.input?.pattern ?? ""
+    case "AskUserQuestion":
+      return m?.input?.question ?? m?.input?.text ?? ""
+    case "Skill":
+      return m?.input?.skill ?? ""
     default:
       return ""
   }
