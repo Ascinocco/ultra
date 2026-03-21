@@ -307,19 +307,23 @@ export async function switchActiveSandbox(
   })
   const activeSandbox = parseSandboxContextSnapshot(result)
 
+  console.log(`[sandbox-switch] setting active sandbox: ${activeSandbox.sandboxId}, path: ${activeSandbox.path}`)
   actions.setActiveSandboxIdForProject(projectId, activeSandbox.sandboxId)
 
   // Open or reuse a terminal for the new sandbox FIRST, so it exists
   // before we refresh the sessions list
   let newSessionId: string | null = null
   try {
+    console.log(`[sandbox-switch] opening terminal for sandbox: ${sandboxId}`)
     const terminalResult = await client.command("terminal.open", {
       project_id: projectId,
       sandbox_id: sandboxId,
     })
     const session = parseTerminalSessionSnapshot(terminalResult)
     newSessionId = session.sessionId
-  } catch {
+    console.log(`[sandbox-switch] terminal session: ${session.sessionId}, cwd: ${session.cwd}, sandboxId: ${session.sandboxId}`)
+  } catch (err) {
+    console.error("[sandbox-switch] terminal.open failed:", err)
     // Terminal open failure should not block sandbox switching
   }
 
@@ -359,7 +363,10 @@ export async function switchActiveSandbox(
 
   // Focus the new sandbox's terminal session
   if (newSessionId) {
+    console.log(`[sandbox-switch] focusing terminal session: ${newSessionId}`)
     actions.setFocusedTerminalSession(projectId, newSessionId)
+  } else {
+    console.log("[sandbox-switch] no new session to focus")
   }
 }
 
