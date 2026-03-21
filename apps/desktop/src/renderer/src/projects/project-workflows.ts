@@ -309,6 +309,21 @@ export async function switchActiveSandbox(
 
   actions.setActiveSandboxIdForProject(projectId, activeSandbox.sandboxId)
 
+  // Open or reuse a terminal for the new sandbox FIRST, so it exists
+  // before we refresh the sessions list
+  let newSessionId: string | null = null
+  try {
+    const terminalResult = await client.command("terminal.open", {
+      project_id: projectId,
+      sandbox_id: sandboxId,
+    })
+    const session = parseTerminalSessionSnapshot(terminalResult)
+    newSessionId = session.sessionId
+  } catch {
+    // Terminal open failure should not block sandbox switching
+  }
+
+  // Now refresh all state — the new session will be in the list
   const [sandboxesResult, runtimeResult, sessionsResult, commandsResult] =
     await Promise.all([
       client.query("sandboxes.list", {
@@ -342,18 +357,9 @@ export async function switchActiveSandbox(
     parseTerminalListSavedCommandsResult(commandsResult).commands,
   )
 
-  // Open or reuse a terminal for the new sandbox so the terminal drawer
-  // shows the correct cwd when toggled
-  try {
-    const terminalResult = await client.command("terminal.open", {
-      project_id: projectId,
-      sandbox_id: sandboxId,
-    })
-    const session = parseTerminalSessionSnapshot(terminalResult)
-    actions.upsertTerminalSession(projectId, session)
-    actions.setFocusedTerminalSession(projectId, session.sessionId)
-  } catch {
-    // Terminal open failure should not block sandbox switching
+  // Focus the new sandbox's terminal session
+  if (newSessionId) {
+    actions.setFocusedTerminalSession(projectId, newSessionId)
   }
 }
 
