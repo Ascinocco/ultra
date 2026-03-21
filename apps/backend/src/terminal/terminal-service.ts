@@ -116,16 +116,7 @@ export class TerminalService {
       return this.sandboxService.getActive(projectId)
     }
 
-    const sandbox = this.sandboxService
-      .list(projectId)
-      .sandboxes.find((candidate) => candidate.sandboxId === sandboxId)
-
-    if (!sandbox) {
-      throw new IpcProtocolError(
-        "not_found",
-        `Sandbox not found for project: ${sandboxId}`,
-      )
-    }
+    const sandbox = this.sandboxService.getSandbox(projectId, sandboxId)
 
     return sandbox
   }
