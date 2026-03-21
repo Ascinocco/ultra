@@ -83,7 +83,8 @@ export class BackendConnection {
     const response = await client.query(name, payload ?? {})
 
     if (!response.ok) {
-      throw new Error(response.error.message)
+      const errorMessage = response.error?.message ?? `Backend request failed`
+      throw new Error(errorMessage)
     }
 
     return response.result
@@ -100,7 +101,9 @@ export class BackendConnection {
     const response = await client.command(name, payload ?? {})
 
     if (!response.ok) {
-      throw new Error(response.error.message)
+      const errorMessage = response.error?.message ?? `Backend request failed`
+      console.error(`[backend-connection] command "${name}" error:`, errorMessage)
+      throw new Error(errorMessage)
     }
 
     return response.result
