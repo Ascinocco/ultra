@@ -307,28 +307,12 @@ export async function switchActiveSandbox(
   })
   const activeSandbox = parseSandboxContextSnapshot(result)
 
-  console.log(`[sandbox-switch] setting active sandbox: ${activeSandbox.sandboxId}, path: ${activeSandbox.path}`)
   actions.setActiveSandboxIdForProject(projectId, activeSandbox.sandboxId)
 
-  // Open or reuse a terminal for the new sandbox FIRST, so it exists
-  // before we refresh the sessions list
-  let newSessionId: string | null = null
-  try {
-    console.log(`[sandbox-switch] opening terminal for sandbox: ${sandboxId}`)
-    const terminalResult = await client.command("terminal.open", {
-      project_id: projectId,
-      sandbox_id: sandboxId,
-    })
-    console.log(`[sandbox-switch] terminal.open raw result:`, JSON.stringify(terminalResult).slice(0, 200))
-    const session = parseTerminalSessionSnapshot(terminalResult)
-    newSessionId = session.sessionId
-    console.log(`[sandbox-switch] terminal session: ${session.sessionId}, cwd: ${session.cwd}, sandboxId: ${session.sandboxId}`)
-  } catch (err: any) {
-    console.error("[sandbox-switch] terminal.open failed:", err?.message ?? err)
-    // Terminal open failure should not block sandbox switching
-  }
+  // Close the terminal drawer so it opens fresh with the new sandbox
+  actions.setTerminalDrawerOpen(projectId, false)
 
-  // Now refresh all state — the new session will be in the list
+  // Refresh all state
   const [sandboxesResult, runtimeResult, sessionsResult, commandsResult] =
     await Promise.all([
       client.query("sandboxes.list", {
@@ -362,13 +346,6 @@ export async function switchActiveSandbox(
     parseTerminalListSavedCommandsResult(commandsResult).commands,
   )
 
-  // Focus the new sandbox's terminal session
-  if (newSessionId) {
-    console.log(`[sandbox-switch] focusing terminal session: ${newSessionId}`)
-    actions.setFocusedTerminalSession(projectId, newSessionId)
-  } else {
-    console.log("[sandbox-switch] no new session to focus")
-  }
 }
 
 export async function runSavedCommandForProject(
