@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft v0.2
+Draft v0.3
 
 Related specs:
 
@@ -47,9 +47,53 @@ A sandbox context is a concrete checkout of a project that Ultra can target for 
 In v1, a sandbox may be:
 
 - the main project checkout
-- a thread-owned sandbox backed by an Overstory-managed worktree
+- a thread-owned sandbox backed by an orchestration-managed worktree
+- a user-created worktree discovered through git reconciliation
 
 The user should not need to know whether the sandbox is implemented by the root checkout or a worktree. Ultra owns that complexity.
+
+### User-Created Worktrees
+
+Users or the LLM may create git worktrees outside of Ultra's orchestration layer — for example, by running `git worktree add` in the integrated terminal or via main chat tool use.
+
+Ultra must detect these and surface them in the sandbox selector alongside orchestration-managed sandboxes.
+
+#### Reconciliation Model
+
+Ultra reconciles its sandbox list against git's worktree reality:
+
+1. Run `git worktree list --porcelain` against the project's git root
+2. Diff the results against `sandbox_contexts` rows for that project
+3. Worktree paths present in git but absent from the DB are created as `user_worktree` sandboxes
+4. Sandbox rows whose paths no longer exist in git are marked stale and removed
+
+Reconciliation runs:
+
+- on project open / sandbox list hydration
+- when the sandbox selector is opened (lightweight check)
+- optionally on a periodic interval while the project is active
+
+#### Sandbox Types (v1)
+
+| Type | Created by | Thread link | Lifecycle |
+|------|-----------|-------------|-----------|
+| `main_checkout` | Ultra on project open | None | 1 per project, never removed |
+| `thread_sandbox` | Orchestration layer on thread start | Required | Removed when thread completes or is abandoned |
+| `user_worktree` | Git reconciliation (user/LLM created) | None | Removed from DB when worktree no longer exists in git |
+
+#### Display Name Derivation
+
+User worktrees derive their display name from the branch name:
+
+- `feature/auth-flow` → "auth-flow"
+- `fix/login-bug` → "login-bug"
+- If no branch is detected, use the worktree directory name
+
+#### Design Decision: No Auto-Promotion to Threads
+
+User-created worktrees are surfaced as sandboxes only. They do not automatically become threads.
+
+If the user wants orchestration capabilities (agents, review loop, merge resolution), they should promote chat work to a thread through the existing thread creation flow. This keeps the sandbox selector simple and avoids surprising lifecycle behavior.
 
 ### Required Fields
 
@@ -178,3 +222,5 @@ The core in-product responsibility is to make the local testing loop fast and sa
 - custom diff review UI
 - branch-as-primary navigation
 - exposing raw worktree management as a top-level UX
+- auto-promoting user worktrees to threads
+- manual worktree creation UI (users create worktrees via terminal; Ultra discovers them)

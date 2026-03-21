@@ -9,7 +9,7 @@ import {
 import { projectIdSchema, projectPathSchema } from "./projects.js"
 
 export const sandboxIdSchema = opaqueIdSchema
-export const sandboxTypeSchema = z.enum(["main_checkout", "thread_sandbox"])
+export const sandboxTypeSchema = z.enum(["main_checkout", "thread_sandbox", "user_worktree"])
 export const runtimeSyncModeSchema = z.enum(["managed_copy"])
 export const sandboxRuntimeSyncStatusSchema = z.enum([
   "unknown",
