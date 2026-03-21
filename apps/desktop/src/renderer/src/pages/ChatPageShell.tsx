@@ -288,17 +288,25 @@ function TerminalDrawer({
           </button>
         </div>
         <div className="terminal-drawer__panel">
-          {focusedSession ? (
-            <div className="terminal-drawer__pane-wrapper terminal-drawer__pane-wrapper--visible">
-              <TerminalPane
-                key={focusedSession.sessionId}
-                sessionId={focusedSession.sessionId}
-                projectId={focusedSession.projectId}
-                recentOutput={focusedSession.recentOutput}
-                onInput={onTerminalInput}
-                onResize={onTerminalResize}
-              />
-            </div>
+          {sessions.length > 0 ? (
+            sessions.map((session) => (
+              <div
+                key={session.sessionId}
+                className={`terminal-drawer__pane-wrapper ${
+                  session.sessionId === focusedSession?.sessionId
+                    ? "terminal-drawer__pane-wrapper--visible"
+                    : "terminal-drawer__pane-wrapper--hidden"
+                }`}
+              >
+                <TerminalPane
+                  sessionId={session.sessionId}
+                  projectId={session.projectId}
+                  recentOutput={session.recentOutput}
+                  onInput={onTerminalInput}
+                  onResize={onTerminalResize}
+                />
+              </div>
+            ))
           ) : (
             <p className="terminal-drawer__placeholder">
               Terminal sessions will appear here
