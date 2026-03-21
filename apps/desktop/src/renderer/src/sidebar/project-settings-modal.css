@@ -1,0 +1,116 @@
+.project-settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.project-settings-modal {
+  background: var(--surface-1);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: var(--shadow-lg);
+}
+
+.project-settings-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.project-settings-modal__title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.project-settings-modal__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.125rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.project-settings-modal__body {
+  padding: 14px 16px;
+}
+
+.project-settings-modal__label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.project-settings-modal__description {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+.project-settings-modal__description code {
+  background: var(--surface-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.6875rem;
+}
+
+.project-settings-modal__textarea {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 0.8125rem;
+  padding: 8px 10px;
+  resize: vertical;
+  outline: none;
+}
+
+.project-settings-modal__textarea:focus {
+  border-color: var(--accent);
+}
+
+.project-settings-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.project-settings-modal__btn {
+  padding: 6px 14px;
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.project-settings-modal__btn--cancel {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+}
+
+.project-settings-modal__btn--save {
+  background: var(--accent);
+  color: #fff;
+}
+
+.project-settings-modal__btn--save:hover {
+  filter: brightness(1.1);
+}

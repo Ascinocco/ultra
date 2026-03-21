@@ -21,6 +21,7 @@ export function ProjectGroup({
   onChatContextMenu,
   onRetryFetch,
   onNewChat,
+  onOpenSettings,
   renamingChatId,
   renameDraft,
   onRenameDraftChange,
@@ -37,6 +38,7 @@ export function ProjectGroup({
   onChatContextMenu: (event: React.MouseEvent, chat: ChatSummary) => void
   onRetryFetch: () => void
   onNewChat: () => void
+  onOpenSettings: () => void
   renamingChatId: string | null
   renameDraft: string
   onRenameDraftChange: (value: string) => void
@@ -71,6 +73,17 @@ export function ProjectGroup({
             />
           </svg>
           <span className="project-group__name">{project.name}</span>
+        </button>
+        <button
+          className="project-group__settings"
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenSettings()
+          }}
+          aria-label={`Settings for ${project.name}`}
+        >
+          ⚙
         </button>
         <button
           className="project-group__new-chat"

@@ -67,6 +67,13 @@ export class TerminalService {
     }
   }
 
+  updateRuntimeFilePaths(
+    projectId: ProjectId,
+    runtimeFilePaths: string[],
+  ) {
+    return this.runtimeProfileService.updateFilePaths(projectId, runtimeFilePaths)
+  }
+
   ensureRuntimeContext(
     projectId: ProjectId,
     sandboxId?: string,

@@ -549,6 +549,20 @@ export async function routeIpcRequest(
           ),
         )
       }
+      case "terminal.update_runtime_file_paths": {
+        const updateCommand = assertCommandRequest(request)
+        const payload = updateCommand.payload as {
+          project_id: string
+          runtime_file_paths: string[]
+        }
+        return createSuccessResponse(
+          updateCommand.request_id,
+          services.terminalService.updateRuntimeFilePaths(
+            payload.project_id,
+            payload.runtime_file_paths,
+          ),
+        )
+      }
       case "terminal.list_sessions": {
         const listSessionsQuery = assertQueryRequest(request)
         return createSuccessResponse(

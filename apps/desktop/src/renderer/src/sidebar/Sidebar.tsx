@@ -1,10 +1,12 @@
 import type { ChatSummary } from "@ultra/shared"
 import { useEffect, useRef, useState } from "react"
 
+import { ipcClient } from "../ipc/ipc-client.js"
 import { switchActiveProject } from "../projects/project-workflows.js"
 import { useAppStore } from "../state/app-store.js"
 import { ChatContextMenu, type ContextMenuState } from "./ChatContextMenu.js"
 import { ProjectGroup } from "./ProjectGroup.js"
+import { ProjectSettingsModal } from "./ProjectSettingsModal.js"
 import {
   archiveChat,
   createChat,
@@ -40,6 +42,33 @@ export function Sidebar({
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
   const [renamingChatId, setRenamingChatId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState("")
+  const [settingsProjectId, setSettingsProjectId] = useState<string | null>(null)
+  const [settingsFilePaths, setSettingsFilePaths] = useState<string[]>([])
+
+  async function handleOpenSettings(projectId: string) {
+    try {
+      const result = await ipcClient.query("terminal.get_runtime_profile", {
+        project_id: projectId,
+      })
+      const profile = (result as any).profile ?? result
+      setSettingsFilePaths(profile?.runtimeFilePaths ?? [".env"])
+    } catch {
+      setSettingsFilePaths([".env"])
+    }
+    setSettingsProjectId(projectId)
+  }
+
+  async function handleSaveSettings(filePaths: string[]) {
+    if (!settingsProjectId) return
+    try {
+      await ipcClient.command("terminal.update_runtime_file_paths", {
+        project_id: settingsProjectId,
+        runtime_file_paths: filePaths,
+      })
+    } catch (err) {
+      console.error("[sidebar] failed to save runtime file paths:", err)
+    }
+  }
   const prevActiveProjectRef = useRef<string | null>(null)
 
   // Auto-expand the active project when it first becomes active
@@ -151,6 +180,7 @@ export function Sidebar({
                   void loadChatsForProject(projectId, actions)
                 }
                 onNewChat={() => handleNewChat(projectId)}
+                onOpenSettings={() => void handleOpenSettings(projectId)}
                 renamingChatId={renamingChatId}
                 renameDraft={renameDraft}
                 onRenameDraftChange={setRenameDraft}
@@ -186,6 +216,15 @@ export function Sidebar({
         onTogglePin={handleTogglePin}
         onArchive={handleArchive}
       />
+
+      {settingsProjectId && (
+        <ProjectSettingsModal
+          projectId={settingsProjectId}
+          currentFilePaths={settingsFilePaths}
+          onSave={handleSaveSettings}
+          onClose={() => setSettingsProjectId(null)}
+        />
+      )}
     </div>
   )
 }

@@ -463,6 +463,27 @@ export class SandboxPersistenceService {
     return this.getRuntimeProfile(projectId)
   }
 
+  updateRuntimeFilePaths(
+    projectId: ProjectId,
+    runtimeFilePaths: string[],
+  ): ProjectRuntimeProfileSnapshot {
+    // Ensure the profile exists
+    this.getRuntimeProfile(projectId)
+    const timestamp = this.now()
+
+    this.database
+      .prepare(
+        `
+          UPDATE project_runtime_profiles
+          SET runtime_file_paths_json = ?, updated_at = ?
+          WHERE project_id = ?
+        `,
+      )
+      .run(JSON.stringify(runtimeFilePaths), timestamp, projectId)
+
+    return this.getRuntimeProfile(projectId)
+  }
+
   getRuntimeSync(sandboxId: string): SandboxRuntimeSyncSnapshot {
     const sandbox = this.getSandboxRowOrThrow(sandboxId)
     const existing = this.getPersistedRuntimeSync(sandboxId)

@@ -86,6 +86,16 @@ export class RuntimeProfileService {
     }
   }
 
+  updateFilePaths(
+    projectId: ProjectId,
+    runtimeFilePaths: string[],
+  ): ProjectRuntimeProfileSnapshot {
+    return this.persistenceService.updateRuntimeFilePaths(
+      projectId,
+      runtimeFilePaths,
+    )
+  }
+
   private getProjectRootPath(projectId: ProjectId): string {
     const row = this.database
       .prepare("SELECT root_path FROM projects WHERE id = ?")
