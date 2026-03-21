@@ -46,7 +46,7 @@ export function ThreadPane({
       <div className="thread-pane thread-pane--empty">
         <p className="thread-pane__status">No threads yet</p>
         <p className="thread-pane__hint">
-          Threads are created when you approve a plan and start work
+          Move work to a thread when it's ready for handoff
         </p>
       </div>
     )

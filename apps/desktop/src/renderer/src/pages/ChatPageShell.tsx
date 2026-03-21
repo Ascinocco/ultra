@@ -1089,10 +1089,6 @@ export function ChatPageShell({
         />
 
         <div className="chat-frame__side">
-          <div className="surface__header">
-            <p className="surface__eyebrow">Threads</p>
-            <h2 className="surface__title">Execution pane</h2>
-          </div>
           <ThreadPane
             threads={projectThreads}
             selectedThreadId={selectedThreadId}
