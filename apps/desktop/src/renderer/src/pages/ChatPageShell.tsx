@@ -914,7 +914,7 @@ export function ChatPageShell({
           </div>
           {activeChat ? (
             <section className="active-chat-pane" aria-label="Active chat pane">
-              <div className="active-chat-pane__body">
+              <div className={`active-chat-pane__body${referencesOpen ? "" : " active-chat-pane__body--refs-hidden"}`}>
                 <section
                   className="active-chat-pane__transcript"
                   aria-label="Chat transcript"

@@ -620,6 +620,10 @@ button {
   flex: 1;
 }
 
+.active-chat-pane__body--refs-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .active-chat-pane__transcript {
   display: flex;
   flex-direction: column;
