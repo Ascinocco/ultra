@@ -1053,16 +1053,6 @@ export function ChatPageShell({
                 </aside>
               </div>
 
-              {activeChat ? (
-                <ApprovalBar
-                  step={approvalState.step}
-                  threadTitle={activeChat.title}
-                  onApprovePlan={handleApprovePlan}
-                  onApproveSpecs={handleApproveSpecs}
-                  onStartWork={handleStartWork}
-                />
-              ) : null}
-
               <InputDock
                 chatId={activeChatId!}
                 disabled={chatInputDisabled}
