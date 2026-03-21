@@ -686,6 +686,13 @@ export class ThreadService {
     return row?.seed_context_json ?? null
   }
 
+  getVendorSessionId(threadId: ThreadId): string | null {
+    const row = this.database
+      .prepare("SELECT vendor_session_id FROM threads WHERE id = ?")
+      .get(threadId) as { vendor_session_id: string | null } | undefined
+    return row?.vendor_session_id ?? null
+  }
+
   updateVendorSessionId(threadId: ThreadId, vendorSessionId: string): void {
     this.database
       .prepare("UPDATE threads SET vendor_session_id = ?, updated_at = ? WHERE id = ?")
