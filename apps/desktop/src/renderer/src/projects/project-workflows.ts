@@ -66,6 +66,7 @@ export type ProjectWorkflowActions = {
     commands: SavedCommandSnapshot[],
   ) => void
   setTerminalDrawerOpen: (projectId: string, open: boolean) => void
+  setFocusedTerminalSession: (projectId: string, sessionId: string) => void
 }
 
 function getErrorMessage(error: unknown): string {
@@ -340,6 +341,20 @@ export async function switchActiveSandbox(
     projectId,
     parseTerminalListSavedCommandsResult(commandsResult).commands,
   )
+
+  // Open or reuse a terminal for the new sandbox so the terminal drawer
+  // shows the correct cwd when toggled
+  try {
+    const terminalResult = await client.command("terminal.open", {
+      project_id: projectId,
+      sandbox_id: sandboxId,
+    })
+    const session = parseTerminalSessionSnapshot(terminalResult)
+    actions.upsertTerminalSession(projectId, session)
+    actions.setFocusedTerminalSession(projectId, session.sessionId)
+  } catch {
+    // Terminal open failure should not block sandbox switching
+  }
 }
 
 export async function runSavedCommandForProject(
