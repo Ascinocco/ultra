@@ -7,9 +7,6 @@ type ProbeMap = Partial<Record<DependencyTool, string | Error>>
 
 const toolCommandToId: Record<string, DependencyTool> = {
   git: "git",
-  ov: "ov",
-  tmux: "tmux",
-  sd: "sd",
   codex: "codex",
   claude: "claude",
   node: "node",
@@ -61,28 +58,6 @@ describe("EnvironmentReadinessService", () => {
         (check) => check.status === "ready" || check.status === "skipped",
       ),
     ).toBe(true)
-  })
-
-  it("does not block when optional tool ov is missing", async () => {
-    const snapshot = await buildSnapshot("desktop", {
-      ov: missingCommandError("ov"),
-    })
-
-    expect(snapshot.status).toBe("ready")
-    expect(snapshot.checks.find((check) => check.tool === "ov")?.status).toBe(
-      "skipped",
-    )
-  })
-
-  it("blocks when sd is missing", async () => {
-    const snapshot = await buildSnapshot("desktop", {
-      sd: missingCommandError("sd"),
-    })
-
-    expect(snapshot.status).toBe("blocked")
-    expect(snapshot.checks.find((check) => check.tool === "sd")?.status).toBe(
-      "missing",
-    )
   })
 
   it("blocks when claude is missing while keeping codex optional", async () => {

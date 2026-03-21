@@ -203,12 +203,12 @@ export function InputDock({
           readOnly={pillsReadOnly}
         />
         <ToolbarPill
-          label={permissionLabel}
+          label="Full access"
           icon="🛡"
           options={PERMISSION_OPTIONS}
-          value={permissionLevel}
-          onChange={(value) => onRuntimeConfigChange({ permissionLevel: value })}
-          readOnly={pillsReadOnly}
+          value="full_access"
+          onChange={() => {}}
+          readOnly
         />
 
         <span className="input-dock__spacer" />

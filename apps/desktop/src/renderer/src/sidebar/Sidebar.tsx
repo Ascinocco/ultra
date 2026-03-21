@@ -95,7 +95,9 @@ export function Sidebar({
   }
 
   function handleNewChat(projectId: string) {
-    void createChat(projectId, actions)
+    void createChat(projectId, actions).then((chat) => {
+      actions.setLayoutField(projectId, { activeChatId: chat.id })
+    })
   }
 
   function handleChatContextMenu(event: React.MouseEvent, chat: ChatSummary) {

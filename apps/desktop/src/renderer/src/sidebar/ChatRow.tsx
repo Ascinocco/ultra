@@ -81,12 +81,19 @@ export function ChatRow({
     )
   }
 
+  const ONE_HOUR_MS = 60 * 60 * 1000
+  const isIdle =
+    chat.turnStatus === "waiting_for_input" &&
+    Date.now() - new Date(chat.updatedAt).getTime() > ONE_HOUR_MS
+
   const statusConfig = chat.turnStatus
-    ? {
-        running: { color: "#a6e3a1", label: "Running" },
-        waiting_for_input: { color: "#89b4fa", label: "Waiting for input" },
-        error: { color: "#f38ba8", label: "Error" },
-      }[chat.turnStatus]
+    ? isIdle
+      ? { color: "#6c7086", label: "Idle", variant: "idle" as const }
+      : {
+          running: { color: "#a6e3a1", label: "Running", variant: "filled" as const },
+          waiting_for_input: { color: "#89b4fa", label: "Waiting for input", variant: "filled" as const },
+          error: { color: "#f38ba8", label: "Error", variant: "filled" as const },
+        }[chat.turnStatus] ?? null
     : null
 
   return (
@@ -114,10 +121,17 @@ export function ChatRow({
           className="chat-row__status"
           style={{ color: statusConfig.color }}
         >
-          <span
-            className="chat-row__status-dot"
-            style={{ backgroundColor: statusConfig.color }}
-          />
+          {statusConfig.variant === "idle" ? (
+            <span
+              className="chat-row__status-dot chat-row__status-dot--outline"
+              style={{ borderColor: statusConfig.color }}
+            />
+          ) : (
+            <span
+              className="chat-row__status-dot"
+              style={{ backgroundColor: statusConfig.color }}
+            />
+          )}
           {statusConfig.label}
         </span>
       )}

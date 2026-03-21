@@ -72,7 +72,6 @@ import type { ChatTurnService } from "../chats/chat-turn-service.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { CoordinatorService } from "../runtime/coordinator-service.js"
 import type { RuntimeRegistry } from "../runtime/runtime-registry.js"
-import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import type { SystemService } from "../system/system-service.js"
 import type { TerminalService } from "../terminal/terminal-service.js"
@@ -186,7 +185,6 @@ export async function routeIpcRequest(
     systemService: SystemService
     projectService: ProjectService
     runtimeRegistry: RuntimeRegistry
-    watchService: WatchService
     sandboxService: SandboxService
     terminalService: TerminalService
     terminalSessionService: TerminalSessionService
@@ -280,7 +278,7 @@ export async function routeIpcRequest(
         const listQuery = assertQueryRequest(request)
         runtimeListGlobalComponentsInputSchema.parse(listQuery.payload)
         return createSuccessResponse(listQuery.request_id, {
-          components: services.watchService.listGlobalComponents(),
+          components: [],
         })
       }
       case "runtime.get_project_health": {

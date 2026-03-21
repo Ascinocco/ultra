@@ -1004,17 +1004,29 @@ export function ChatPageShell({
                           // Fall through to default rendering
                         }
                       }
-                      return (
-                        <ChatMessage
-                          key={message.id}
-                          role={message.role as "user" | "assistant" | "system"}
-                          content={
-                            message.contentMarkdown ??
-                            message.structuredPayloadJson ??
-                            "No text content."
-                          }
-                        />
-                      )
+                      {
+                        let parsedAttachments: Array<{ name: string; type: "image" | "text"; media_type: string }> | undefined
+                        if (message.role === "user" && message.structuredPayloadJson) {
+                          try {
+                            const payload = JSON.parse(message.structuredPayloadJson)
+                            if (payload.attachments && Array.isArray(payload.attachments)) {
+                              parsedAttachments = payload.attachments
+                            }
+                          } catch { /* ignore */ }
+                        }
+                        return (
+                          <ChatMessage
+                            key={message.id}
+                            role={message.role as "user" | "assistant" | "system"}
+                            content={
+                              message.contentMarkdown ??
+                              message.structuredPayloadJson ??
+                              "No text content."
+                            }
+                            attachments={parsedAttachments}
+                          />
+                        )
+                      }
                     })}
                     {streamingBlocks !== null && (
                       <StreamingMessage

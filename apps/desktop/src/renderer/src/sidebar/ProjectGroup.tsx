@@ -6,6 +6,11 @@ function sortChats(chats: ChatSummary[]): ChatSummary[] {
   return [...chats].sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1
     if (!a.isPinned && b.isPinned) return 1
+    // Pinned chats: oldest pin first (preserves fixed position)
+    if (a.isPinned && b.isPinned) {
+      return (a.pinnedAt ?? "").localeCompare(b.pinnedAt ?? "")
+    }
+    // Unpinned chats: most recently updated first
     return b.updatedAt.localeCompare(a.updatedAt)
   })
 }

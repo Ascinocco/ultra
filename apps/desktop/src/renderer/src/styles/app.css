@@ -1482,6 +1482,12 @@ button {
   flex-shrink: 0;
 }
 
+.chat-row__status-dot--outline {
+  background: transparent;
+  border: 1.5px solid;
+  box-sizing: border-box;
+}
+
 /* ── Chat Context Menu ────────────────────────────────────── */
 
 .chat-context-menu {

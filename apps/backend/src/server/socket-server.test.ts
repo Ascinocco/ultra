@@ -42,7 +42,6 @@ import { FakeSupervisedProcessAdapter } from "../runtime/fake-supervised-process
 import { RuntimePersistenceService } from "../runtime/runtime-persistence-service.js"
 import { RuntimeRegistry } from "../runtime/runtime-registry.js"
 import { RuntimeSupervisor } from "../runtime/runtime-supervisor.js"
-import { WatchService } from "../runtime/watch-service.js"
 import { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
 import { SandboxService } from "../sandboxes/sandbox-service.js"
 import { FakePtyAdapter } from "../terminal/fake-pty-adapter.js"
@@ -67,11 +66,6 @@ async function createServerRuntime(directory: string, socketPath: string) {
   const runtimeSupervisor = new RuntimeSupervisor(
     runtimeRegistry,
     processAdapter,
-  )
-  const watchService = new WatchService(
-    runtimeSupervisor,
-    runtimeRegistry,
-    databaseRuntime.databasePath,
   )
   const projectService = new ProjectService(databaseRuntime.database)
   const sandboxPersistenceService = new SandboxPersistenceService(
@@ -153,7 +147,6 @@ async function createServerRuntime(directory: string, socketPath: string) {
       coordinatorService,
       projectService,
       runtimeRegistry,
-      watchService,
       sandboxService,
       terminalCommandGenService,
       terminalSessionService,
@@ -175,7 +168,6 @@ async function createServerRuntime(directory: string, socketPath: string) {
     coordinatorService,
     runtimeRegistry,
     runtimeSupervisor,
-    watchService,
     sandboxPersistenceService,
     ptyAdapter,
   }
@@ -1554,85 +1546,15 @@ describe("socket server", () => {
     await rm(directory, { recursive: true, force: true })
   })
 
-  it("round-trips global runtime queries and component update subscriptions over the Unix socket", async () => {
+  it("round-trips global runtime queries over the Unix socket", async () => {
     const directory = await mkdtemp(join(tmpdir(), "ultra-ipc-"))
     const socketPath = join(directory, "backend.sock")
-    const { runtime, databaseRuntime, processAdapter, watchService } =
+    const { runtime, databaseRuntime } =
       await createServerRuntime(directory, socketPath)
-
-    const initialListRaw = await request(socketPath, {
-      protocol_version: IPC_PROTOCOL_VERSION,
-      request_id: "req_runtime_globals_initial",
-      type: "query",
-      name: "runtime.list_global_components",
-      payload: {},
-    })
-    const initialListResponse = parseIpcResponseEnvelope(initialListRaw)
-
-    expect(initialListResponse.ok).toBe(true)
-    if (!initialListResponse.ok) {
-      throw new Error("Expected runtime.list_global_components to succeed")
-    }
-
-    expect(
-      parseRuntimeListGlobalComponentsResult(initialListResponse.result)
-        .components,
-    ).toHaveLength(0)
-
-    const connection = await openPersistentConnection(socketPath)
-
-    connection.send({
-      protocol_version: IPC_PROTOCOL_VERSION,
-      request_id: "req_runtime_component_subscribe",
-      type: "subscribe",
-      name: "runtime.component_updated",
-      payload: {},
-    })
-
-    const subscribeResponse = parseIpcResponseEnvelope(
-      await connection.nextMessage(),
-    )
-    expect(subscribeResponse.ok).toBe(true)
-
-    const startedComponent = watchService.ensureRunning()
-    const startedEvent = parseRuntimeComponentUpdatedEvent(
-      parseSubscriptionEventEnvelope(await connection.nextMessage()),
-    )
-
-    expect(startedEvent.payload.componentId).toBe(startedComponent.componentId)
-    expect(startedEvent.payload.componentType).toBe("ov_watch")
-    expect(startedEvent.payload.projectId).toBeNull()
-    expect(startedEvent.payload.status).toBe("healthy")
-
-    processAdapter.spawns[0]?.handle.emitExit({
-      code: 1,
-      signal: null,
-    })
-
-    const degradedEvent = parseRuntimeComponentUpdatedEvent(
-      parseSubscriptionEventEnvelope(await connection.nextMessage()),
-    )
-    expect(degradedEvent.payload.componentId).toBe(startedComponent.componentId)
-    expect(degradedEvent.payload.status).toBe("degraded")
-
-    let recoveredEvent = parseRuntimeComponentUpdatedEvent(
-      parseSubscriptionEventEnvelope(await connection.nextMessage()),
-    )
-
-    if (recoveredEvent.payload.status !== "healthy") {
-      recoveredEvent = parseRuntimeComponentUpdatedEvent(
-        parseSubscriptionEventEnvelope(await connection.nextMessage()),
-      )
-    }
-
-    expect(recoveredEvent.payload.componentId).toBe(
-      startedComponent.componentId,
-    )
-    expect(recoveredEvent.payload.status).toBe("healthy")
 
     const listRaw = await request(socketPath, {
       protocol_version: IPC_PROTOCOL_VERSION,
-      request_id: "req_runtime_globals_after_start",
+      request_id: "req_runtime_globals",
       type: "query",
       name: "runtime.list_global_components",
       payload: {},
@@ -1644,11 +1566,10 @@ describe("socket server", () => {
       throw new Error("Expected runtime.list_global_components to succeed")
     }
 
-    const result = parseRuntimeListGlobalComponentsResult(listResponse.result)
-    expect(result.components).toHaveLength(1)
-    expect(result.components[0]?.componentType).toBe("ov_watch")
+    expect(
+      parseRuntimeListGlobalComponentsResult(listResponse.result).components,
+    ).toHaveLength(0)
 
-    await connection.close()
     await runtime.close()
     databaseRuntime.close()
     await rm(directory, { recursive: true, force: true })

@@ -26,9 +26,6 @@ export const systemRecheckEnvironmentRequestPayloadSchema = z
 
 export const dependencyToolValues = [
   "git",
-  "ov",
-  "tmux",
-  "sd",
   "codex",
   "claude",
   "node",

@@ -29,7 +29,6 @@ import { RuntimePersistenceService } from "./runtime/runtime-persistence-service
 import { RuntimeRegistry } from "./runtime/runtime-registry.js"
 import { RuntimeSupervisor } from "./runtime/runtime-supervisor.js"
 import type { SupervisedProcessAdapter } from "./runtime/supervised-process-adapter.js"
-import { WatchService } from "./runtime/watch-service.js"
 import { WatchdogService } from "./runtime/watchdog-service.js"
 import { SandboxPersistenceService } from "./sandboxes/sandbox-persistence-service.js"
 import { SandboxService } from "./sandboxes/sandbox-service.js"
@@ -77,14 +76,7 @@ export async function startBackendScaffold(options?: {
     runtimeRegistry,
     options?.processAdapter ?? new NodeSupervisedProcessAdapter(),
   )
-  const watchService = new WatchService(
-    runtimeSupervisor,
-    runtimeRegistry,
-    databaseRuntime.databasePath,
-  )
-
   runtimeSupervisor.hydrate()
-  watchService.ensureRunning()
 
   console.log(
     `[backend] database ready at ${databaseRuntime.databasePath} (${databaseRuntime.migrationResult.appliedMigrationIds.length} migrations applied)`,
@@ -206,7 +198,6 @@ export async function startBackendScaffold(options?: {
       coordinatorService,
       projectService,
       runtimeRegistry,
-      watchService,
       sandboxService,
       systemService: new SystemService(),
       terminalCommandGenService,

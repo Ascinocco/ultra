@@ -15,14 +15,14 @@ function makeSnapshot(
     checkedAt: "2026-03-15T00:00:00.000Z",
     checks: [
       {
-        tool: "ov",
-        displayName: "Overstory CLI",
+        tool: "git",
+        displayName: "Git",
         scope: "runtime-required",
         requiredInCurrentSession: true,
         status: status === "blocked" ? "missing" : "ready",
-        detectedVersion: status === "blocked" ? null : "1.0.0",
-        command: "ov --version",
-        helpText: "Install Overstory and ensure `ov` is on PATH.",
+        detectedVersion: status === "blocked" ? null : "2.44.0",
+        command: "git --version",
+        helpText: "Install Git and ensure `git` is on PATH.",
       },
     ],
   }
@@ -41,7 +41,7 @@ describe("environment readiness UI", () => {
     )
 
     expect(markup).toContain("Startup readiness")
-    expect(markup).toContain("Overstory CLI")
+    expect(markup).toContain("Git")
     expect(markup).toContain("missing")
   })
 

@@ -32,7 +32,6 @@ import { routeIpcRequest } from "../ipc/router.js"
 import type { ProjectService } from "../projects/project-service.js"
 import type { CoordinatorService } from "../runtime/coordinator-service.js"
 import type { RuntimeRegistry } from "../runtime/runtime-registry.js"
-import type { WatchService } from "../runtime/watch-service.js"
 import type { SandboxService } from "../sandboxes/sandbox-service.js"
 import { SystemService } from "../system/system-service.js"
 import type { TerminalCommandGenService } from "../terminal/terminal-command-gen-service.js"
@@ -76,7 +75,7 @@ export async function startSocketServer(
     systemService?: SystemService
     projectService: ProjectService
     runtimeRegistry: RuntimeRegistry
-    watchService: WatchService
+
     threadService: ThreadService
     sandboxService: SandboxService
     terminalCommandGenService: TerminalCommandGenService
@@ -165,7 +164,7 @@ async function handleLine(
     systemService: SystemService
     projectService: ProjectService
     runtimeRegistry: RuntimeRegistry
-    watchService: WatchService
+
     threadService: ThreadService
     sandboxService: SandboxService
     terminalCommandGenService: TerminalCommandGenService
@@ -308,7 +307,7 @@ function handleSubscribeRequest(
     systemService: SystemService
     projectService: ProjectService
     runtimeRegistry: RuntimeRegistry
-    watchService: WatchService
+
     threadService: ThreadService
     sandboxService: SandboxService
     terminalCommandGenService: TerminalCommandGenService

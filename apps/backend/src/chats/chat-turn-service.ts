@@ -329,11 +329,18 @@ export class ChatTurnService {
     try {
       this.assertNoActiveTurnForChat(input.chatId, database)
 
+      const attachmentMeta = input.attachments && input.attachments.length > 0
+        ? input.attachments.map((a) => ({ name: a.name, type: a.type, media_type: a.media_type }))
+        : undefined
+
       const userMessage = this.chatService.appendMessage({
         chatId: input.chatId,
         role: "user",
         messageType: "user_text",
         contentMarkdown: normalizedPrompt,
+        ...(attachmentMeta ? {
+          structuredPayloadJson: JSON.stringify({ attachments: attachmentMeta }),
+        } : {}),
       })
 
       database

@@ -82,7 +82,21 @@ export class CodexChatRuntimeAdapter implements ChatRuntimeAdapter {
 
     // Build turn input
     const promptText = buildSeededPrompt(request)
-    const turnInput = [{ type: "text" as const, text: promptText, text_elements: [] as never[] }]
+    const turnInput: Array<{ type: "text"; text: string; text_elements: never[] } | { type: "image"; url: string }> = []
+
+    if (request.attachments && request.attachments.length > 0) {
+      for (const attachment of request.attachments) {
+        if (attachment.type === "image") {
+          turnInput.push({ type: "image", url: `data:${attachment.media_type};base64,${attachment.data}` })
+        } else {
+          // Inline text files into the prompt prefix
+          const decoded = Buffer.from(attachment.data, "base64").toString("utf-8")
+          turnInput.push({ type: "text", text: `[File: ${attachment.name}]\n${decoded}`, text_elements: [] as never[] })
+        }
+      }
+    }
+
+    turnInput.push({ type: "text", text: promptText, text_elements: [] as never[] })
 
     // Prepare to collect events
     const collectedEvents: ChatRuntimeEvent[] = []

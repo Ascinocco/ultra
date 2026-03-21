@@ -396,6 +396,35 @@
   accent-color: #5b8def;
 }
 
+/* --- Attachment Badges --- */
+
+.chat-message__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chat-message__attachment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #8494b0;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.chat-message__attachment-badge--image {
+  border-left: 2px solid #c792ea;
+}
+
+.chat-message__attachment-badge--text {
+  border-left: 2px solid #5b8def;
+}
+
 /* --- Typing Indicator --- */
 
 .chat-message__typing {
