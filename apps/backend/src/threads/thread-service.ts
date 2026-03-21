@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto"
+import { readFileSync, existsSync } from "node:fs"
 import type { DatabaseSync } from "node:sqlite"
 import type {
   ChatsPromoteToThreadInput,
@@ -659,7 +660,6 @@ export class ThreadService {
     if (artifactPaths.size === 0) return []
 
     // Read files from disk
-    const { readFileSync, existsSync } = require("node:fs") as typeof import("node:fs")
     const artifacts: Array<{ type: "artifact"; path: string; content: string }> = []
 
     for (const filePath of artifactPaths) {
