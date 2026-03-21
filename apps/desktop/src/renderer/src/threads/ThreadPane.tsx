@@ -1,6 +1,7 @@
 import type { ThreadMessageSnapshot, ThreadSnapshot } from "@ultra/shared"
 import { useEffect } from "react"
 
+import type { StreamingBlock } from "../chats/streaming/streaming-types.js"
 import { ThreadCard } from "./ThreadCard.js"
 import { ThreadDetail } from "./ThreadDetail.js"
 
@@ -8,6 +9,9 @@ export function ThreadPane({
   threads,
   selectedThreadId,
   messagesByThreadId,
+  streamingBlocksByThreadId,
+  isStreamingByThreadId,
+  activeThreadTurnId,
   fetchStatus,
   onSelectThread,
   onFetchMessages,
@@ -16,10 +20,13 @@ export function ThreadPane({
   threads: ThreadSnapshot[]
   selectedThreadId: string | null
   messagesByThreadId: Record<string, ThreadMessageSnapshot[]>
+  streamingBlocksByThreadId: Record<string, StreamingBlock[] | null>
+  isStreamingByThreadId: Record<string, boolean>
+  activeThreadTurnId: string | null
   fetchStatus: "idle" | "loading" | "error"
   onSelectThread: (threadId: string | null) => void
   onFetchMessages: (threadId: string) => void
-  onSendMessage: (threadId: string, content: string) => void
+  onSendMessage: (threadId: string, content: string, files: File[]) => void
 }) {
   const selectedThread = selectedThreadId
     ? (threads.find((t) => t.id === selectedThreadId) ?? null)
@@ -58,10 +65,13 @@ export function ThreadPane({
         <ThreadDetail
           thread={selectedThread}
           messages={messagesByThreadId[selectedThread.id] ?? []}
-          events={[]}
-          eventsLoading={false}
+          streamingBlocks={streamingBlocksByThreadId[selectedThread.id] ?? null}
+          isStreaming={isStreamingByThreadId[selectedThread.id] ?? false}
+          isCoordinatorActive={activeThreadTurnId === selectedThread.id}
           onBack={() => onSelectThread(null)}
-          onSendMessage={(content) => onSendMessage(selectedThread.id, content)}
+          onSendMessage={(content, files) =>
+            onSendMessage(selectedThread.id, content, files)
+          }
         />
       </div>
     )
