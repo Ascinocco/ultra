@@ -818,10 +818,25 @@ export function ChatPageShell({
     [activeChat, activeChatId, actions],
   )
 
-  const handleSend = (prompt: string, _attachments: File[]) => {
+  const handleSend = (prompt: string, attachments: File[]) => {
     if (!activeChatId || !activeChat || !prompt.trim() || chatInputDisabled) return
 
     const run = async () => {
+      // Serialize file attachments to base64
+      const serializedAttachments = await Promise.all(
+        attachments.map(async (file) => {
+          const buffer = await file.arrayBuffer()
+          const data = btoa(
+            new Uint8Array(buffer).reduce((s, b) => s + String.fromCharCode(b), ""),
+          )
+          return {
+            type: (file.type.startsWith("image/") ? "image" : "text") as "image" | "text",
+            name: file.name,
+            media_type: file.type || "application/octet-stream",
+            data,
+          }
+        }),
+      )
       const firstTurnRuntimeConfig =
         isPreSendRuntimeConfig && runtimeDraftDirty
           ? {
@@ -838,6 +853,7 @@ export function ChatPageShell({
         actions,
         undefined,
         firstTurnRuntimeConfig,
+        serializedAttachments.length > 0 ? serializedAttachments : undefined,
       )
 
       const replayResult = await replayChatTurnEvents(

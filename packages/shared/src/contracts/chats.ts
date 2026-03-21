@@ -189,10 +189,18 @@ export const chatsSendMessageInputSchema = z.object({
   prompt: z.string().min(1),
 })
 
+export const chatAttachmentSchema = z.object({
+  type: z.enum(["image", "text"]),
+  name: z.string(),
+  media_type: z.string(),
+  data: z.string(), // base64 encoded
+})
+
 export const chatsStartTurnInputSchema = z.object({
   chat_id: chatIdSchema,
   prompt: z.string().min(1),
   client_turn_id: z.string().min(1).optional(),
+  attachments: z.array(chatAttachmentSchema).optional(),
 })
 
 export const chatsCancelTurnInputSchema = z.object({

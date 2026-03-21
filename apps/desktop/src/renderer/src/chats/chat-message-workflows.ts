@@ -76,6 +76,7 @@ export async function startChatTurn(
   actions: StartChatTurnActions,
   client: WorkflowClient = ipcClient,
   runtimeConfig?: StartChatTurnRuntimeConfig,
+  attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>,
 ): Promise<ChatsStartTurnResult> {
   actions.setChatTurnSendState(chatId, "starting")
 
@@ -94,6 +95,7 @@ export async function startChatTurn(
       chat_id: chatId,
       prompt,
       client_turn_id: createClientTurnId(),
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
     })
     const parsed = parseChatsStartTurnResult(result)
     actions.upsertChatTurn(chatId, parsed.turn)

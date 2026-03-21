@@ -140,9 +140,39 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
         : {}),
     }
 
-    // Use query() with string prompt — single-turn, yields streaming events including content_block_delta
+    // Build prompt — string for text-only, SDKUserMessage for multimodal
     const queryFn = this.config.queryFn ?? query
-    const queryRuntime = queryFn({ prompt: request.prompt, options })
+    let prompt: string | any = request.prompt
+
+    if (request.attachments && request.attachments.length > 0) {
+      const content: any[] = []
+      for (const attachment of request.attachments) {
+        if (attachment.type === "image") {
+          content.push({
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: attachment.media_type,
+              data: attachment.data,
+            },
+          })
+        } else {
+          content.push({
+            type: "text",
+            text: `[File: ${attachment.name}]\n${Buffer.from(attachment.data, "base64").toString("utf-8")}`,
+          })
+        }
+      }
+      content.push({ type: "text", text: request.prompt })
+      prompt = {
+        type: "user" as const,
+        message: { role: "user" as const, content },
+        parent_tool_use_id: null,
+        session_id: "",
+      }
+    }
+
+    const queryRuntime = queryFn({ prompt, options })
 
     const collectedEvents: ChatRuntimeEvent[] = []
     let finalText = ""

@@ -31,6 +31,7 @@ export type ChatRuntimeTurnRequest = {
   continuationPrompt: string | null
   seedMessages: ChatMessageSnapshot[]
   vendorSessionId: string | null
+  attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>
   signal?: AbortSignal
   onEvent?: (event: ChatRuntimeEvent) => void
 }

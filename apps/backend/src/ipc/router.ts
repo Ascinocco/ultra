@@ -462,7 +462,7 @@ export async function routeIpcRequest(
       }
       case "chats.start_turn": {
         const startTurnCommand = assertCommandRequest(request)
-        const { chat_id, prompt, client_turn_id } =
+        const { chat_id, prompt, client_turn_id, attachments } =
           chatsStartTurnInputSchema.parse(startTurnCommand.payload)
         return createSuccessResponse(
           startTurnCommand.request_id,
@@ -470,6 +470,7 @@ export async function routeIpcRequest(
             chatId: chat_id,
             prompt,
             ...(client_turn_id !== undefined ? { clientTurnId: client_turn_id } : {}),
+            ...(attachments && attachments.length > 0 ? { attachments } : {}),
           }),
         )
       }

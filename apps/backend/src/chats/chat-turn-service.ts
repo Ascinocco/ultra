@@ -163,6 +163,7 @@ type QueuedTurnRow = {
 type ClaimedTurn = {
   turnId: ChatTurnId
   prompt: string
+  attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>
   events: ChatTurnEventSnapshot[]
 }
 
@@ -245,6 +246,7 @@ export class ChatTurnService {
     Set<ChatTurnEventListener>
   >()
   private readonly processingChatIds = new Set<ChatId>()
+  private readonly pendingAttachments = new Map<string, Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>>()
   private readonly turnAbortControllers = new Map<string, AbortController>()
 
   constructor(
@@ -265,6 +267,7 @@ export class ChatTurnService {
     chatId: ChatId
     prompt: string
     clientTurnId?: string
+    attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>
   }): ChatsStartTurnResult {
     const normalizedPrompt = input.prompt.trim()
     if (normalizedPrompt.length === 0) {
@@ -386,6 +389,10 @@ export class ChatTurnService {
     } catch (error) {
       database.exec("ROLLBACK")
       throw error
+    }
+
+    if (input.attachments && input.attachments.length > 0) {
+      this.pendingAttachments.set(turnId, input.attachments)
     }
 
     this.notifyTurnEventListeners(queuedEvent)
@@ -975,9 +982,15 @@ export class ChatTurnService {
       })
       database.exec("COMMIT")
 
+      const attachments = this.pendingAttachments.get(nextQueued.turn_id)
+      if (attachments) {
+        this.pendingAttachments.delete(nextQueued.turn_id)
+      }
+
       return {
         turnId: nextQueued.turn_id,
         prompt: nextQueued.prompt,
+        attachments,
         events: [startedEvent, progressEvent],
       }
     } catch (error) {
@@ -1030,6 +1043,7 @@ export class ChatTurnService {
         session?.vendorSessionId ?? null,
         abortController.signal,
         streamingOnEvent,
+        claimed.attachments,
       )
 
       this.notifyTurnEvents(
@@ -1842,6 +1856,7 @@ export class ChatTurnService {
     vendorSessionId: string | null,
     signal?: AbortSignal,
     onEvent?: (event: ChatRuntimeEvent) => void,
+    attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>,
   ) {
     const adapter = this.runtimeRegistry.get(chat.provider)
 
@@ -1855,6 +1870,7 @@ export class ChatTurnService {
         continuationPrompt,
         seedMessages,
         vendorSessionId,
+        attachments,
         signal,
         onEvent,
       })
@@ -1874,6 +1890,7 @@ export class ChatTurnService {
         continuationPrompt,
         seedMessages,
         vendorSessionId: null,
+        attachments,
         signal,
         onEvent,
       })
