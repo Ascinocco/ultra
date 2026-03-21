@@ -83,6 +83,7 @@ export const subscriptionMethodSchema = z.enum([
   "chats.messages",
   "chats.turn_events",
   "threads.messages",
+  "threads.turn_events",
   "terminal.sessions",
   "terminal.output",
   "terminal.generate_command",

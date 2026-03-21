@@ -565,3 +565,10 @@ export function parseThreadFileChangeSnapshot(
 ): ThreadFileChangeSnapshot {
   return threadFileChangeSnapshotSchema.parse(input)
 }
+
+export {
+  threadTurnEventSnapshotSchema,
+  type ThreadTurnEventSnapshot,
+  threadsTurnEventsSubscribeInputSchema,
+  parseThreadsTurnEventsEvent,
+} from "./thread-turn-events.js"

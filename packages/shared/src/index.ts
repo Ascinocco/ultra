@@ -672,4 +672,10 @@ export {
   threadTicketRefMetadataSchema,
   threadTicketRefSnapshotSchema,
 } from "./contracts/threads.js"
+export {
+  threadTurnEventSnapshotSchema,
+  type ThreadTurnEventSnapshot,
+  threadsTurnEventsSubscribeInputSchema,
+  parseThreadsTurnEventsEvent,
+} from "./contracts/thread-turn-events.js"
 export { sanitize, sanitizeObject } from "./utils/sanitizer.js"
