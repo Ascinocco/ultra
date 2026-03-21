@@ -12,6 +12,7 @@ import type {
   ChatsStartTurnResult,
 } from "@ultra/shared"
 
+import { saveAttachments } from "./attachment-storage.js"
 import { IpcProtocolError } from "../ipc/errors.js"
 import type {
   ChatMessageSnapshot,
@@ -415,6 +416,9 @@ export class ChatTurnService {
 
     if (input.attachments && input.attachments.length > 0) {
       this.pendingAttachments.set(turnId, input.attachments)
+      // Persist to disk so attachments survive for thread promotion
+      const userMsgId = (queuedEvent.payload as { user_message_id?: string }).user_message_id
+      if (userMsgId) saveAttachments(userMsgId, input.attachments)
     }
 
     this.notifyTurnEventListeners(queuedEvent)

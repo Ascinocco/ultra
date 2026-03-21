@@ -29,6 +29,7 @@ import type {
 } from "@ultra/shared"
 
 import type { ChatService } from "../chats/chat-service.js"
+import { loadAttachments } from "../chats/attachment-storage.js"
 import { IpcProtocolError } from "../ipc/errors.js"
 import { ThreadEventService } from "./thread-event-service.js"
 import { ThreadProjectionService } from "./thread-projection-service.js"
@@ -483,13 +484,14 @@ export class ThreadService {
       role: string
       messageType: string
       content: string | null
+      attachments?: Array<{ type: string; name: string; media_type: string; data: string }>
     }> = []
 
     for (const messageId of input.context_message_ids) {
       const row = this.database
         .prepare(
           `
-            SELECT id, role, message_type, content_markdown
+            SELECT id, role, message_type, content_markdown, structured_payload_json
             FROM chat_messages
             WHERE id = ?
           `,
@@ -500,6 +502,7 @@ export class ThreadService {
             role: string
             message_type: string
             content_markdown: string | null
+            structured_payload_json: string | null
           }
         | undefined
 
@@ -510,11 +513,26 @@ export class ThreadService {
         )
       }
 
+      // Check if this message has attachments and load them from disk
+      let attachments: Array<{ type: string; name: string; media_type: string; data: string }> | undefined
+      if (row.structured_payload_json) {
+        try {
+          const payload = JSON.parse(row.structured_payload_json)
+          if (payload.attachments && Array.isArray(payload.attachments)) {
+            const stored = loadAttachments(row.id)
+            if (stored.length > 0) {
+              attachments = stored
+            }
+          }
+        } catch { /* ignore parse errors */ }
+      }
+
       contextMessages.push({
         id: row.id,
         role: row.role,
         messageType: row.message_type,
         content: row.content_markdown,
+        ...(attachments ? { attachments } : {}),
       })
     }
 
