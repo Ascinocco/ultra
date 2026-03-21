@@ -186,34 +186,6 @@ export async function replayChatTurnEvents(
   return parsed
 }
 
-type ApprovalActions = Pick<AppActions, "upsertChatMessage">
-
-export async function approvePlan(
-  chatId: string,
-  actions: ApprovalActions,
-  client: WorkflowClient = ipcClient,
-): Promise<ChatMessageSnapshot> {
-  const result = await client.command("chats.approve_plan", {
-    chat_id: chatId,
-  })
-  const approval = parseChatMessageSnapshot(result)
-  actions.upsertChatMessage(chatId, approval)
-  return approval
-}
-
-export async function approveSpecs(
-  chatId: string,
-  actions: ApprovalActions,
-  client: WorkflowClient = ipcClient,
-): Promise<ChatMessageSnapshot> {
-  const result = await client.command("chats.approve_specs", {
-    chat_id: chatId,
-  })
-  const approval = parseChatMessageSnapshot(result)
-  actions.upsertChatMessage(chatId, approval)
-  return approval
-}
-
 type StartThreadFromChatClient = Pick<typeof ipcClient, "command">
 
 export async function startThreadFromChat(

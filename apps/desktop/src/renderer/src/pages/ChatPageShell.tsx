@@ -8,14 +8,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { ChatMessage } from "../chat-message/ChatMessage"
 
-import { ApprovalBar } from "../chats/approval-bar/ApprovalBar.js"
 import { InputDock } from "../chats/input-dock/InputDock.js"
 import { ApprovalDivider } from "../chats/approval-divider/ApprovalDivider.js"
 import type { ApprovalDividerProps } from "../chats/approval-divider/ApprovalDivider.js"
 import { PromoteDrawer } from "../chats/promote-drawer/PromoteDrawer.js"
 import {
-  approvePlan,
-  approveSpecs,
   cancelChatTurn,
   createPlanMarker,
   fetchChatMessages,
@@ -37,7 +34,6 @@ import {
   getProviderForModel,
   type RuntimeProvider,
 } from "../runtime-options.js"
-import { useApprovalState } from "../chats/hooks/useApprovalState.js"
 import { useAutoScroll } from "../chats/hooks/useAutoScroll.js"
 import { useStreamingBlocks } from "../chats/hooks/useStreamingBlocks.js"
 import { StreamingMessage } from "../chats/streaming/StreamingMessage.js"
@@ -383,7 +379,6 @@ export function ChatPageShell({
   const activeChatMessages = activeChatId
     ? (chatMessages.messagesByChatId[activeChatId] ?? [])
     : []
-  const approvalState = useApprovalState(activeChatMessages)
   const [planMarkerOpen, setPlanMarkerOpen] = useState(false)
 
   const contextMessageIds = activeChatMessages ? gatherPromoteContext(activeChatMessages) : []
@@ -407,24 +402,6 @@ export function ChatPageShell({
     const title = `Thread: ${activeChat.title}`
     await promoteToThread(activeChatId, title, contextMessageIds)
     await fetchChatMessages(activeChatId, actions)
-  }
-
-  const handleApprovePlan = async () => {
-    await approvePlan(activeChatId!, actions)
-  }
-
-  const handleApproveSpecs = async () => {
-    await approveSpecs(activeChatId!, actions)
-  }
-
-  const handleStartWork = async () => {
-    await startThreadFromChat({
-      chatId: activeChatId!,
-      title: activeChat!.title,
-      planApprovalMessageId: approvalState.planApprovalMessageId!,
-      specApprovalMessageId: approvalState.specApprovalMessageId!,
-      confirmStart: true,
-    })
   }
 
   const chatMessagesFetchStatus = activeChatId
