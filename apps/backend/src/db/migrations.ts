@@ -669,4 +669,8 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
       ALTER TABLE threads ADD COLUMN seed_context_json TEXT;
     `,
   },
+  {
+    id: "0015_thread_vendor_session",
+    sql: `ALTER TABLE threads ADD COLUMN vendor_session_id TEXT;`,
+  },
 ]
