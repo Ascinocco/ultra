@@ -15,6 +15,7 @@ const VERB_MAP: Record<string, string> = {
   Glob: "Searched",
   WebSearch: "Searched",
   WebFetch: "Fetched",
+  Skill: "Using",
   commandExecution: "Ran",
   command_execution: "Ran",
   fileChange: "Edited",
@@ -47,15 +48,16 @@ function groupTools(tools: ToolEntry[]): Array<{ type: string; tools: ToolEntry[
 }
 
 function ToolLine({ tool }: { tool: ToolEntry }): ReactElement {
+  const isSkill = tool.toolName === "Skill"
   const verb = getVerb(tool.toolName)
   const detail = formatDetail(tool)
   const isRunning = tool.status === "running"
 
   return (
-    <div className={`tool-inline ${isRunning ? "tool-inline--running" : ""}`}>
+    <div className={`tool-inline ${isRunning ? "tool-inline--running" : ""} ${isSkill ? "tool-inline--skill" : ""}`}>
       <span className="tool-inline__verb">{verb}</span>
       {" "}
-      <span className="tool-inline__detail">{detail}</span>
+      <span className="tool-inline__detail">{isSkill ? `${detail} skill` : detail}</span>
       {isRunning && <span className="tool-inline__dot">●</span>}
     </div>
   )

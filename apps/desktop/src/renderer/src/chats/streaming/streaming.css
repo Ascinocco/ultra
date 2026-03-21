@@ -20,6 +20,10 @@
   color: var(--text-secondary);
 }
 
+.tool-inline--skill {
+  color: #e0af68;
+}
+
 .tool-inline--summary {
   background: none;
   border: none;
