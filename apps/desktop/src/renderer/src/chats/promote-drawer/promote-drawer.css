@@ -1,0 +1,37 @@
+.promote-drawer__lip {
+  display: flex;
+  justify-content: center;
+  padding: 3px 0;
+  background: #1e2030;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+
+.promote-drawer__lip:hover { background: #232538; }
+
+.promote-drawer__expanded {
+  background: #1e2030;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.promote-drawer__chevron { cursor: pointer; flex-shrink: 0; color: #565f89; }
+.promote-drawer__info { flex: 1; display: flex; align-items: center; justify-content: space-between; }
+.promote-drawer__label { color: #c0caf5; font-size: 12px; font-weight: 500; }
+.promote-drawer__count { color: #565f89; font-size: 11px; margin-left: 8px; }
+
+.promote-drawer__button {
+  background: rgba(187, 154, 247, 0.15);
+  color: #bb9af7;
+  border: 1px solid rgba(187, 154, 247, 0.3);
+  border-radius: 5px;
+  padding: 4px 12px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.promote-drawer__button:hover { background: rgba(187, 154, 247, 0.25); }
+.promote-drawer__button:disabled { opacity: 0.4; cursor: default; }
