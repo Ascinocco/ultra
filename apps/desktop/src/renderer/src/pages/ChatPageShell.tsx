@@ -360,6 +360,7 @@ export function ChatPageShell({
   const turnSequenceRef = useRef<Record<string, number>>({})
   const [drawerHeight, setDrawerHeight] = useState(DEFAULT_DRAWER_HEIGHT)
   const [isDragging, setIsDragging] = useState(false)
+  const [referencesOpen, setReferencesOpen] = useState(false)
   const activeChatId = activeProjectId
     ? (layout.byProjectId[activeProjectId]?.activeChatId ?? null)
     : null
@@ -922,17 +923,15 @@ export function ChatPageShell({
                     <h3 className="active-chat-pane__section-title">
                       Transcript
                     </h3>
-                    <div className="active-chat-pane__meta-row">
-                      <span className="active-chat-pane__meta">
-                        {activeChat.provider} · {activeChat.model}
-                      </span>
-                      <span
-                        className="active-chat-pane__turn-status"
-                        data-status={activeTurn?.status ?? "idle"}
-                      >
-                        {formatTurnStatusLabel(activeTurn?.status ?? "idle")}
-                      </span>
-                    </div>
+                    <button
+                      type="button"
+                      className="active-chat-pane__debug-toggle"
+                      onClick={() => setReferencesOpen((prev) => !prev)}
+                      title="Toggle debug info"
+                      aria-label="Toggle references panel"
+                    >
+                      ℹ
+                    </button>
                   </div>
                   <div className="active-chat-pane__transcript-scroll" ref={transcriptScrollRef}>
                     {chatMessagesFetchStatus === "loading" &&
@@ -1004,6 +1003,7 @@ export function ChatPageShell({
                   </div>
                 </section>
 
+                {referencesOpen && (
                 <aside
                   className="active-chat-pane__references"
                   aria-label="Chat references"
@@ -1046,6 +1046,7 @@ export function ChatPageShell({
                     </div>
                   </dl>
                 </aside>
+                )}
               </div>
 
               {activeChat ? (
