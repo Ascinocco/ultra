@@ -1003,7 +1003,6 @@ export function ChatPageShell({
                   </div>
                 </section>
 
-                {referencesOpen && (
                 <aside
                   className="active-chat-pane__references"
                   aria-label="Chat references"
@@ -1046,7 +1045,6 @@ export function ChatPageShell({
                     </div>
                   </dl>
                 </aside>
-                )}
               </div>
 
               {activeChat ? (

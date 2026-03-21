@@ -618,10 +618,21 @@ button {
   grid-template-columns: minmax(0, 1fr) 240px;
   min-height: 0;
   flex: 1;
+  transition: grid-template-columns 0.25s ease;
 }
 
 .active-chat-pane__body--refs-hidden {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 0px;
+}
+
+.active-chat-pane__references {
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.active-chat-pane__body--refs-hidden .active-chat-pane__references {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .active-chat-pane__transcript {
