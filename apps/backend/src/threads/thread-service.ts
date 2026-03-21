@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import type { DatabaseSync } from "node:sqlite"
 import type {
+  ChatsPromoteToThreadInput,
   ChatsPromoteWorkToThreadInput,
   ChatsStartThreadInput,
   ProjectId,
@@ -27,6 +28,7 @@ import type {
   ThreadTicketRefSnapshot,
 } from "@ultra/shared"
 
+import type { ChatService } from "../chats/chat-service.js"
 import { IpcProtocolError } from "../ipc/errors.js"
 import { ThreadEventService } from "./thread-event-service.js"
 import { ThreadProjectionService } from "./thread-projection-service.js"
@@ -470,6 +472,119 @@ export class ThreadService {
     return this.getThread(threadId)
   }
 
+  promoteToThread(
+    input: ChatsPromoteToThreadInput,
+    chatService: ChatService,
+  ): ThreadDetailResult {
+    const chat = this.assertChatExists(input.chat_id)
+
+    const contextMessages: Array<{
+      id: string
+      role: string
+      messageType: string
+      content: string | null
+    }> = []
+
+    for (const messageId of input.context_message_ids) {
+      const row = this.database
+        .prepare(
+          `
+            SELECT id, role, message_type, content_markdown
+            FROM chat_messages
+            WHERE id = ?
+          `,
+        )
+        .get(messageId) as
+        | {
+            id: string
+            role: string
+            message_type: string
+            content_markdown: string | null
+          }
+        | undefined
+
+      if (!row) {
+        throw new IpcProtocolError(
+          "not_found",
+          `Chat message not found: ${messageId}`,
+        )
+      }
+
+      contextMessages.push({
+        id: row.id,
+        role: row.role,
+        messageType: row.message_type,
+        content: row.content_markdown,
+      })
+    }
+
+    const seedContextJson = JSON.stringify(contextMessages)
+
+    const startRequestMessage = chatService.appendMessage({
+      chatId: input.chat_id,
+      role: "user",
+      messageType: "thread_start_request",
+      contentMarkdown: `Promote to thread: ${input.title}`,
+      structuredPayloadJson: JSON.stringify({
+        type: "promote_to_thread",
+        title: input.title,
+        contextMessageIds: input.context_message_ids,
+      }),
+    })
+
+    const threadId = this.createThreadWithInitialEvent(
+      {
+        chatId: input.chat_id,
+        projectId: chat.project_id,
+        title: input.title,
+        summary: null,
+        createdByMessageId: startRequestMessage.id,
+      },
+      [],
+      [],
+      this.buildCreatedPayload({
+        chatId: input.chat_id,
+        title: input.title,
+        summary: null,
+        specRefs: [],
+        ticketRefs: [],
+        creationSource: "promotion",
+        promotionSummary: `Promoted from chat with ${input.context_message_ids.length} context message(s).`,
+        carriedMessageIds: input.context_message_ids,
+      }),
+      seedContextJson,
+    )
+
+    const thread = this.getThread(threadId)
+
+    if (this.coordinatorDispatchHandler) {
+      try {
+        this.coordinatorDispatchHandler.startThread({
+          input: {
+            chat_id: input.chat_id,
+            title: input.title,
+            summary: null,
+            spec_refs: [],
+            ticket_refs: [],
+            plan_approval_message_id: "",
+            spec_approval_message_id: "",
+            start_request_message_id: startRequestMessage.id,
+            confirm_start: true,
+          },
+          thread,
+        })
+      } catch (error) {
+        this.recordDispatchFailure(
+          thread.thread.projectId,
+          thread.thread.id,
+          error instanceof Error ? error.message : String(error),
+        )
+      }
+    }
+
+    return this.getThread(threadId)
+  }
+
   listByProject(projectId: ProjectId): ThreadsListResult {
     this.assertProjectExists(projectId)
 
@@ -900,6 +1015,7 @@ export class ThreadService {
     specRefs: ThreadSpecRefInput[],
     ticketRefs: ThreadTicketRefInput[],
     eventPayload: ThreadCreatedEventPayload,
+    seedContextJson?: string,
   ): ThreadId {
     const timestamp = this.now()
     const threadId = `thread_${randomUUID()}`
@@ -936,12 +1052,13 @@ export class ThreadService {
               restart_count,
               failure_reason,
               created_by_message_id,
+              seed_context_json,
               created_at,
               updated_at,
               last_activity_at,
               approved_at,
               completed_at
-            ) VALUES (?, ?, ?, ?, ?, 'queued', 'not_ready', 'not_requested', 'healthy', 'healthy', 'healthy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, NULL, ?, ?, ?, NULL, NULL, NULL)
+            ) VALUES (?, ?, ?, ?, ?, 'queued', 'not_ready', 'not_requested', 'healthy', 'healthy', 'healthy', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, NULL, ?, ?, ?, ?, NULL, NULL, NULL)
           `,
         )
         .run(
@@ -951,6 +1068,7 @@ export class ThreadService {
           threadInput.title,
           threadInput.summary ?? null,
           threadInput.createdByMessageId,
+          seedContextJson ?? null,
           timestamp,
           timestamp,
         )

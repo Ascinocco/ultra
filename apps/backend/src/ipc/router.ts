@@ -18,6 +18,7 @@ import {
   chatsListInputSchema,
   chatsListTurnsInputSchema,
   chatsPinInputSchema,
+  chatsPromoteToThreadInputSchema,
   chatsPromoteWorkToThreadInputSchema,
   chatsRenameInputSchema,
   chatsRestoreInputSchema,
@@ -701,6 +702,19 @@ export async function routeIpcRequest(
           promoteCommand.request_id,
           services.threadService.promoteWorkToThread(
             chatsPromoteWorkToThreadInputSchema.parse(promoteCommand.payload),
+          ),
+        )
+      }
+      case "chats.promote_to_thread": {
+        const promoteCommand = assertCommandRequest(request)
+        const parsed = chatsPromoteToThreadInputSchema.parse(
+          promoteCommand.payload,
+        )
+        return createSuccessResponse(
+          promoteCommand.request_id,
+          services.threadService.promoteToThread(
+            parsed,
+            services.chatService,
           ),
         )
       }
