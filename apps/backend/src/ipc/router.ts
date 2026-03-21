@@ -686,7 +686,7 @@ export async function routeIpcRequest(
         const listQuery = assertQueryRequest(request)
         return createSuccessResponse(
           listQuery.request_id,
-          services.sandboxService.list(
+          await services.sandboxService.list(
             sandboxesListInputSchema.parse(listQuery.payload).project_id,
           ),
         )

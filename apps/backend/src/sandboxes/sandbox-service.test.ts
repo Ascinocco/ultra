@@ -81,7 +81,7 @@ afterEach(() => {
 })
 
 describe("SandboxService", () => {
-  it("lists at least the main checkout sandbox and keeps it first", () => {
+  it("lists at least the main checkout sandbox and keeps it first", async () => {
     const { databasePath, firstProjectPath } = createWorkspace()
     const runtime = bootstrapDatabase({ ULTRA_DB_PATH: databasePath })
     const projectService = new ProjectService(runtime.database)
@@ -108,7 +108,7 @@ describe("SandboxService", () => {
     })
     sandboxService.setActive(project.id, threadSandbox.sandboxId)
 
-    const listed = sandboxService.list(project.id)
+    const listed = await sandboxService.list(project.id)
 
     expect(listed.sandboxes).toHaveLength(2)
     expect(listed.sandboxes[0]).toMatchObject({

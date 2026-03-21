@@ -23,7 +23,13 @@ export class SandboxService {
     this.activationSyncHandler = handler
   }
 
-  list(projectId: ProjectId): { sandboxes: SandboxContextSnapshot[] } {
+  async list(projectId: ProjectId): Promise<{ sandboxes: SandboxContextSnapshot[] }> {
+    // Reconcile user worktrees before listing
+    const gitRootPath = this.getProjectGitRoot(projectId)
+    if (gitRootPath) {
+      await this.reconcileWorktrees(projectId, gitRootPath)
+    }
+
     return {
       sandboxes: this.persistenceService.listSandboxes(projectId),
     }
@@ -59,6 +65,17 @@ export class SandboxService {
     threadId: string,
   ): SandboxContextSnapshot | null {
     return this.persistenceService.findThreadSandbox(projectId, threadId)
+  }
+
+  private getProjectGitRoot(projectId: ProjectId): string | null {
+    try {
+      // Look up the project's gitRootPath from the database via persistence service
+      const sandboxes = this.persistenceService.listSandboxes(projectId)
+      const main = sandboxes.find((s) => s.isMainCheckout)
+      return main?.path ?? null
+    } catch {
+      return null
+    }
   }
 
   /**
