@@ -75,7 +75,7 @@ export class ThreadTurnService {
 
     try {
       const { textPrompt, attachments } =
-        buildCoordinatorPrompt(seedContextJson)
+        buildCoordinatorPrompt(seedContextJson, thread.projectId)
 
       const result = await this.runtimeAdapter.runTurn({
         chatId: thread.sourceChatId,
@@ -187,7 +187,7 @@ export class ThreadTurnService {
         }
 
         const { textPrompt, attachments } =
-          buildCoordinatorPrompt(seedContextJson)
+          buildCoordinatorPrompt(seedContextJson, thread.projectId)
         const freshPrompt = `${textPrompt}\n\n## Follow-up Message\n\n${content}`
 
         const result = await this.runtimeAdapter.runTurn({

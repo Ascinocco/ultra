@@ -11,7 +11,7 @@ const COORDINATOR_INSTRUCTIONS = `You are a thread coordinator executing an impl
 Before doing ANYTHING else — before reading files, before looking at the plan, before dispatching subagents — you MUST complete these setup steps IN ORDER:
 
 Step 1: Create a worktree using the using-git-worktrees skill.
-Step 2: Call the sync_runtime_files tool to copy environment files into the worktree.
+Step 2: Call the sync_runtime_files tool with project_id = "PROJECT_ID_PLACEHOLDER" and the worktree path to copy environment files (.env, .ultra, etc.) into the worktree.
 
 Do NOT skip these steps. Do NOT read files or start work before the worktree is ready.
 If you find yourself wanting to "just quickly check" something first — STOP. Create the worktree first.
@@ -31,7 +31,7 @@ The plan and spec content may be included below in the Planning Context. If not,
 
 `
 
-export function buildCoordinatorPrompt(seedContextJson: string): CoordinatorPromptParts {
+export function buildCoordinatorPrompt(seedContextJson: string, projectId?: string): CoordinatorPromptParts {
   const seedContext = JSON.parse(seedContextJson) as {
     messages?: Array<{
       id: string
@@ -43,7 +43,10 @@ export function buildCoordinatorPrompt(seedContextJson: string): CoordinatorProm
     artifacts?: Array<{ type: string; path: string; content: string }>
   }
 
-  const parts: string[] = [COORDINATOR_INSTRUCTIONS]
+  const instructions = projectId
+    ? COORDINATOR_INSTRUCTIONS.replace("PROJECT_ID_PLACEHOLDER", projectId)
+    : COORDINATOR_INSTRUCTIONS
+  const parts: string[] = [instructions]
   const allAttachments: StoredAttachment[] = []
 
   // Format messages
