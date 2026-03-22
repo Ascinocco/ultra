@@ -2081,6 +2081,13 @@ button {
   margin: 0;
 }
 
+/* ── Thread Input Stack ──────────────────────────────────────────── */
+
+.thread-input-stack {
+  position: relative;
+  flex-shrink: 0;
+}
+
 /* ── Thread Input Dock ───────────────────────────────────────────── */
 
 .thread-input-dock {

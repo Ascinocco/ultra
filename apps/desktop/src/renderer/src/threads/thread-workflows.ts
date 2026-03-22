@@ -80,6 +80,19 @@ export async function sendThreadMessage(
   return message
 }
 
+export async function fetchThreadTaskEvents(
+  threadId: string,
+  client: WorkflowClient = ipcClient,
+): Promise<Array<{ eventType: string; payload: Record<string, unknown> }>> {
+  const events = await fetchThreadEvents(threadId, client)
+  return events
+    .filter((e) => e.eventType === "coordinator.task_update")
+    .map((e) => ({
+      eventType: e.eventType,
+      payload: e.payload as Record<string, unknown>,
+    }))
+}
+
 export async function cancelThreadCoordinator(
   threadId: string,
   client: WorkflowClient = ipcClient,

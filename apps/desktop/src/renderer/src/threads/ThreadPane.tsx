@@ -2,6 +2,7 @@ import type { ThreadMessageSnapshot, ThreadSnapshot } from "@ultra/shared"
 import { useEffect } from "react"
 
 import type { StreamingBlock } from "../chats/streaming/streaming-types.js"
+import type { TaskItem } from "./hooks/useThreadTasks.js"
 import { ThreadCard } from "./ThreadCard.js"
 import { ThreadDetail } from "./ThreadDetail.js"
 
@@ -17,6 +18,7 @@ export function ThreadPane({
   onFetchMessages,
   onSendMessage,
   onCancelCoordinator,
+  tasksByThreadId,
 }: {
   threads: ThreadSnapshot[]
   selectedThreadId: string | null
@@ -29,6 +31,7 @@ export function ThreadPane({
   onFetchMessages: (threadId: string) => void
   onSendMessage: (threadId: string, content: string, files: File[]) => void
   onCancelCoordinator?: (threadId: string) => void
+  tasksByThreadId: Record<string, { tasks: TaskItem[]; percentage: number; allComplete: boolean; hasFailed: boolean }>
 }) {
   const selectedThread = selectedThreadId
     ? (threads.find((t) => t.id === selectedThreadId) ?? null)
@@ -71,6 +74,10 @@ export function ThreadPane({
           isStreaming={isStreamingByThreadId[selectedThread.id] ?? false}
           isCoordinatorActive={activeThreadTurnId === selectedThread.id}
           allThreads={threads}
+          tasks={tasksByThreadId[selectedThread.id]?.tasks ?? []}
+          taskPercentage={tasksByThreadId[selectedThread.id]?.percentage ?? 0}
+          tasksAllComplete={tasksByThreadId[selectedThread.id]?.allComplete ?? false}
+          tasksHasFailed={tasksByThreadId[selectedThread.id]?.hasFailed ?? false}
           onBack={() => onSelectThread(null)}
           onSendMessage={(content, files) =>
             onSendMessage(selectedThread.id, content, files)

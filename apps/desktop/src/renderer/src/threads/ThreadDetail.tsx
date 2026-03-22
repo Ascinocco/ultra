@@ -5,8 +5,10 @@ import type {
 import { useState } from "react"
 
 import { ThreadConversation } from "./ThreadConversation.js"
+import { ThreadTaskDrawer } from "./ThreadTaskDrawer.js"
 import { InputDock } from "../chats/input-dock/InputDock.js"
 import type { StreamingBlock } from "../chats/streaming/streaming-types.js"
+import type { TaskItem } from "./hooks/useThreadTasks.js"
 
 function ThreadSwitcher({
   threads,
@@ -62,6 +64,10 @@ export function ThreadDetail({
   isStreaming,
   isCoordinatorActive,
   allThreads,
+  tasks,
+  taskPercentage,
+  tasksAllComplete,
+  tasksHasFailed,
   onBack,
   onSendMessage,
   onSelectThread,
@@ -73,6 +79,10 @@ export function ThreadDetail({
   isStreaming: boolean
   isCoordinatorActive: boolean
   allThreads: ThreadSnapshot[]
+  tasks: TaskItem[]
+  taskPercentage: number
+  tasksAllComplete: boolean
+  tasksHasFailed: boolean
   onBack: () => void
   onSendMessage: (content: string, files: File[]) => void
   onSelectThread: (threadId: string) => void
@@ -114,20 +124,30 @@ export function ThreadDetail({
         isStreaming={isStreaming}
       />
 
-      <InputDock
-        chatId={`thread_${thread.id}`}
-        disabled={!canSend}
-        isFirstTurn={false}
-        isGenerating={isRunning}
-        provider="claude"
-        model="claude-opus-4-6"
-        thinkingLevel="high"
-        permissionLevel="full_access"
-        availableModels={["claude-opus-4-6"]}
-        onSend={onSendMessage}
-        onCancel={onCancelCoordinator}
-        onRuntimeConfigChange={() => {}}
-      />
+      <div className="thread-input-stack">
+        {tasks.length > 0 && (
+          <ThreadTaskDrawer
+            tasks={tasks}
+            percentage={taskPercentage}
+            allComplete={tasksAllComplete}
+            hasFailed={tasksHasFailed}
+          />
+        )}
+        <InputDock
+          chatId={`thread_${thread.id}`}
+          disabled={!canSend}
+          isFirstTurn={false}
+          isGenerating={isRunning}
+          provider="claude"
+          model="claude-opus-4-6"
+          thinkingLevel="high"
+          permissionLevel="full_access"
+          availableModels={["claude-opus-4-6"]}
+          onSend={onSendMessage}
+          onCancel={onCancelCoordinator}
+          onRuntimeConfigChange={() => {}}
+        />
+      </div>
     </div>
   )
 }

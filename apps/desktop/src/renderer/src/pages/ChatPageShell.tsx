@@ -58,11 +58,13 @@ import {
   fetchThreadEvents,
   fetchThreadMessages,
   fetchThreads,
+  fetchThreadTaskEvents,
   sendThreadMessage,
   subscribeToThreadMessages,
   subscribeToThreadTurnEvents,
 } from "../threads/thread-workflows.js"
 import { useThreadStreaming } from "../threads/hooks/useThreadStreaming.js"
+import { useThreadTasks } from "../threads/hooks/useThreadTasks.js"
 
 const DEFAULT_DRAWER_HEIGHT = 200
 const MIN_DRAWER_HEIGHT = 100
@@ -590,6 +592,10 @@ export function ChatPageShell({
   const sidebarCollapsed = projectLayout?.sidebarCollapsed ?? false
   const splitRatio = projectLayout?.chatThreadSplitRatio ?? 0.55
 
+  const [persistedTaskEvents, setPersistedTaskEvents] = useState<
+    Array<{ eventType: string; payload: Record<string, unknown> }>
+  >([])
+
   const [containerWidth, setContainerWidth] = useState(0)
 
   useEffect(() => {
@@ -757,11 +763,16 @@ export function ChatPageShell({
       turnUnsub = unsub
     })
 
+    fetchThreadTaskEvents(threadId).then((events) => {
+      if (!cancelled) setPersistedTaskEvents(events)
+    }).catch(() => {})
+
     return () => {
       cancelled = true
       void messageUnsub?.()
       void turnUnsub?.()
       actions.setActiveThreadTurn(null)
+      setPersistedTaskEvents([])
     }
   }, [selectedThreadId, actions])
 
@@ -1015,6 +1026,14 @@ export function ChatPageShell({
   const threadTurnEvents = selectedThreadId
     ? (threads.turnEventsByThreadId[selectedThreadId] ?? [])
     : []
+
+  const threadTasks = useThreadTasks(threadTurnEvents, persistedTaskEvents)
+
+  const tasksByThreadId = useMemo(() => {
+    if (!selectedThreadId) return {}
+    return { [selectedThreadId]: threadTasks }
+  }, [selectedThreadId, threadTasks])
+
   const isCoordinatorActive = selectedThreadId != null && threads.activeThreadTurnId === selectedThreadId
   const threadMessages = selectedThreadId
     ? (threads.messagesByThreadId[selectedThreadId] ?? [])
@@ -1269,6 +1288,7 @@ export function ChatPageShell({
             onFetchMessages={handleFetchMessages}
             onSendMessage={handleSendThreadMessage}
             onCancelCoordinator={handleCancelCoordinator}
+            tasksByThreadId={tasksByThreadId}
           />
         </div>
 
