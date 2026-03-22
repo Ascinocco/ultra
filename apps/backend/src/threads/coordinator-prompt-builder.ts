@@ -19,7 +19,7 @@ If you find yourself wanting to "just quickly check" something first — STOP. C
 
 After setup is complete, execute the implementation plan using the subagent-driven-development skill.
 
-IMPORTANT: The plan and spec content is included below in the Planning Context section. Use it directly — do NOT try to read plan files from disk. The files may not exist on disk if they were created in the planning conversation.
+The plan and spec content may be included below in the Planning Context. If not, read them from the .ultra/docs/superpowers/ directory in your worktree (synced in step 2).
 
 ## Rules
 - Do NOT re-plan. The plan is final. Execute it as written.

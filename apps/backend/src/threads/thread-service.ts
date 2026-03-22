@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { readFileSync, existsSync, readdirSync } from "node:fs"
-import { join } from "node:path"
+import { readFileSync, existsSync } from "node:fs"
 import type { DatabaseSync } from "node:sqlite"
 import type {
   ChatsPromoteToThreadInput,
@@ -621,65 +620,46 @@ export class ThreadService {
     chatId: string,
     contextMessageIds: string[],
   ): Array<{ type: "artifact"; path: string; content: string }> {
+    // Find files Written/Edited in this session's turn events
+    if (contextMessageIds.length === 0) return []
+
+    const placeholders = contextMessageIds.map(() => "?").join(",")
+    const turnRows = this.database
+      .prepare(
+        `SELECT DISTINCT t.turn_id FROM chat_turns t
+         WHERE t.chat_id = ? AND t.user_message_id IN (${placeholders})`,
+      )
+      .all(chatId, ...contextMessageIds) as Array<{ turn_id: string }>
+
+    if (turnRows.length === 0) return []
+
+    const turnIds = turnRows.map((r) => r.turn_id)
+    const turnPlaceholders = turnIds.map(() => "?").join(",")
+    const eventRows = this.database
+      .prepare(
+        `SELECT payload_json FROM chat_turn_events
+         WHERE turn_id IN (${turnPlaceholders})
+         AND event_type = 'chat.turn_progress'`,
+      )
+      .all(...turnIds) as Array<{ payload_json: string }>
+
     const artifactPaths = new Set<string>()
-
-    // Strategy 1: Find files Written/Edited in this session's turn events
-    if (contextMessageIds.length > 0) {
-      const placeholders = contextMessageIds.map(() => "?").join(",")
-      const turnRows = this.database
-        .prepare(
-          `SELECT DISTINCT t.turn_id FROM chat_turns t
-           WHERE t.chat_id = ? AND t.user_message_id IN (${placeholders})`,
-        )
-        .all(chatId, ...contextMessageIds) as Array<{ turn_id: string }>
-
-      if (turnRows.length > 0) {
-        const turnIds = turnRows.map((r) => r.turn_id)
-        const turnPlaceholders = turnIds.map(() => "?").join(",")
-        const eventRows = this.database
-          .prepare(
-            `SELECT payload_json FROM chat_turn_events
-             WHERE turn_id IN (${turnPlaceholders})
-             AND event_type = 'chat.turn_progress'`,
-          )
-          .all(...turnIds) as Array<{ payload_json: string }>
-
-        for (const row of eventRows) {
-          try {
-            const payload = JSON.parse(row.payload_json)
-            if (payload.stage !== "tool_activity") continue
-            const label = payload.label ?? ""
-            if (label !== "Write" && label !== "Edit") continue
-            const filePath = payload.metadata?.input?.file_path ?? ""
-            if (typeof filePath === "string" && filePath.includes(".ultra/docs/superpowers")) {
-              artifactPaths.add(filePath)
-            }
-          } catch { /* ignore */ }
+    for (const row of eventRows) {
+      try {
+        const payload = JSON.parse(row.payload_json)
+        if (payload.stage !== "tool_activity") continue
+        const label = payload.label ?? ""
+        if (label !== "Write" && label !== "Edit") continue
+        const filePath = payload.metadata?.input?.file_path ?? ""
+        if (typeof filePath === "string" && filePath.includes(".ultra/docs/superpowers")) {
+          artifactPaths.add(filePath)
         }
-      }
-    }
-
-    // Strategy 2: Scan .ultra/docs/superpowers/ directory on disk for specs and plans
-    // from any session (not just the current one)
-    const chat = this.database
-      .prepare("SELECT project_id FROM chats WHERE id = ?")
-      .get(chatId) as { project_id: string } | undefined
-    if (chat) {
-      const projectRow = this.database
-        .prepare("SELECT root_path FROM projects WHERE id = ?")
-        .get(chat.project_id) as { root_path: string | null } | undefined
-      const rootPath = projectRow?.root_path
-      if (rootPath) {
-        const superpowersDir = join(rootPath, ".ultra", "docs", "superpowers")
-        this.scanDirectoryForArtifacts(superpowersDir, artifactPaths)
-      }
+      } catch { /* ignore */ }
     }
 
     if (artifactPaths.size === 0) return []
 
-    // Read files from disk
     const artifacts: Array<{ type: "artifact"; path: string; content: string }> = []
-
     for (const filePath of artifactPaths) {
       if (!existsSync(filePath)) continue
       try {
@@ -689,21 +669,6 @@ export class ThreadService {
     }
 
     return artifacts
-  }
-
-  private scanDirectoryForArtifacts(dir: string, paths: Set<string>): void {
-    if (!existsSync(dir)) return
-    try {
-      const entries = readdirSync(dir, { withFileTypes: true })
-      for (const entry of entries) {
-        const fullPath = join(dir, entry.name)
-        if (entry.isDirectory()) {
-          this.scanDirectoryForArtifacts(fullPath, paths)
-        } else if (entry.name.endsWith(".md")) {
-          paths.add(fullPath)
-        }
-      }
-    } catch { /* ignore read errors */ }
   }
 
   updateThreadTitle(threadId: ThreadId, title: string): void {
