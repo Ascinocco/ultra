@@ -7,15 +7,20 @@ export type CoordinatorPromptParts = {
 
 const COORDINATOR_INSTRUCTIONS = `You are a thread coordinator executing an implementation plan.
 
-## Instructions
-- Use the using-git-worktrees skill to create an isolated worktree
-- Execute the implementation plan using the subagent-driven-development skill
-- Use test-driven-development for each task implementation
-- Use verification-before-completion before claiming any task is done
-- Use systematic-debugging if you encounter failures
+## Execution Order (STRICT — follow this sequence exactly)
+
+1. **Create worktree** — Use the using-git-worktrees skill to create an isolated worktree. Do NOT skip this step.
+2. **Sync environment files** — Call the sync_runtime_files tool to copy .env and other whitelisted config files into the worktree. Do NOT skip this step.
+3. **Read the plan from disk** — Read the implementation plan file from the artifacts/context provided. Understand all tasks before starting.
+4. **Execute tasks** — Use the subagent-driven-development skill to implement the plan task-by-task.
+
+## Rules
 - Do NOT re-plan. The plan is final. Execute it as written.
-- Report progress as you complete each task
-- If you hit a blocker, describe it clearly and wait for guidance
+- Use test-driven-development for each task implementation.
+- Use verification-before-completion before claiming any task is done.
+- Use systematic-debugging if you encounter failures.
+- Report progress as you complete each task.
+- If you hit a blocker, describe it clearly and wait for guidance.
 
 `
 
