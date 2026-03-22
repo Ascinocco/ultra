@@ -2357,6 +2357,113 @@ button {
   margin-left: auto;
 }
 
+/* ── Thread Task Drawer ──────────────────────────────────────────── */
+
+.task-drawer__lip {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 0;
+  background: #1e2030;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  margin: 0 4px -6px;
+  position: relative;
+  z-index: 1;
+}
+
+.task-drawer__lip:hover {
+  background: #232538;
+}
+
+.task-drawer__pct {
+  font-size: 9px;
+}
+
+.task-drawer__bar {
+  background: #1e2030;
+  border-radius: 6px 6px 0 0;
+  margin: 0 4px -6px;
+  position: relative;
+  z-index: 1;
+}
+
+.task-drawer__header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.task-drawer__header:hover {
+  color: var(--text-secondary);
+}
+
+.task-drawer__list {
+  padding: 0 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.task-drawer__item {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 10px;
+}
+
+.task-drawer__icon {
+  flex-shrink: 0;
+  width: 12px;
+  text-align: center;
+}
+
+.task-drawer__desc {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-drawer__item--completed {
+  color: #6ee7b7;
+}
+
+.task-drawer__item--completed .task-drawer__desc {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.task-drawer__item--running {
+  color: #e0e4ee;
+}
+
+.task-drawer__item--running .task-drawer__icon {
+  color: #f0c674;
+  animation: pulse 1.5s infinite;
+}
+
+.task-drawer__item--running .task-drawer__desc {
+  font-weight: 500;
+}
+
+.task-drawer__item--failed,
+.task-drawer__item--stopped {
+  color: #fb7185;
+}
+
+.task-drawer__item--pending {
+  color: var(--text-muted);
+}
+
 /* ── Responsive ────────────────────────────────────────────── */
 
 @media (max-width: 1200px) {
