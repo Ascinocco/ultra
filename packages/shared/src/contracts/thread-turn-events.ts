@@ -1,9 +1,13 @@
 import { z } from "zod"
-import { threadIdSchema } from "./threads.js"
+import { opaqueIdSchema } from "./constants.js"
 import { subscriptionEventEnvelopeSchema } from "./ipc.js"
 
+// Use opaqueIdSchema directly to avoid circular dependency with threads.ts
+// (threads.ts re-exports from this file)
+const threadIdRef = opaqueIdSchema
+
 export const threadTurnEventSnapshotSchema = z.object({
-  threadId: threadIdSchema,
+  threadId: threadIdRef,
   eventType: z.string(),
   payload: z.record(z.string(), z.unknown()),
 })
@@ -11,7 +15,7 @@ export const threadTurnEventSnapshotSchema = z.object({
 export type ThreadTurnEventSnapshot = z.infer<typeof threadTurnEventSnapshotSchema>
 
 export const threadsTurnEventsSubscribeInputSchema = z.object({
-  thread_id: threadIdSchema,
+  thread_id: threadIdRef,
 })
 
 export const threadsTurnEventsEventSchema = subscriptionEventEnvelopeSchema.extend({
