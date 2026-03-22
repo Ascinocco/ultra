@@ -35,14 +35,17 @@ export function useThreadTasks(
       }
     }
 
-    // Apply live turn events — only SDK task lifecycle events, not agent dispatches
+    // Apply live turn events — only plan-level tasks, not SDK internal dispatches
+    // SDK emits task_started for every Agent subagent dispatch. We only want
+    // tasks explicitly created via TodoWrite/TaskCreate (which have no taskType).
     for (const event of turnEvents) {
       if (event.eventType !== "task_update") continue
       const payload = event.payload as { label?: string; metadata?: Record<string, unknown> }
       if (!payload.label || !payload.metadata) continue
-      // Skip agent/subagent dispatch tasks — only show plan-level tasks
+      // Only include tasks with NO taskType (plan-level tasks from TodoWrite).
+      // SDK sets taskType for internal dispatches (agent, tool, etc.) — skip those.
       const taskType = payload.metadata.taskType as string | undefined
-      if (taskType === "agent" || taskType === "subprocess") continue
+      if (taskType) continue
       applyTaskEvent(taskMap, payload.label, payload.metadata)
     }
 
