@@ -1,5 +1,5 @@
 import type { ThreadMessageSnapshot, ThreadSnapshot } from "@ultra/shared"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 import type { StreamingBlock } from "../chats/streaming/streaming-types.js"
 import type { TaskItem } from "./hooks/useThreadTasks.js"
@@ -33,6 +33,8 @@ export function ThreadPane({
   onCancelCoordinator?: (threadId: string) => void
   tasksByThreadId: Record<string, { tasks: TaskItem[]; percentage: number; allComplete: boolean; hasFailed: boolean }>
 }) {
+  const [showArchived, setShowArchived] = useState(false)
+
   const selectedThread = selectedThreadId
     ? (threads.find((t) => t.id === selectedThreadId) ?? null)
     : null
@@ -52,6 +54,10 @@ export function ThreadPane({
       </div>
     )
   }
+
+  const visibleThreads = showArchived
+    ? threads
+    : threads.filter((t) => !t.archived)
 
   if (threads.length === 0) {
     return (
@@ -95,14 +101,24 @@ export function ThreadPane({
 
   return (
     <div className="thread-pane">
+      {threads.some((t) => t.archived) && (
+        <button
+          className="thread-pane__archive-toggle"
+          type="button"
+          onClick={() => setShowArchived(!showArchived)}
+        >
+          {showArchived ? "Hide archived" : "Show archived"}
+        </button>
+      )}
       <div className="thread-pane__list">
-        {threads.map((thread) => (
-          <ThreadCard
-            key={thread.id}
-            thread={thread}
-            isSelected={false}
-            onSelect={() => onSelectThread(thread.id)}
-          />
+        {visibleThreads.map((thread) => (
+          <div key={thread.id} style={thread.archived ? { opacity: 0.5 } : undefined}>
+            <ThreadCard
+              thread={thread}
+              isSelected={false}
+              onSelect={() => onSelectThread(thread.id)}
+            />
+          </div>
         ))}
       </div>
     </div>

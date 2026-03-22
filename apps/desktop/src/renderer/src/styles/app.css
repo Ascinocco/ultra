@@ -1733,6 +1733,23 @@ button {
   margin: 8px 0 0;
 }
 
+.thread-pane__archive-toggle {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  text-align: center;
+  width: 100%;
+}
+
+.thread-pane__archive-toggle:hover {
+  color: var(--text-secondary);
+}
+
 .thread-pane__list {
   display: flex;
   flex-direction: column;
