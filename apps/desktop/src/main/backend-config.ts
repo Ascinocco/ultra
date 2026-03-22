@@ -72,7 +72,7 @@ export function createBackendLaunchConfig(app: App): BackendLaunchConfig {
 
   return {
     command: process.execPath,
-    args: ["dist/index.js"],
+    args: ["--no-warnings", "dist/index.js"],
     cwd: backendRoot,
     env: {
       ...process.env,

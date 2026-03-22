@@ -156,22 +156,27 @@ function extractMinimumVersion(input: string | undefined): string | null {
 }
 
 function loadVersionRequirements(): VersionRequirements {
-  const workspacePackage = JSON.parse(
-    readFileSync(`${resolveWorkspaceRoot()}/package.json`, "utf8"),
-  ) as {
-    packageManager?: string
-    engines?: {
-      node?: string
-      pnpm?: string
+  try {
+    const workspacePackage = JSON.parse(
+      readFileSync(`${resolveWorkspaceRoot()}/package.json`, "utf8"),
+    ) as {
+      packageManager?: string
+      engines?: {
+        node?: string
+        pnpm?: string
+      }
     }
-  }
 
-  return {
-    nodeMinVersion: extractMinimumVersion(workspacePackage.engines?.node),
-    pnpmMinVersion: extractMinimumVersion(
-      workspacePackage.engines?.pnpm ??
-        workspacePackage.packageManager?.split("@")[1],
-    ),
+    return {
+      nodeMinVersion: extractMinimumVersion(workspacePackage.engines?.node),
+      pnpmMinVersion: extractMinimumVersion(
+        workspacePackage.engines?.pnpm ??
+          workspacePackage.packageManager?.split("@")[1],
+      ),
+    }
+  } catch {
+    // In packaged desktop mode, workspace package.json is not available
+    return { nodeMinVersion: null, pnpmMinVersion: null }
   }
 }
 
