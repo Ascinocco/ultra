@@ -89,7 +89,7 @@ export class ThreadTurnService {
         vendorSessionId: null,
         attachments,
         signal: abortController.signal,
-        onEvent: (event) => this.handleCoordinatorEvent(threadId, event),
+        onEvent: (event) => this.handleCoordinatorEvent(threadId, thread.projectId, event),
       })
 
       if (result.vendorSessionId) {
@@ -154,7 +154,7 @@ export class ThreadTurnService {
           seedMessages: [],
           vendorSessionId: vendorSessionId,
           signal: abortController.signal,
-          onEvent: (event) => this.handleCoordinatorEvent(threadId, event),
+          onEvent: (event) => this.handleCoordinatorEvent(threadId, thread.projectId, event),
         })
 
         if (result.vendorSessionId) {
@@ -202,7 +202,7 @@ export class ThreadTurnService {
           vendorSessionId: null,
           attachments,
           signal: abortController.signal,
-          onEvent: (event) => this.handleCoordinatorEvent(threadId, event),
+          onEvent: (event) => this.handleCoordinatorEvent(threadId, thread.projectId, event),
         })
 
         if (result.vendorSessionId) {
@@ -281,6 +281,7 @@ export class ThreadTurnService {
 
   private handleCoordinatorEvent(
     threadId: ThreadId,
+    projectId: ProjectId,
     event: ChatRuntimeEvent,
   ): void {
     const threadEvent: ThreadTurnEvent = {
@@ -295,6 +296,20 @@ export class ThreadTurnService {
             : "checkpoint" in event
               ? { checkpoint: event.checkpoint }
               : {},
+    }
+
+    // Persist all events for history reconstruction on revisit
+    try {
+      this.threadService.appendProjectedEvent({
+        actorType: "coordinator",
+        eventType: `coordinator.${event.type}`,
+        payload: threadEvent.payload,
+        projectId,
+        source: "ultra.coordinator",
+        threadId,
+      })
+    } catch {
+      // Persistence failure must not disrupt the coordinator session.
     }
 
     const listeners = this.listenersByThreadId.get(threadId)

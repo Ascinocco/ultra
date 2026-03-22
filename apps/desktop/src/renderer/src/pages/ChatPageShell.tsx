@@ -55,6 +55,7 @@ import {
 import { ThreadPane } from "../threads/ThreadPane.js"
 import {
   cancelThreadCoordinator,
+  fetchThreadEvents,
   fetchThreadMessages,
   fetchThreads,
   sendThreadMessage,
@@ -728,6 +729,23 @@ export function ChatPageShell({
     let cancelled = false
     let messageUnsub: (() => Promise<void>) | null = null
     let turnUnsub: (() => Promise<void>) | null = null
+
+    // Load persisted coordinator events for history reconstruction
+    fetchThreadEvents(threadId).then((events) => {
+      if (cancelled) return
+      const historicalTurnEvents = events
+        .filter((e) => e.eventType.startsWith("coordinator."))
+        .map((e) => ({
+          threadId,
+          eventType: e.eventType.replace("coordinator.", ""),
+          payload: (e.payload ?? {}) as Record<string, unknown>,
+        }))
+      if (historicalTurnEvents.length > 0) {
+        for (const evt of historicalTurnEvents) {
+          actions.appendThreadTurnEvent(evt)
+        }
+      }
+    }).catch(() => {})
 
     subscribeToThreadMessages(threadId, actions).then((unsub) => {
       if (cancelled) { void unsub(); return }
