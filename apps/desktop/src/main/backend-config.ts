@@ -77,6 +77,7 @@ export function createBackendLaunchConfig(app: App): BackendLaunchConfig {
     env: {
       ...process.env,
       NODE_ENV: "production",
+      ELECTRON_RUN_AS_NODE: "1",
       ULTRA_BACKEND_SESSION_MODE: "desktop",
       ULTRA_SOCKET_PATH: socketPath,
       ULTRA_DB_PATH: databasePath,
