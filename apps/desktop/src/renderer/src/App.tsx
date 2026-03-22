@@ -199,9 +199,10 @@ function AppScreen() {
   const showReadinessGate =
     !foundationFailure &&
     connectionStatus === "connected" &&
-    (readiness.status === "checking" ||
-      readiness.status === "blocked" ||
-      readiness.status === "error")
+    (readiness.status === "blocked" ||
+      readiness.status === "error" ||
+      // Only show "checking" on initial load (no snapshot yet), not on rechecks
+      (readiness.status === "checking" && !readiness.snapshot))
   const gateStatus: "checking" | "blocked" | "error" =
     readiness.status === "blocked" || readiness.status === "error"
       ? readiness.status
