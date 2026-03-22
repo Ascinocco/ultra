@@ -3,10 +3,10 @@ import { FileAttachmentBar } from "../chats/input-dock/FileAttachmentBar.js"
 
 type Props = {
   disabled: boolean
-  disabledReason?: string
-  showWaitingIndicator?: boolean
+  disabledReason?: string | undefined
+  showWaitingIndicator?: boolean | undefined
   onSend: (content: string, files: File[]) => void
-  model?: string
+  model?: string | undefined
 }
 
 export function ThreadInputDock({

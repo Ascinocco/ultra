@@ -68,10 +68,12 @@ export function ThreadPane({
           streamingBlocks={streamingBlocksByThreadId[selectedThread.id] ?? null}
           isStreaming={isStreamingByThreadId[selectedThread.id] ?? false}
           isCoordinatorActive={activeThreadTurnId === selectedThread.id}
+          allThreads={threads}
           onBack={() => onSelectThread(null)}
           onSendMessage={(content, files) =>
             onSendMessage(selectedThread.id, content, files)
           }
+          onSelectThread={onSelectThread}
         />
       </div>
     )
