@@ -234,8 +234,8 @@ export class ClaudeChatRuntimeAdapter implements ChatRuntimeAdapter {
       }
     }
 
-    if (request.signal) {
-      (options as any).abortSignal = request.signal
+    if (request.abortController) {
+      (options as any).abortController = request.abortController
     }
 
     const queryRuntime = queryFn({ prompt, options })

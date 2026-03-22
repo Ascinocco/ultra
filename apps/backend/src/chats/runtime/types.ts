@@ -29,13 +29,13 @@ export type ChatRuntimeTurnRequest = {
   cwd: string
   prompt: string
   config: ChatRuntimeConfig
-  sessionType?: "chat" | "thread"
+  sessionType?: "chat" | "thread" | undefined
   continuationPrompt: string | null
   seedMessages: ChatMessageSnapshot[]
   vendorSessionId: string | null
-  attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>
-  signal?: AbortSignal
-  onEvent?: (event: ChatRuntimeEvent) => void
+  attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }> | undefined
+  abortController?: AbortController | undefined
+  onEvent?: ((event: ChatRuntimeEvent) => void) | undefined
 }
 
 export type RuntimeProcessRunOptions = {

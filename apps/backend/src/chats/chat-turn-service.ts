@@ -1067,7 +1067,7 @@ export class ChatTurnService {
         runtimeContext.continuationPrompt,
         seedMessages,
         session?.vendorSessionId ?? null,
-        abortController.signal,
+        abortController,
         streamingOnEvent,
         claimed.attachments,
       )
@@ -1889,7 +1889,7 @@ export class ChatTurnService {
     continuationPrompt: string | null,
     seedMessages: ChatMessageSnapshot[],
     vendorSessionId: string | null,
-    signal?: AbortSignal,
+    abortController?: AbortController,
     onEvent?: (event: ChatRuntimeEvent) => void,
     attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>,
   ) {
@@ -1906,7 +1906,7 @@ export class ChatTurnService {
         seedMessages,
         vendorSessionId,
         attachments,
-        signal,
+        abortController,
         onEvent,
       })
     } catch (error) {
@@ -1926,7 +1926,7 @@ export class ChatTurnService {
         seedMessages,
         vendorSessionId: null,
         attachments,
-        signal,
+        abortController,
         onEvent,
       })
     }

@@ -88,7 +88,7 @@ export class ThreadTurnService {
         seedMessages: [],
         vendorSessionId: null,
         attachments,
-        signal: abortController.signal,
+        abortController,
         onEvent: (event) => this.handleCoordinatorEvent(threadId, thread.projectId, event),
       })
 
@@ -153,7 +153,7 @@ export class ThreadTurnService {
           continuationPrompt: null,
           seedMessages: [],
           vendorSessionId: vendorSessionId,
-          signal: abortController.signal,
+          abortController,
           onEvent: (event) => this.handleCoordinatorEvent(threadId, thread.projectId, event),
         })
 
@@ -201,7 +201,7 @@ export class ThreadTurnService {
           seedMessages: [],
           vendorSessionId: null,
           attachments,
-          signal: abortController.signal,
+          abortController,
           onEvent: (event) => this.handleCoordinatorEvent(threadId, thread.projectId, event),
         })
 
