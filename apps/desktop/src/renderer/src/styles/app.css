@@ -2158,7 +2158,7 @@ button {
 .thread-input-stack {
   position: relative;
   flex-shrink: 0;
-  padding: 0 4px 4px;
+  padding: 0 4px 4px 0;
 }
 
 /* ── Thread Input Dock ───────────────────────────────────────────── */
