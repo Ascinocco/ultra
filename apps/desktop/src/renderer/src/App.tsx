@@ -1,5 +1,5 @@
 import { parseTerminalSessionsEvent } from "@ultra/shared"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 
 import { AppShell } from "./components/AppShell.js"
 import { EnvironmentReadinessGate } from "./components/EnvironmentReadinessGate.js"
@@ -56,11 +56,16 @@ function EnvironmentReadinessBridge() {
     })
   }, [setSystemToolsOpen])
 
+  const readinessLoadedRef = useRef(false)
+
   useEffect(() => {
     if (connectionStatus !== "connected") {
-      // Debounce: don't reset readiness on brief connection blips (e.g., cancel abort)
-      const timer = setTimeout(() => resetReadiness(), 2000)
-      return () => clearTimeout(timer)
+      return
+    }
+
+    // Only check readiness once per app session — don't re-check on reconnections
+    if (readinessLoadedRef.current) {
+      return
     }
 
     let cancelled = false
@@ -70,6 +75,7 @@ function EnvironmentReadinessBridge() {
     void loadEnvironmentReadiness()
       .then((snapshot) => {
         if (!cancelled) {
+          readinessLoadedRef.current = true
           setReadinessSnapshot(snapshot)
         }
       })
@@ -86,7 +92,6 @@ function EnvironmentReadinessBridge() {
     }
   }, [
     connectionStatus,
-    resetReadiness,
     setReadinessChecking,
     setReadinessError,
     setReadinessSnapshot,
