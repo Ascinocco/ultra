@@ -14,8 +14,52 @@ export function createThreadStatusMcpServer(
     version: "1.0.0",
     tools: [
       tool(
+        "list_threads",
+        "List all threads with their IDs, titles, execution states, and creation dates. Use this to discover thread IDs before calling get_thread_status.",
+        {},
+        async () => {
+          try {
+            const { threads } = threadService.listAll()
+
+            if (threads.length === 0) {
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: "No threads found.",
+                  },
+                ],
+              }
+            }
+
+            const lines: string[] = []
+            lines.push(`# Threads (${threads.length})`)
+            lines.push("")
+
+            for (const thread of threads) {
+              lines.push(
+                `- **${thread.title}** | ID: \`${thread.id}\` | State: ${thread.executionState} | Created: ${thread.createdAt}`,
+              )
+            }
+
+            return {
+              content: [{ type: "text" as const, text: lines.join("\n") }],
+            }
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error)
+            return {
+              content: [
+                { type: "text" as const, text: `Error: ${message}` },
+              ],
+              isError: true,
+            }
+          }
+        },
+      ),
+      tool(
         "get_thread_status",
-        "Get the current status of a thread coordinator, including execution state, recent activity, and message summary. Use this to check on thread progress.",
+        "Get the current status of a thread coordinator, including execution state, recent activity, and message summary. Use list_threads first to discover available thread IDs.",
         { thread_id: z.string().describe("The thread ID to check status for") },
         async (args) => {
           try {

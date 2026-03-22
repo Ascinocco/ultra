@@ -722,6 +722,52 @@ export class ThreadService {
       .run(...params)
   }
 
+  listAll(): ThreadsListResult {
+    const rows = this.database
+      .prepare(
+        `
+          SELECT
+            id,
+            project_id,
+            source_chat_id,
+            title,
+            summary,
+            execution_state,
+            review_state,
+            publish_state,
+            backend_health,
+            coordinator_health,
+            watch_health,
+            ov_project_id,
+            ov_coordinator_id,
+            ov_thread_key,
+            worktree_id,
+            branch_name,
+            base_branch,
+            latest_commit_sha,
+            pr_provider,
+            pr_number,
+            pr_url,
+            last_event_sequence,
+            restart_count,
+            failure_reason,
+            created_by_message_id,
+            created_at,
+            updated_at,
+            last_activity_at,
+            approved_at,
+            completed_at
+          FROM threads
+          ORDER BY last_activity_at DESC, created_at DESC
+        `,
+      )
+      .all() as ThreadRow[]
+
+    return {
+      threads: rows.map((row) => mapThreadRow(row)),
+    }
+  }
+
   listByProject(projectId: ProjectId): ThreadsListResult {
     this.assertProjectExists(projectId)
 
