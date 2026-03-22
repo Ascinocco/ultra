@@ -30,8 +30,7 @@ function resolveTsxBinary(backendRoot: string): string {
 }
 
 export function createBackendLaunchConfig(app: App): BackendLaunchConfig {
-  const workspaceRoot = resolveWorkspaceRoot()
-  const backendRoot = join(workspaceRoot, "apps/backend")
+  const isDev = !app.isPackaged
   const socketDirectory = join(app.getPath("userData"), "run")
   const dataDirectory = join(app.getPath("userData"), "data")
 
@@ -40,22 +39,22 @@ export function createBackendLaunchConfig(app: App): BackendLaunchConfig {
 
   const socketPath = join(socketDirectory, "ultra-backend.sock")
   const databasePath = join(dataDirectory, "ultra.db")
-  const isDev = !app.isPackaged
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    NODE_ENV: isDev ? "development" : "production",
-    ULTRA_BACKEND_SESSION_MODE: "desktop",
-    ULTRA_PROJECT_ROOT: workspaceRoot,
-    ULTRA_SOCKET_PATH: socketPath,
-    ULTRA_DB_PATH: databasePath,
-  }
 
   if (isDev) {
+    const workspaceRoot = resolveWorkspaceRoot()
+    const backendRoot = join(workspaceRoot, "apps/backend")
     return {
       command: resolveTsxBinary(backendRoot),
       args: ["src/index.ts"],
       cwd: backendRoot,
-      env,
+      env: {
+        ...process.env,
+        NODE_ENV: "development",
+        ULTRA_BACKEND_SESSION_MODE: "desktop",
+        ULTRA_PROJECT_ROOT: workspaceRoot,
+        ULTRA_SOCKET_PATH: socketPath,
+        ULTRA_DB_PATH: databasePath,
+      },
       socketPath,
       databasePath,
       startupGraceMs: 400,
@@ -66,11 +65,24 @@ export function createBackendLaunchConfig(app: App): BackendLaunchConfig {
     }
   }
 
+  // Production: backend is in extraResources
+  const resourcesPath = process.resourcesPath
+  const backendRoot = join(resourcesPath, "backend")
+  const sharedRoot = join(resourcesPath, "shared")
+
   return {
     command: "node",
     args: ["dist/index.js"],
     cwd: backendRoot,
-    env,
+    env: {
+      ...process.env,
+      NODE_ENV: "production",
+      ULTRA_BACKEND_SESSION_MODE: "desktop",
+      ULTRA_SOCKET_PATH: socketPath,
+      ULTRA_DB_PATH: databasePath,
+      // Tell Node where to find the shared package
+      NODE_PATH: join(sharedRoot, "dist"),
+    },
     socketPath,
     databasePath,
     startupGraceMs: 400,

@@ -10,6 +10,8 @@
     "pretypecheck": "pnpm --filter @ultra/shared build",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check package.json tsconfig.json electron.vite.config.ts src",
     "test": "vitest run"
@@ -35,6 +37,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "5.2.0",
     "electron": "41.0.2",
+    "electron-builder": "^26.8.1",
     "electron-vite": "5.0.0",
     "jsdom": "^29.0.0",
     "vite": "7.3.1"

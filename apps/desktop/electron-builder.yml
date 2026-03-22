@@ -1,0 +1,59 @@
+appId: com.ultra.ide
+productName: Ultra
+copyright: Copyright © 2026
+
+directories:
+  output: release
+
+files:
+  - dist/**/*
+  - package.json
+
+beforePack: ../../scripts/stage-backend-deps.js
+
+extraResources:
+  # Staged backend (symlinks resolved, ready for packaging)
+  - from: .stage/backend-deps/dist
+    to: backend/dist
+  - from: .stage/backend-deps/package.json
+    to: backend/package.json
+  - from: .stage/backend-deps/node_modules
+    to: backend/node_modules
+  # Shared package dist
+  - from: ../../packages/shared/dist
+    to: shared/dist
+    filter:
+      - "**/*"
+  # Shared package.json
+  - from: ../../packages/shared/package.json
+    to: shared/package.json
+  # Vendor superpowers skills (for skill injection)
+  - from: ../../vendor/superpowers/skills
+    to: vendor/superpowers/skills
+    filter:
+      - "**/*.md"
+
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+npmRebuild: true
+nodeGypRebuild: false
