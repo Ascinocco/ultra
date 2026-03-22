@@ -144,6 +144,7 @@ export async function startBackendScaffold(options?: {
     const threadToolsMcpServer = createThreadToolsMcpServer(
       sandboxPersistenceService,
       projectService,
+      threadService,
     )
     const threadTurnService = new ThreadTurnService(
       threadService,

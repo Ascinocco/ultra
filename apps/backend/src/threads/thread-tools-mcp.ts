@@ -8,6 +8,7 @@ import { dirname, join, relative } from "node:path"
 import { z } from "zod"
 import type { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
 import type { ProjectService } from "../projects/project-service.js"
+import type { ThreadService } from "./thread-service.js"
 
 /**
  * Creates an in-process MCP server with tools for the thread coordinator.
@@ -16,6 +17,7 @@ import type { ProjectService } from "../projects/project-service.js"
 export function createThreadToolsMcpServer(
   sandboxPersistenceService: SandboxPersistenceService,
   projectService: ProjectService,
+  threadService: ThreadService,
 ): McpSdkServerConfigWithInstance {
   return createSdkMcpServer({
     name: "ultra-thread-tools",
@@ -124,6 +126,28 @@ export function createThreadToolsMcpServer(
             return {
               content: [{ type: "text" as const, text: lines.join("\n") }],
               isError: errors.length > 0,
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            return {
+              content: [{ type: "text" as const, text: `Error: ${message}` }],
+              isError: true,
+            }
+          }
+        },
+      ),
+      tool(
+        "set_thread_status",
+        "Update the current thread's execution status. Call this when you have finished all implementation tasks to mark the thread as awaiting review. Valid statuses: awaiting_review, blocked.",
+        {
+          thread_id: z.string().describe("The thread ID"),
+          status: z.enum(["awaiting_review", "blocked"]).describe("The new execution status"),
+        },
+        async (args) => {
+          try {
+            threadService.updateExecutionState(args.thread_id, args.status, null)
+            return {
+              content: [{ type: "text" as const, text: `Thread status updated to: ${args.status}` }],
             }
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)

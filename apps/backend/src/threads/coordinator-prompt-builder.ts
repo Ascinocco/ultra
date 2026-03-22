@@ -28,10 +28,11 @@ The plan and spec content may be included below in the Planning Context. If not,
 - Use systematic-debugging if you encounter failures.
 - Report progress as you complete each task.
 - If you hit a blocker, describe it clearly and wait for guidance.
+- **When all tasks are complete**, call the set_thread_status tool with thread_id = "THREAD_ID_PLACEHOLDER" and status = "awaiting_review". This updates the thread status so the user sees the Approve button.
 
 `
 
-export function buildCoordinatorPrompt(seedContextJson: string, projectId?: string): CoordinatorPromptParts {
+export function buildCoordinatorPrompt(seedContextJson: string, projectId?: string, threadId?: string): CoordinatorPromptParts {
   const seedContext = JSON.parse(seedContextJson) as {
     messages?: Array<{
       id: string
@@ -44,7 +45,9 @@ export function buildCoordinatorPrompt(seedContextJson: string, projectId?: stri
   }
 
   const instructions = projectId
-    ? COORDINATOR_INSTRUCTIONS.replace("PROJECT_ID_PLACEHOLDER", projectId)
+    ? COORDINATOR_INSTRUCTIONS
+        .replace("PROJECT_ID_PLACEHOLDER", projectId)
+        .replace("THREAD_ID_PLACEHOLDER", threadId ?? "")
     : COORDINATOR_INSTRUCTIONS
   const parts: string[] = [instructions]
   const allAttachments: StoredAttachment[] = []
