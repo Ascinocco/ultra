@@ -11,8 +11,7 @@ const COORDINATOR_INSTRUCTIONS = `You are a thread coordinator executing an impl
 
 1. **Create worktree** — Use the using-git-worktrees skill to create an isolated worktree. Do NOT skip this step.
 2. **Sync environment files** — Call the sync_runtime_files tool to copy .env and other whitelisted config files into the worktree. Do NOT skip this step.
-3. **Read the plan from disk** — Read the implementation plan file from the artifacts/context provided. Understand all tasks before starting.
-4. **Execute tasks** — Use the subagent-driven-development skill to implement the plan task-by-task.
+3. **Execute tasks** — Use the subagent-driven-development skill to implement the plan task-by-task.
 
 ## Rules
 - Do NOT re-plan. The plan is final. Execute it as written.
