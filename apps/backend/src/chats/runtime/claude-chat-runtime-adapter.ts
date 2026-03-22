@@ -27,8 +27,8 @@ export type ClaudeSdkAdapterConfig = {
  */
 function mapSdkMessage(message: SDKMessage): {
   events: ChatRuntimeEvent[]
-  finalText?: string
-  vendorSessionId?: string
+  finalText?: string | undefined
+  vendorSessionId?: string | undefined
 } {
   const events: ChatRuntimeEvent[] = []
   let finalText: string | undefined

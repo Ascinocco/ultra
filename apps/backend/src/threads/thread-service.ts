@@ -705,7 +705,7 @@ export class ThreadService {
     failureReason: string | null,
   ): void {
     const updates: string[] = ["execution_state = ?", "updated_at = ?"]
-    const params: unknown[] = [executionState, this.now()]
+    const params: (string | number | null)[] = [executionState, this.now()]
 
     if (failureReason !== null) {
       updates.push("failure_reason = ?")

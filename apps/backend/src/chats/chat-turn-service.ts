@@ -76,6 +76,8 @@ function buildStructuredBlocks(events: ChatRuntimeEvent[]): StructuredBlock[] {
       const detail = extractToolDetail(event.label, event.metadata)
       const toolId = (event.metadata as any)?.id ?? (event.metadata as any)?.item?.id ?? null
       const subtype = event.label === "Skill" ? "skill" : undefined
+      const toolEntry: { name: string; detail: string; id?: string | null; subtype?: string } = { name: event.label, detail, id: toolId }
+      if (subtype !== undefined) toolEntry.subtype = subtype
       const last = lastBlock()
 
       // Deduplicate: if a tool with the same ID exists in the current group, update it
@@ -88,9 +90,9 @@ function buildStructuredBlocks(events: ChatRuntimeEvent[]): StructuredBlock[] {
       }
 
       if (last?.type === "tools") {
-        last.tools.push({ name: event.label, detail, id: toolId, subtype })
+        last.tools.push(toolEntry)
       } else {
-        blocks.push({ type: "tools", tools: [{ name: event.label, detail, id: toolId, subtype }] })
+        blocks.push({ type: "tools", tools: [toolEntry] })
       }
     }
   }
@@ -179,7 +181,7 @@ type QueuedTurnRow = {
 type ClaimedTurn = {
   turnId: ChatTurnId
   prompt: string
-  attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }>
+  attachments?: Array<{ type: "image" | "text"; name: string; media_type: string; data: string }> | undefined
   events: ChatTurnEventSnapshot[]
 }
 
@@ -1476,7 +1478,7 @@ export class ChatTurnService {
     }
 
     if (this.isMissingRuntimeBinaryError(error)) {
-      return this.buildMissingRuntimeFailure(provider, error)
+      return this.buildMissingRuntimeFailure(provider, error as Error)
     }
 
     if (error instanceof Error) {
