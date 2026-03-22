@@ -1835,8 +1835,8 @@ button {
 }
 
 .state-pill--running {
-  background: rgba(110, 231, 183, 0.15);
-  color: #6ee7b7;
+  background: rgba(91, 141, 239, 0.15);
+  color: #5b8def;
 }
 
 .state-pill--blocked,
