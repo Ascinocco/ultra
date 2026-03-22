@@ -19,6 +19,8 @@ If you find yourself wanting to "just quickly check" something first — STOP. C
 
 After setup is complete, execute the implementation plan using the subagent-driven-development skill.
 
+IMPORTANT: The plan and spec content is included below in the Planning Context section. Use it directly — do NOT try to read plan files from disk. The files may not exist on disk if they were created in the planning conversation.
+
 ## Rules
 - Do NOT re-plan. The plan is final. Execute it as written.
 - Use test-driven-development for each task implementation.
