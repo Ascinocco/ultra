@@ -16,6 +16,18 @@ export type ThreadTasksState = {
   hasFailed: boolean
 }
 
+const TASK_TOOL_NAMES = new Set(["TodoWrite", "TaskCreate", "TaskUpdate"])
+
+/**
+ * Derives task checklist state from TodoWrite/TaskCreate/TaskUpdate tool calls
+ * in the coordinator's event stream.
+ *
+ * These arrive as tool_activity events with label "TodoWrite"/"TaskCreate"/"TaskUpdate"
+ * and metadata.input containing the task data.
+ *
+ * SDK task_started/task_progress/task_notification events are NOT used —
+ * those track subagent dispatches, not plan-level tasks.
+ */
 export function useThreadTasks(
   turnEvents: ThreadTurnEventSnapshot[],
   persistedEvents?: Array<{ eventType: string; payload: Record<string, unknown> }>,
@@ -23,30 +35,19 @@ export function useThreadTasks(
   return useMemo(() => {
     const taskMap = new Map<string, TaskItem>()
 
-    // Load persisted coordinator.task_update events (history)
+    // Load persisted tool_activity events for TodoWrite/TaskCreate/TaskUpdate (history)
     if (persistedEvents) {
       for (const evt of persistedEvents) {
-        if (evt.eventType === "coordinator.task_update") {
-          const p = evt.payload as { label?: string; metadata?: Record<string, unknown> }
-          if (p.label && p.metadata) {
-            applyTaskEvent(taskMap, p.label, p.metadata)
-          }
+        if (evt.eventType === "coordinator.tool_activity") {
+          processToolEvent(taskMap, evt.payload)
         }
       }
     }
 
-    // Apply live turn events — only plan-level tasks, not SDK internal dispatches
-    // SDK emits task_started for every Agent subagent dispatch. We only want
-    // tasks explicitly created via TodoWrite/TaskCreate (which have no taskType).
+    // Apply live turn events — look for tool_activity with TodoWrite/TaskCreate/TaskUpdate
     for (const event of turnEvents) {
-      if (event.eventType !== "task_update") continue
-      const payload = event.payload as { label?: string; metadata?: Record<string, unknown> }
-      if (!payload.label || !payload.metadata) continue
-      // Only include tasks with NO taskType (plan-level tasks from TodoWrite).
-      // SDK sets taskType for internal dispatches (agent, tool, etc.) — skip those.
-      const taskType = payload.metadata.taskType as string | undefined
-      if (taskType) continue
-      applyTaskEvent(taskMap, payload.label, payload.metadata)
+      if (event.eventType !== "tool_activity") continue
+      processToolEvent(taskMap, event.payload)
     }
 
     const tasks = Array.from(taskMap.values())
@@ -60,40 +61,70 @@ export function useThreadTasks(
   }, [turnEvents, persistedEvents])
 }
 
-function applyTaskEvent(
+function processToolEvent(
   taskMap: Map<string, TaskItem>,
-  label: string,
-  metadata: Record<string, unknown>,
+  payload: Record<string, unknown>,
 ): void {
-  const taskId = metadata.taskId as string | undefined
-  if (!taskId) return
+  const label = payload.label as string | undefined
+  if (!label || !TASK_TOOL_NAMES.has(label)) return
 
-  const existing = taskMap.get(taskId)
+  const metadata = payload.metadata as Record<string, unknown> | undefined
+  if (!metadata) return
+  const input = metadata.input as Record<string, unknown> | undefined
+  if (!input) return
 
-  if (label === "task_started") {
-    const summary = existing?.summary
-    taskMap.set(taskId, {
-      id: taskId,
-      description: (metadata.description as string) ?? existing?.description ?? "Task",
-      status: "running",
-      ...(summary != null && { summary }),
+  if (label === "TodoWrite") {
+    // TodoWrite replaces the entire task list
+    // input.todos is an array of { id, content, status, priority }
+    const todos = input.todos as Array<Record<string, unknown>> | undefined
+    if (!Array.isArray(todos)) return
+
+    // Clear and rebuild from TodoWrite (it's a full replacement)
+    taskMap.clear()
+    for (const todo of todos) {
+      const id = String(todo.id ?? "")
+      if (!id) continue
+      const content = String(todo.content ?? todo.subject ?? "Task")
+      const rawStatus = String(todo.status ?? "pending")
+      const status = mapTodoStatus(rawStatus)
+      taskMap.set(id, { id, description: content, status })
+    }
+  } else if (label === "TaskCreate") {
+    // TaskCreate adds a single task
+    const id = String(input.id ?? input.taskId ?? `task_${taskMap.size + 1}`)
+    const description = String(input.subject ?? input.description ?? "Task")
+    taskMap.set(id, { id, description, status: "pending" })
+  } else if (label === "TaskUpdate") {
+    // TaskUpdate modifies a single task
+    const id = String(input.taskId ?? input.id ?? "")
+    if (!id) return
+    const existing = taskMap.get(id)
+    if (!existing) return
+
+    const newStatus = input.status as string | undefined
+    taskMap.set(id, {
+      ...existing,
+      ...(input.subject ? { description: String(input.subject) } : {}),
+      ...(newStatus ? { status: mapTodoStatus(newStatus) } : {}),
     })
-  } else if (label === "task_progress") {
-    const summary = (metadata.summary as string | undefined) ?? existing?.summary
-    taskMap.set(taskId, {
-      id: taskId,
-      description: (metadata.description as string) ?? existing?.description ?? "Task",
-      status: existing?.status ?? "running",
-      ...(summary != null && { summary }),
-    })
-  } else if (label === "task_notification") {
-    const status = metadata.status as string
-    const summary = (metadata.summary as string | undefined) ?? existing?.summary
-    taskMap.set(taskId, {
-      id: taskId,
-      description: existing?.description ?? "Task",
-      status: (status as TaskItem["status"]) ?? "completed",
-      ...(summary != null && { summary }),
-    })
+  }
+}
+
+function mapTodoStatus(raw: string): TaskItem["status"] {
+  switch (raw) {
+    case "in_progress":
+      return "running"
+    case "completed":
+    case "done":
+      return "completed"
+    case "failed":
+      return "failed"
+    case "stopped":
+    case "cancelled":
+    case "canceled":
+    case "deleted":
+      return "stopped"
+    default:
+      return "pending"
   }
 }
