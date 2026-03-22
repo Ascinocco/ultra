@@ -298,6 +298,11 @@ export class ThreadTurnService {
               : {},
     }
 
+    // Detect AskUserQuestion → transition to "blocked" (waiting for user input)
+    if (event.type === "tool_activity" && "label" in event && event.label === "AskUserQuestion") {
+      this.threadService.updateExecutionState(threadId, "blocked", null)
+    }
+
     // Persist all events for history reconstruction on revisit
     try {
       this.threadService.appendProjectedEvent({
