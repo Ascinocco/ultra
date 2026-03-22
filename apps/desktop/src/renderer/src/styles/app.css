@@ -1693,8 +1693,6 @@ button {
 .thread-pane {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 4px;
   height: 100%;
   min-height: 0;
 }

@@ -5,7 +5,7 @@ import type {
 import { useState } from "react"
 
 import { ThreadConversation } from "./ThreadConversation.js"
-import { ThreadInputDock } from "./ThreadInputDock.js"
+import { InputDock } from "../chats/input-dock/InputDock.js"
 import type { StreamingBlock } from "../chats/streaming/streaming-types.js"
 
 function ThreadSwitcher({
@@ -112,12 +112,17 @@ export function ThreadDetail({
         isStreaming={isStreaming}
       />
 
-      <ThreadInputDock
+      <InputDock
+        chatId={`thread_${thread.id}`}
         disabled={!canSend}
-        disabledReason={disabledReason}
-        showWaitingIndicator={isBlocked}
-        onSend={onSendMessage}
+        isFirstTurn={false}
+        provider="claude"
         model="claude-opus-4-6"
+        thinkingLevel="high"
+        permissionLevel="full_access"
+        availableModels={["claude-opus-4-6"]}
+        onSend={onSendMessage}
+        onRuntimeConfigChange={() => {}}
       />
     </div>
   )
