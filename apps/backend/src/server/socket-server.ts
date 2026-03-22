@@ -97,17 +97,22 @@ export async function startSocketServer(
     }
 
     socket.setEncoding("utf8")
+
+    // Wrap socket to prevent EPIPE crashes when client disconnects
+    const safeWrite = (data: string) => {
+      if (socket.writable && !socket.destroyed) {
+        try {
+          socket.write(data)
+        } catch {
+          // Client gone — ignore
+        }
+      }
+    }
+
     socket.on("close", () => {
       cleanupSubscriptions(subscriptionRuntime)
     })
-    socket.on("error", (err) => {
-      // EPIPE/ECONNRESET happen when client disconnects — not fatal
-      const code = (err as NodeJS.ErrnoException).code
-      if (code === "EPIPE" || code === "ECONNRESET" || code === "ERR_STREAM_DESTROYED") {
-        logger.info(`[backend] socket client disconnected (${code})`)
-      } else {
-        logger.error(`[backend] socket error: ${err.message}`)
-      }
+    socket.on("error", () => {
       cleanupSubscriptions(subscriptionRuntime)
     })
 

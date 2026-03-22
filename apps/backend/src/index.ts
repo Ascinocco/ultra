@@ -242,6 +242,17 @@ const entryPath = process.argv[1]
 const currentPath = fileURLToPath(import.meta.url)
 
 if (entryPath && currentPath === entryPath) {
+  // Prevent EPIPE/ECONNRESET from crashing the backend when clients disconnect
+  process.on("uncaughtException", (err) => {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === "EPIPE" || code === "ECONNRESET") {
+      console.error(`[backend] caught ${code} — client disconnected`)
+      return
+    }
+    console.error("[backend] uncaught exception:", err)
+    process.exit(1)
+  })
+
   let runtime: BackendRuntime | null = null
 
   const shutdown = async () => {
