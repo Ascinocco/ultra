@@ -12,10 +12,10 @@ export function shouldAutoScroll(
 
 export function useAutoScroll(
   scrollRef: RefObject<HTMLElement | null>,
-  deps: unknown[],
 ): void {
   const isNearBottomRef = useRef(true)
   const programmaticScrollRef = useRef(false)
+  const prevScrollHeightRef = useRef(0)
 
   useEffect(() => {
     const el = scrollRef.current
@@ -39,14 +39,27 @@ export function useAutoScroll(
   }, [scrollRef])
 
   useEffect(() => {
-    if (isNearBottomRef.current && scrollRef.current) {
-      programmaticScrollRef.current = true
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-      // Reset flag after a tick so subsequent user scrolls are detected
-      requestAnimationFrame(() => {
-        programmaticScrollRef.current = false
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
+    const el = scrollRef.current
+    if (!el) return
+
+    prevScrollHeightRef.current = el.scrollHeight
+
+    const observer = new ResizeObserver(() => {
+      const currentScrollHeight = el.scrollHeight
+      if (
+        currentScrollHeight > prevScrollHeightRef.current &&
+        isNearBottomRef.current
+      ) {
+        programmaticScrollRef.current = true
+        el.scrollTop = el.scrollHeight
+        requestAnimationFrame(() => {
+          programmaticScrollRef.current = false
+        })
+      }
+      prevScrollHeightRef.current = currentScrollHeight
+    })
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [scrollRef])
 }

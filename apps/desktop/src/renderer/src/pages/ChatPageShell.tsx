@@ -499,7 +499,7 @@ export function ChatPageShell({
     activeChatMessages.length,
   )
 
-  useAutoScroll(transcriptScrollRef, [activeChatMessages, streamingBlocks])
+  useAutoScroll(transcriptScrollRef)
 
   useEffect(() => {
     if (!inFlightTurn) {
