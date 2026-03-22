@@ -673,4 +673,8 @@ export const DATABASE_MIGRATIONS: DatabaseMigration[] = [
     id: "0015_thread_vendor_session",
     sql: `ALTER TABLE threads ADD COLUMN vendor_session_id TEXT;`,
   },
+  {
+    id: "0016_thread_archived_flag",
+    sql: `ALTER TABLE threads ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;`,
+  },
 ]

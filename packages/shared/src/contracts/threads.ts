@@ -91,6 +91,7 @@ export const threadSummarySchema = z.object({
   lastActivityAt: isoUtcTimestampSchema.nullable(),
   approvedAt: isoUtcTimestampSchema.nullable(),
   completedAt: isoUtcTimestampSchema.nullable(),
+  archived: z.boolean(),
 })
 
 export const threadSnapshotSchema = threadSummarySchema
