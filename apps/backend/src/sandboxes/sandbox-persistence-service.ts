@@ -455,7 +455,7 @@ export class SandboxPersistenceService {
             env_vars_json,
             created_at,
             updated_at
-          ) VALUES (?, '[".env"]', '{}', ?, ?)
+          ) VALUES (?, '[".env", ".ultra"]', '{}', ?, ?)
         `,
       )
       .run(projectId, timestamp, timestamp)

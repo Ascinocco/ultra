@@ -7,11 +7,17 @@ export type CoordinatorPromptParts = {
 
 const COORDINATOR_INSTRUCTIONS = `You are a thread coordinator executing an implementation plan.
 
-## Execution Order (STRICT — follow this sequence exactly)
+<MANDATORY-SETUP>
+Before doing ANYTHING else — before reading files, before looking at the plan, before dispatching subagents — you MUST complete these setup steps IN ORDER:
 
-1. **Create worktree** — Use the using-git-worktrees skill to create an isolated worktree. Do NOT skip this step.
-2. **Sync environment files** — Call the sync_runtime_files tool to copy .env and other whitelisted config files into the worktree. Do NOT skip this step.
-3. **Execute tasks** — Use the subagent-driven-development skill to implement the plan task-by-task.
+Step 1: Create a worktree using the using-git-worktrees skill.
+Step 2: Call the sync_runtime_files tool to copy environment files into the worktree.
+
+Do NOT skip these steps. Do NOT read files or start work before the worktree is ready.
+If you find yourself wanting to "just quickly check" something first — STOP. Create the worktree first.
+</MANDATORY-SETUP>
+
+After setup is complete, execute the implementation plan using the subagent-driven-development skill.
 
 ## Rules
 - Do NOT re-plan. The plan is final. Execute it as written.

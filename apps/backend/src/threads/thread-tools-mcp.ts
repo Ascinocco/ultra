@@ -3,8 +3,8 @@ import {
   tool,
   type McpSdkServerConfigWithInstance,
 } from "@anthropic-ai/claude-agent-sdk"
-import { copyFileSync, existsSync, mkdirSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs"
+import { dirname, join, relative } from "node:path"
 import { z } from "zod"
 import type { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
 import type { ProjectService } from "../projects/project-service.js"
@@ -58,7 +58,7 @@ export function createThreadToolsMcpServer(
               }
             }
 
-            // Copy each whitelisted file
+            // Copy each whitelisted path (files or directories)
             const copied: string[] = []
             const missing: string[] = []
             const errors: string[] = []
@@ -71,7 +71,6 @@ export function createThreadToolsMcpServer(
               }
 
               const sourcePath = join(projectRoot, filePath)
-              const targetPath = join(args.worktree_path, filePath)
 
               if (!existsSync(sourcePath)) {
                 missing.push(filePath)
@@ -79,9 +78,19 @@ export function createThreadToolsMcpServer(
               }
 
               try {
-                mkdirSync(dirname(targetPath), { recursive: true })
-                copyFileSync(sourcePath, targetPath)
-                copied.push(filePath)
+                const stat = statSync(sourcePath)
+                if (stat.isDirectory()) {
+                  // Recursively copy directory
+                  const files = copyDirRecursive(sourcePath, join(args.worktree_path, filePath))
+                  for (const f of files) {
+                    copied.push(join(filePath, relative(sourcePath, f)))
+                  }
+                } else {
+                  const targetPath = join(args.worktree_path, filePath)
+                  mkdirSync(dirname(targetPath), { recursive: true })
+                  copyFileSync(sourcePath, targetPath)
+                  copied.push(filePath)
+                }
               } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err)
                 errors.push(`Failed to copy ${filePath}: ${msg}`)
@@ -127,4 +136,23 @@ export function createThreadToolsMcpServer(
       ),
     ],
   })
+}
+
+function copyDirRecursive(src: string, dest: string): string[] {
+  const copied: string[] = []
+  mkdirSync(dest, { recursive: true })
+
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const srcPath = join(src, entry.name)
+    const destPath = join(dest, entry.name)
+
+    if (entry.isDirectory()) {
+      copied.push(...copyDirRecursive(srcPath, destPath))
+    } else {
+      copyFileSync(srcPath, destPath)
+      copied.push(srcPath)
+    }
+  }
+
+  return copied
 }
