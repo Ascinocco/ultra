@@ -43,6 +43,7 @@ import { TerminalCommandGenService } from "./terminal/terminal-command-gen-servi
 import { TerminalService } from "./terminal/terminal-service.js"
 import { TerminalSessionService } from "./terminal/terminal-session-service.js"
 import { createThreadStatusMcpServer } from "./threads/thread-status-mcp.js"
+import { createThreadToolsMcpServer } from "./threads/thread-tools-mcp.js"
 import { ThreadService } from "./threads/thread-service.js"
 import { ThreadTurnService } from "./threads/thread-turn-service.js"
 
@@ -140,10 +141,17 @@ export async function startBackendScaffold(options?: {
       agentRegistry,
       overlayGenerator: { generateOverlay },
     })
+    const threadToolsMcpServer = createThreadToolsMcpServer(
+      sandboxPersistenceService,
+      projectService,
+    )
     const threadTurnService = new ThreadTurnService(
       threadService,
       new ClaudeChatRuntimeAdapter({
         pathToClaudeCodeExecutable: "claude",
+        threadMcpServers: {
+          "ultra-thread-tools": threadToolsMcpServer,
+        },
       }),
     )
     threadService.setCoordinatorDispatchHandler({

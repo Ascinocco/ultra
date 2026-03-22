@@ -1,0 +1,130 @@
+import {
+  createSdkMcpServer,
+  tool,
+  type McpSdkServerConfigWithInstance,
+} from "@anthropic-ai/claude-agent-sdk"
+import { copyFileSync, existsSync, mkdirSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { z } from "zod"
+import type { SandboxPersistenceService } from "../sandboxes/sandbox-persistence-service.js"
+import type { ProjectService } from "../projects/project-service.js"
+
+/**
+ * Creates an in-process MCP server with tools for the thread coordinator.
+ * Registered on thread sessions only — main chat does NOT get these tools.
+ */
+export function createThreadToolsMcpServer(
+  sandboxPersistenceService: SandboxPersistenceService,
+  projectService: ProjectService,
+): McpSdkServerConfigWithInstance {
+  return createSdkMcpServer({
+    name: "ultra-thread-tools",
+    version: "1.0.0",
+    tools: [
+      tool(
+        "sync_runtime_files",
+        "Sync whitelisted runtime files (like .env) from the project root into a worktree directory. Call this AFTER creating a worktree to ensure environment configuration is available. The whitelist is configured per-project (default: .env).",
+        {
+          project_id: z.string().describe("The project ID"),
+          worktree_path: z.string().describe("Absolute path to the worktree directory"),
+        },
+        async (args) => {
+          try {
+            // Get the project root path
+            const project = projectService.get(args.project_id)
+            const projectRoot = project.rootPath
+            if (!projectRoot) {
+              return {
+                content: [{ type: "text" as const, text: "Error: Project has no root path configured." }],
+                isError: true,
+              }
+            }
+
+            // Get the whitelisted runtime file paths
+            const profile = sandboxPersistenceService.getRuntimeProfile(args.project_id)
+            const filePaths = profile.runtimeFilePaths
+
+            if (filePaths.length === 0) {
+              return {
+                content: [{ type: "text" as const, text: "No runtime files configured for sync. Default is .env — configure via project settings." }],
+              }
+            }
+
+            // Validate worktree path exists
+            if (!existsSync(args.worktree_path)) {
+              return {
+                content: [{ type: "text" as const, text: `Error: Worktree path does not exist: ${args.worktree_path}` }],
+                isError: true,
+              }
+            }
+
+            // Copy each whitelisted file
+            const copied: string[] = []
+            const missing: string[] = []
+            const errors: string[] = []
+
+            for (const filePath of filePaths) {
+              // Validate: no absolute paths, no directory traversal
+              if (filePath.startsWith("/") || filePath.includes("..")) {
+                errors.push(`Invalid path (absolute or traversal): ${filePath}`)
+                continue
+              }
+
+              const sourcePath = join(projectRoot, filePath)
+              const targetPath = join(args.worktree_path, filePath)
+
+              if (!existsSync(sourcePath)) {
+                missing.push(filePath)
+                continue
+              }
+
+              try {
+                mkdirSync(dirname(targetPath), { recursive: true })
+                copyFileSync(sourcePath, targetPath)
+                copied.push(filePath)
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err)
+                errors.push(`Failed to copy ${filePath}: ${msg}`)
+              }
+            }
+
+            // Build result
+            const lines: string[] = []
+            lines.push(`## Runtime Files Sync`)
+            lines.push(`Source: ${projectRoot}`)
+            lines.push(`Target: ${args.worktree_path}`)
+            lines.push("")
+
+            if (copied.length > 0) {
+              lines.push(`**Copied (${copied.length}):** ${copied.join(", ")}`)
+            }
+            if (missing.length > 0) {
+              lines.push(`**Missing in source (${missing.length}):** ${missing.join(", ")}`)
+            }
+            if (errors.length > 0) {
+              lines.push(`**Errors (${errors.length}):**`)
+              for (const err of errors) {
+                lines.push(`- ${err}`)
+              }
+            }
+
+            if (copied.length === 0 && missing.length === filePaths.length) {
+              lines.push("\nNo files were copied — none of the whitelisted files exist in the project root.")
+            }
+
+            return {
+              content: [{ type: "text" as const, text: lines.join("\n") }],
+              isError: errors.length > 0,
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            return {
+              content: [{ type: "text" as const, text: `Error: ${message}` }],
+              isError: true,
+            }
+          }
+        },
+      ),
+    ],
+  })
+}
