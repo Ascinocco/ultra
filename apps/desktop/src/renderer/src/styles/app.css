@@ -1866,12 +1866,10 @@ button {
   align-items: center;
   gap: 8px;
   padding: 12px 16px 10px;
-  border-bottom: 1px solid var(--panel-border);
   flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--shell-bg);
 }
 
 /* ── Thread Switcher (accordion above header) ────────────────────── */
