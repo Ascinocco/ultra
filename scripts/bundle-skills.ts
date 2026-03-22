@@ -7,8 +7,10 @@
  */
 import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs"
 import { join, dirname, basename } from "node:path"
+import { fileURLToPath } from "node:url"
 
-const ROOT = join(import.meta.dirname, "..")
+const __dirname = typeof import.meta.dirname === "string" ? import.meta.dirname : dirname(fileURLToPath(import.meta.url))
+const ROOT = join(__dirname, "..")
 const SKILLS_DIR = join(ROOT, "vendor/superpowers/skills")
 const OUT_FILE = join(ROOT, "packages/shared/src/generated/bundled-skills.ts")
 
