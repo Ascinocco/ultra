@@ -1083,6 +1083,15 @@ export function ChatPageShell({
     return { [selectedThreadId]: threadStreaming.isStreaming }
   }, [selectedThreadId, threadStreaming.isStreaming])
 
+  // Re-fetch thread list when coordinator stops streaming (state may have changed)
+  const prevStreamingRef = useRef(false)
+  useEffect(() => {
+    if (prevStreamingRef.current && !threadStreaming.isStreaming && activeProjectId) {
+      void fetchThreads(activeProjectId, actions)
+    }
+    prevStreamingRef.current = threadStreaming.isStreaming
+  }, [threadStreaming.isStreaming, activeProjectId, actions])
+
   const handleSendThreadMessage = useCallback(
     async (threadId: string, content: string, _files: File[]) => {
       await sendThreadMessage(threadId, content, actions)
