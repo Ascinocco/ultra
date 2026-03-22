@@ -1094,6 +1094,9 @@ export function ChatPageShell({
 
   const handleSendThreadMessage = useCallback(
     async (threadId: string, content: string, _files: File[]) => {
+      // Immediately show thinking state (pulsing dots)
+      actions.setActiveThreadTurn(threadId)
+      actions.clearThreadTurnEvents(threadId)
       await sendThreadMessage(threadId, content, actions)
       // Re-fetch threads to pick up state change (e.g., completed → running)
       // and re-fetch messages to ensure user message is in the list
