@@ -249,7 +249,10 @@ export async function routeIpcRequest(
     terminalService: TerminalService
     terminalSessionService: TerminalSessionService
     threadService: ThreadService
-    threadTurnService?: { cancelCoordinator: (threadId: string) => void }
+    threadTurnService?: {
+      cancelCoordinator: (threadId: string) => void
+      startCoordinator: (threadId: string) => Promise<void>
+    }
   },
 ): Promise<SuccessResponseEnvelope | ReturnType<typeof createErrorResponse>> {
   try {
@@ -893,6 +896,31 @@ export async function routeIpcRequest(
         const { thread_id } = cancelCommand.payload as { thread_id: string }
         services.threadTurnService?.cancelCoordinator(thread_id)
         return createSuccessResponse(cancelCommand.request_id, { canceled: true })
+      }
+      case "threads.approve": {
+        const cmd = assertCommandRequest(request)
+        const { thread_id } = cmd.payload as { thread_id: string }
+        services.threadService.approveThread(thread_id)
+        return createSuccessResponse(cmd.request_id, { approved: true })
+      }
+      case "threads.archive": {
+        const cmd = assertCommandRequest(request)
+        const { thread_id } = cmd.payload as { thread_id: string }
+        services.threadService.archiveThread(thread_id)
+        return createSuccessResponse(cmd.request_id, { archived: true })
+      }
+      case "threads.unarchive": {
+        const cmd = assertCommandRequest(request)
+        const { thread_id } = cmd.payload as { thread_id: string }
+        services.threadService.unarchiveThread(thread_id)
+        return createSuccessResponse(cmd.request_id, { unarchived: true })
+      }
+      case "threads.retry": {
+        const cmd = assertCommandRequest(request)
+        const { thread_id } = cmd.payload as { thread_id: string }
+        services.threadService.retryThread(thread_id)
+        void services.threadTurnService?.startCoordinator(thread_id)
+        return createSuccessResponse(cmd.request_id, { retrying: true })
       }
       default:
         throw new IpcProtocolError(
