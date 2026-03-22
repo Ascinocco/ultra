@@ -1011,19 +1011,23 @@ export function createAppStore(overrides?: Partial<AppSlice>): AppStore {
           },
         })),
       appendMessage: (threadId, message) =>
-        set((state) => ({
-          ...state,
-          threads: {
-            ...state.threads,
-            messagesByThreadId: {
-              ...state.threads.messagesByThreadId,
-              [threadId]: [
-                ...(state.threads.messagesByThreadId[threadId] ?? []),
-                message,
-              ],
+        set((state) => {
+          const existing = state.threads.messagesByThreadId[threadId] ?? []
+          // Deduplicate — subscription may deliver messages already loaded by fetch
+          if (existing.some((m) => m.id === message.id)) {
+            return state
+          }
+          return {
+            ...state,
+            threads: {
+              ...state.threads,
+              messagesByThreadId: {
+                ...state.threads.messagesByThreadId,
+                [threadId]: [...existing, message],
+              },
             },
-          },
-        })),
+          }
+        }),
       setThreadFetchStatus: (projectId, status) =>
         set((state) => ({
           ...state,
