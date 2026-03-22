@@ -65,6 +65,7 @@ export function ThreadDetail({
   onBack,
   onSendMessage,
   onSelectThread,
+  onCancelCoordinator,
 }: {
   thread: ThreadSnapshot
   messages: ThreadMessageSnapshot[]
@@ -75,6 +76,7 @@ export function ThreadDetail({
   onBack: () => void
   onSendMessage: (content: string, files: File[]) => void
   onSelectThread: (threadId: string) => void
+  onCancelCoordinator?: () => void
 }) {
   const isRunning = thread.executionState === "running" && isCoordinatorActive
   const isBlocked = thread.executionState === "blocked"
@@ -116,12 +118,14 @@ export function ThreadDetail({
         chatId={`thread_${thread.id}`}
         disabled={!canSend}
         isFirstTurn={false}
+        isGenerating={isRunning}
         provider="claude"
         model="claude-opus-4-6"
         thinkingLevel="high"
         permissionLevel="full_access"
         availableModels={["claude-opus-4-6"]}
         onSend={onSendMessage}
+        onCancel={onCancelCoordinator}
         onRuntimeConfigChange={() => {}}
       />
     </div>

@@ -57,6 +57,7 @@ export const commandMethodSchema = z.enum([
   "chats.start_thread",
   "chats.promote_work_to_thread",
   "threads.send_message",
+  "threads.cancel_coordinator",
   "runtime.retry_thread",
   "runtime.pause_project_runtime",
   "runtime.resume_project_runtime",

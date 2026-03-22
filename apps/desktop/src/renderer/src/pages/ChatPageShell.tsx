@@ -54,6 +54,7 @@ import {
 } from "../terminal/terminal-workflows.js"
 import { ThreadPane } from "../threads/ThreadPane.js"
 import {
+  cancelThreadCoordinator,
   fetchThreadMessages,
   fetchThreads,
   sendThreadMessage,
@@ -976,6 +977,12 @@ export function ChatPageShell({
     })
   }
 
+  function handleCancelCoordinator(threadId: string) {
+    void cancelThreadCoordinator(threadId).catch((err) => {
+      console.error("[threads] failed to cancel coordinator:", err)
+    })
+  }
+
   function handleSelectThread(threadId: string | null) {
     if (!activeProjectId) return
     actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
@@ -1194,6 +1201,7 @@ export function ChatPageShell({
                 chatId={activeChatId!}
                 disabled={chatInputDisabled}
                 isFirstTurn={isPreSendRuntimeConfig}
+                isGenerating={inFlightTurn}
                 provider={isPreSendRuntimeConfig ? runtimeProviderDraft : activeChat.provider}
                 model={isPreSendRuntimeConfig ? runtimeModelDraft : activeChat.model}
                 thinkingLevel={activeChat.thinkingLevel}
@@ -1201,6 +1209,7 @@ export function ChatPageShell({
                 availableModels={availableModels}
                 onPlanMarker={handlePlanMarker}
                 onPromote={() => void handlePromote()}
+                onCancel={handleCancelTurn}
                 planMarkerOpen={planMarkerOpen}
                 onSend={handleSend}
                 onRuntimeConfigChange={handleRuntimeConfigChange}
@@ -1241,6 +1250,7 @@ export function ChatPageShell({
             onSelectThread={handleSelectThread}
             onFetchMessages={handleFetchMessages}
             onSendMessage={handleSendThreadMessage}
+            onCancelCoordinator={handleCancelCoordinator}
           />
         </div>
 

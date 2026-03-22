@@ -16,6 +16,7 @@ export function ThreadPane({
   onSelectThread,
   onFetchMessages,
   onSendMessage,
+  onCancelCoordinator,
 }: {
   threads: ThreadSnapshot[]
   selectedThreadId: string | null
@@ -27,6 +28,7 @@ export function ThreadPane({
   onSelectThread: (threadId: string | null) => void
   onFetchMessages: (threadId: string) => void
   onSendMessage: (threadId: string, content: string, files: File[]) => void
+  onCancelCoordinator?: (threadId: string) => void
 }) {
   const selectedThread = selectedThreadId
     ? (threads.find((t) => t.id === selectedThreadId) ?? null)
@@ -74,6 +76,11 @@ export function ThreadPane({
             onSendMessage(selectedThread.id, content, files)
           }
           onSelectThread={onSelectThread}
+          onCancelCoordinator={
+            onCancelCoordinator
+              ? () => onCancelCoordinator(selectedThread.id)
+              : undefined
+          }
         />
       </div>
     )

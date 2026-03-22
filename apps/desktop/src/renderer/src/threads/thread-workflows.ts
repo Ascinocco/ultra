@@ -80,6 +80,13 @@ export async function sendThreadMessage(
   return message
 }
 
+export async function cancelThreadCoordinator(
+  threadId: string,
+  client: WorkflowClient = ipcClient,
+): Promise<void> {
+  await client.command("threads.cancel_coordinator", { thread_id: threadId })
+}
+
 type SubscribeMessagesActions = Pick<AppActions, "appendMessage">
 
 export async function subscribeToThreadMessages(

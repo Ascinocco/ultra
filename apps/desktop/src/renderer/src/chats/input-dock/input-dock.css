@@ -81,6 +81,31 @@
   cursor: not-allowed;
 }
 
+/* Stop button */
+.input-dock__stop {
+  background: #e54545;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.input-dock__stop:hover {
+  background: #d03030;
+}
+
+.input-dock__stop-icon {
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 2px;
+}
+
 /* Pill button */
 .input-dock__pill {
   display: inline-flex;

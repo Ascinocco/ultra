@@ -15,6 +15,7 @@ export type InputDockProps = {
   chatId: string
   disabled: boolean
   isFirstTurn: boolean
+  isGenerating?: boolean | undefined
   provider: string
   model: string
   thinkingLevel: string
@@ -22,6 +23,7 @@ export type InputDockProps = {
   availableModels: string[]
   onPlanMarker?: (markerType: "open" | "close") => void
   onPromote?: () => void
+  onCancel?: () => void
   planMarkerOpen?: boolean
   onSend: (prompt: string, attachments: File[]) => void
   onRuntimeConfigChange: (config: {
@@ -48,6 +50,7 @@ export function InputDock({
   chatId,
   disabled,
   isFirstTurn,
+  isGenerating,
   provider,
   model,
   thinkingLevel,
@@ -55,6 +58,7 @@ export function InputDock({
   availableModels,
   onPlanMarker,
   onPromote,
+  onCancel,
   planMarkerOpen,
   onSend,
   onRuntimeConfigChange,
@@ -229,15 +233,26 @@ export function InputDock({
 
         <span className="input-dock__spacer" />
 
-        <button
-          type="button"
-          className="input-dock__send"
-          onClick={handleSend}
-          disabled={disabled || (!prompt.trim() && files.length === 0)}
-          aria-label="Send message"
-        >
-          ↑
-        </button>
+        {isGenerating ? (
+          <button
+            type="button"
+            className="input-dock__stop"
+            onClick={onCancel}
+            aria-label="Stop generating"
+          >
+            <span className="input-dock__stop-icon" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="input-dock__send"
+            onClick={handleSend}
+            disabled={disabled || (!prompt.trim() && files.length === 0)}
+            aria-label="Send message"
+          >
+            ↑
+          </button>
+        )}
       </div>
 
       {dragging ? (

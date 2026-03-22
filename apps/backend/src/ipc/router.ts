@@ -249,6 +249,7 @@ export async function routeIpcRequest(
     terminalService: TerminalService
     terminalSessionService: TerminalSessionService
     threadService: ThreadService
+    threadTurnService?: { cancelCoordinator: (threadId: string) => void }
   },
 ): Promise<SuccessResponseEnvelope | ReturnType<typeof createErrorResponse>> {
   try {
@@ -886,6 +887,12 @@ export async function routeIpcRequest(
             threadsSendMessageInputSchema.parse(sendMessageCommand.payload),
           ),
         )
+      }
+      case "threads.cancel_coordinator": {
+        const cancelCommand = assertCommandRequest(request)
+        const { thread_id } = cancelCommand.payload as { thread_id: string }
+        services.threadTurnService?.cancelCoordinator(thread_id)
+        return createSuccessResponse(cancelCommand.request_id, { canceled: true })
       }
       default:
         throw new IpcProtocolError(

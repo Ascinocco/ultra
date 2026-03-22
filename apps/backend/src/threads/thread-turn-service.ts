@@ -30,6 +30,7 @@ const COORDINATOR_CONFIG = {
 
 export class ThreadTurnService {
   private readonly activeThreads = new Set<ThreadId>()
+  private readonly abortControllers = new Map<ThreadId, AbortController>()
 
   private readonly listenersByThreadId = new Map<
     ThreadId,
@@ -68,6 +69,8 @@ export class ThreadTurnService {
     }
 
     this.activeThreads.add(threadId)
+    const abortController = new AbortController()
+    this.abortControllers.set(threadId, abortController)
     this.updateThreadState(threadId, thread.projectId, "running", null)
 
     try {
@@ -85,6 +88,7 @@ export class ThreadTurnService {
         seedMessages: [],
         vendorSessionId: null,
         attachments,
+        signal: abortController.signal,
         onEvent: (event) => this.handleCoordinatorEvent(threadId, event),
       })
 
@@ -104,11 +108,16 @@ export class ThreadTurnService {
         null,
       )
     } catch (error) {
-      const reason =
-        error instanceof Error ? error.message : String(error)
-      this.updateThreadState(threadId, thread.projectId, "failed", reason)
+      if (abortController.signal.aborted) {
+        this.updateThreadState(threadId, thread.projectId, "blocked", "Canceled by user")
+      } else {
+        const reason =
+          error instanceof Error ? error.message : String(error)
+        this.updateThreadState(threadId, thread.projectId, "failed", reason)
+      }
     } finally {
       this.activeThreads.delete(threadId)
+      this.abortControllers.delete(threadId)
     }
   }
 
@@ -126,6 +135,8 @@ export class ThreadTurnService {
     const thread = detail.thread
 
     this.activeThreads.add(threadId)
+    const abortController = new AbortController()
+    this.abortControllers.set(threadId, abortController)
     this.updateThreadState(threadId, thread.projectId, "running", null)
 
     try {
@@ -142,6 +153,7 @@ export class ThreadTurnService {
           continuationPrompt: null,
           seedMessages: [],
           vendorSessionId: vendorSessionId,
+          signal: abortController.signal,
           onEvent: (event) => this.handleCoordinatorEvent(threadId, event),
         })
 
@@ -189,6 +201,7 @@ export class ThreadTurnService {
           seedMessages: [],
           vendorSessionId: null,
           attachments,
+          signal: abortController.signal,
           onEvent: (event) => this.handleCoordinatorEvent(threadId, event),
         })
 
@@ -209,11 +222,26 @@ export class ThreadTurnService {
         )
       }
     } catch (error) {
-      const reason =
-        error instanceof Error ? error.message : String(error)
-      this.updateThreadState(threadId, thread.projectId, "failed", reason)
+      if (abortController.signal.aborted) {
+        this.updateThreadState(threadId, thread.projectId, "blocked", "Canceled by user")
+      } else {
+        const reason =
+          error instanceof Error ? error.message : String(error)
+        this.updateThreadState(threadId, thread.projectId, "failed", reason)
+      }
     } finally {
       this.activeThreads.delete(threadId)
+      this.abortControllers.delete(threadId)
+    }
+  }
+
+  /**
+   * Cancel a running coordinator session.
+   */
+  cancelCoordinator(threadId: ThreadId): void {
+    const controller = this.abortControllers.get(threadId)
+    if (controller) {
+      controller.abort()
     }
   }
 
