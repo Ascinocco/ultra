@@ -58,8 +58,9 @@ function EnvironmentReadinessBridge() {
 
   useEffect(() => {
     if (connectionStatus !== "connected") {
-      resetReadiness()
-      return
+      // Debounce: don't reset readiness on brief connection blips (e.g., cancel abort)
+      const timer = setTimeout(() => resetReadiness(), 2000)
+      return () => clearTimeout(timer)
     }
 
     let cancelled = false
