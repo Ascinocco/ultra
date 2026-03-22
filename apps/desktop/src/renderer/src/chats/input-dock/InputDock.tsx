@@ -179,7 +179,7 @@ export function InputDock({
           value={prompt}
           onChange={handleTextareaChange}
           onKeyDown={handleKeyDown}
-          readOnly={disabled}
+          readOnly={false}
           rows={1}
         />
       </div>
