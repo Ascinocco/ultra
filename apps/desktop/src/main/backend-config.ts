@@ -71,7 +71,7 @@ export function createBackendLaunchConfig(app: App): BackendLaunchConfig {
   const sharedRoot = join(resourcesPath, "shared")
 
   return {
-    command: "node",
+    command: process.execPath,
     args: ["dist/index.js"],
     cwd: backendRoot,
     env: {
