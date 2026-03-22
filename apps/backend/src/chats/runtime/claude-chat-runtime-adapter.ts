@@ -112,6 +112,42 @@ function mapSdkMessage(message: SDKMessage): {
       if (msg.subtype === "init" && msg.session_id) {
         vendorSessionId = msg.session_id
       }
+      if (msg.subtype === "task_started") {
+        events.push({
+          type: "task_update",
+          label: "task_started",
+          metadata: {
+            taskId: msg.task_id,
+            description: msg.description,
+            taskType: msg.task_type,
+          },
+        })
+      }
+      if (msg.subtype === "task_progress") {
+        events.push({
+          type: "task_update",
+          label: "task_progress",
+          metadata: {
+            taskId: msg.task_id,
+            description: msg.description,
+            summary: msg.summary,
+            lastToolName: msg.last_tool_name,
+            usage: msg.usage,
+          },
+        })
+      }
+      if (msg.subtype === "task_notification") {
+        events.push({
+          type: "task_update",
+          label: "task_notification",
+          metadata: {
+            taskId: msg.task_id,
+            status: msg.status,
+            summary: msg.summary,
+            usage: msg.usage,
+          },
+        })
+      }
       break
     }
   }

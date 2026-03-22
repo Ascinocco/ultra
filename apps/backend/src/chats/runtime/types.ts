@@ -18,6 +18,7 @@ export type ChatRuntimeEvent =
   | { type: "assistant_delta"; text: string }
   | { type: "assistant_final"; text: string }
   | { type: "tool_activity"; label: string; metadata?: Record<string, unknown> }
+  | { type: "task_update"; label: string; metadata?: Record<string, unknown> }
   | { type: "checkpoint_candidate"; checkpoint: ChatRuntimeCheckpointCandidate }
   | { type: "runtime_notice"; message: string }
   | { type: "runtime_error"; message: string }
