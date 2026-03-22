@@ -1880,6 +1880,53 @@ button {
   z-index: 2;
 }
 
+/* ── Thread Detail Action Buttons ─────────────────────────────────── */
+
+.thread-detail__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.thread-action {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
+.thread-action:hover {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+
+.thread-action--approve {
+  border-color: rgba(110, 231, 183, 0.3);
+  color: #6ee7b7;
+}
+
+.thread-action--approve:hover {
+  border-color: #6ee7b7;
+  background: rgba(110, 231, 183, 0.08);
+}
+
+.thread-action--retry {
+  border-color: rgba(250, 204, 21, 0.3);
+  color: #f0c674;
+}
+
+.thread-action--retry:hover {
+  border-color: #f0c674;
+  background: rgba(250, 204, 21, 0.08);
+}
+
 /* ── Thread Switcher (accordion above header) ────────────────────── */
 
 .thread-switcher {

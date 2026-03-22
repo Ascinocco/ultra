@@ -72,6 +72,10 @@ export function ThreadDetail({
   onSendMessage,
   onSelectThread,
   onCancelCoordinator,
+  onApprove,
+  onArchive,
+  onUnarchive,
+  onRetry,
 }: {
   thread: ThreadSnapshot
   messages: ThreadMessageSnapshot[]
@@ -87,6 +91,10 @@ export function ThreadDetail({
   onSendMessage: (content: string, files: File[]) => void
   onSelectThread: (threadId: string) => void
   onCancelCoordinator?: () => void
+  onApprove?: () => void
+  onArchive?: () => void
+  onUnarchive?: () => void
+  onRetry?: () => void
 }) {
   const isRunning = thread.executionState === "running" && isCoordinatorActive
   const isBlocked = thread.executionState === "blocked"
@@ -115,6 +123,38 @@ export function ThreadDetail({
           <span className={`state-pill state-pill--${thread.executionState}`}>
             {thread.executionState.replace(/_/g, " ")}
           </span>
+        </div>
+        <div className="thread-detail__actions">
+          {!thread.archived && thread.executionState === "awaiting_review" && (
+            <>
+              <button className="thread-action thread-action--approve" type="button" onClick={onApprove}>
+                Approve
+              </button>
+              <button className="thread-action" type="button" onClick={onArchive}>
+                Archive
+              </button>
+            </>
+          )}
+          {!thread.archived && thread.executionState === "completed" && (
+            <button className="thread-action" type="button" onClick={onArchive}>
+              Archive
+            </button>
+          )}
+          {!thread.archived && (thread.executionState === "failed" || thread.executionState === "canceled") && (
+            <>
+              <button className="thread-action thread-action--retry" type="button" onClick={onRetry}>
+                Retry
+              </button>
+              <button className="thread-action" type="button" onClick={onArchive}>
+                Archive
+              </button>
+            </>
+          )}
+          {thread.archived && (
+            <button className="thread-action" type="button" onClick={onUnarchive}>
+              Unarchive
+            </button>
+          )}
         </div>
       </div>
 
