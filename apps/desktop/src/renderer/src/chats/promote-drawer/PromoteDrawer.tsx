@@ -82,7 +82,8 @@ export function PromoteDrawer({
   const [expanded, setExpanded] = useState(false)
   const [showDiscardModal, setShowDiscardModal] = useState(false)
 
-  if (messageCount < 3 && !promoting && planState === "idle") return null
+  // Always render — even with 0 messages, show the collapsed lip so
+  // users can access Start Plan / Promote at any time
 
   // Auto-expand when planning/ready, but respect manual collapse
   const isExpanded = promoting || (manualCollapse ? false : (expanded || planState !== "idle"))
