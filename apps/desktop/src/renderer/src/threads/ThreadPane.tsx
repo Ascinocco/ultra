@@ -18,6 +18,10 @@ export function ThreadPane({
   onFetchMessages,
   onSendMessage,
   onCancelCoordinator,
+  onApprove,
+  onArchive,
+  onUnarchive,
+  onRetry,
   tasksByThreadId,
 }: {
   threads: ThreadSnapshot[]
@@ -31,6 +35,10 @@ export function ThreadPane({
   onFetchMessages: (threadId: string) => void
   onSendMessage: (threadId: string, content: string, files: File[]) => void
   onCancelCoordinator?: (threadId: string) => void
+  onApprove?: (threadId: string) => void
+  onArchive?: (threadId: string) => void
+  onUnarchive?: (threadId: string) => void
+  onRetry?: (threadId: string) => void
   tasksByThreadId: Record<string, { tasks: TaskItem[]; percentage: number; allComplete: boolean; hasFailed: boolean }>
 }) {
   const [showArchived, setShowArchived] = useState(false)
@@ -94,6 +102,10 @@ export function ThreadPane({
               ? () => onCancelCoordinator(selectedThread.id)
               : undefined
           }
+          onApprove={onApprove ? () => onApprove(selectedThread.id) : undefined}
+          onArchive={onArchive ? () => onArchive(selectedThread.id) : undefined}
+          onUnarchive={onUnarchive ? () => onUnarchive(selectedThread.id) : undefined}
+          onRetry={onRetry ? () => onRetry(selectedThread.id) : undefined}
         />
       </div>
     )

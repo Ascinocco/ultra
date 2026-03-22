@@ -54,14 +54,18 @@ import {
 } from "../terminal/terminal-workflows.js"
 import { ThreadPane } from "../threads/ThreadPane.js"
 import {
+  approveThread,
+  archiveThread,
   cancelThreadCoordinator,
   fetchThreadEvents,
   fetchThreadMessages,
   fetchThreads,
   fetchThreadTaskEvents,
+  retryThread,
   sendThreadMessage,
   subscribeToThreadMessages,
   subscribeToThreadTurnEvents,
+  unarchiveThread,
 } from "../threads/thread-workflows.js"
 import { useThreadStreaming } from "../threads/hooks/useThreadStreaming.js"
 import { useThreadTasks } from "../threads/hooks/useThreadTasks.js"
@@ -1012,6 +1016,30 @@ export function ChatPageShell({
     })
   }
 
+  function handleApproveThread(threadId: string) {
+    void approveThread(threadId).then(() => {
+      if (activeProjectId) void fetchThreads(activeProjectId, actions)
+    }).catch((err) => console.error("[threads] approve failed:", err))
+  }
+
+  function handleArchiveThread(threadId: string) {
+    void archiveThread(threadId).then(() => {
+      if (activeProjectId) void fetchThreads(activeProjectId, actions)
+    }).catch((err) => console.error("[threads] archive failed:", err))
+  }
+
+  function handleUnarchiveThread(threadId: string) {
+    void unarchiveThread(threadId).then(() => {
+      if (activeProjectId) void fetchThreads(activeProjectId, actions)
+    }).catch((err) => console.error("[threads] unarchive failed:", err))
+  }
+
+  function handleRetryThread(threadId: string) {
+    void retryThread(threadId).then(() => {
+      if (activeProjectId) void fetchThreads(activeProjectId, actions)
+    }).catch((err) => console.error("[threads] retry failed:", err))
+  }
+
   function handleSelectThread(threadId: string | null) {
     if (!activeProjectId) return
     actions.setLayoutField(activeProjectId, { selectedThreadId: threadId })
@@ -1288,6 +1316,10 @@ export function ChatPageShell({
             onFetchMessages={handleFetchMessages}
             onSendMessage={handleSendThreadMessage}
             onCancelCoordinator={handleCancelCoordinator}
+            onApprove={handleApproveThread}
+            onArchive={handleArchiveThread}
+            onUnarchive={handleUnarchiveThread}
+            onRetry={handleRetryThread}
             tasksByThreadId={tasksByThreadId}
           />
         </div>
