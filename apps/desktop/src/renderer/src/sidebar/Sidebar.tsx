@@ -39,6 +39,9 @@ export function Sidebar({
   const layout = useAppStore((s) => s.layout)
   const actions = useAppStore((s) => s.actions)
 
+  const readiness = useAppStore((s) => s.readiness)
+  const readinessHasIssues = readiness.status === "blocked" || readiness.status === "error"
+
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
   const [renamingChatId, setRenamingChatId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState("")
@@ -201,6 +204,7 @@ export function Sidebar({
           onClick={onOpenSettings}
         >
           Settings
+          {readinessHasIssues && <span className="sidebar__settings-alert" />}
         </button>
         <button
           className="sidebar__open-project"

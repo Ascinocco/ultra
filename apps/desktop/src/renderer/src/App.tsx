@@ -2,7 +2,6 @@ import { parseTerminalSessionsEvent } from "@ultra/shared"
 import { useEffect, useRef } from "react"
 
 import { AppShell } from "./components/AppShell.js"
-import { EnvironmentReadinessGate } from "./components/EnvironmentReadinessGate.js"
 import { FoundationStartupErrorGate } from "./components/FoundationStartupErrorGate.js"
 import { SystemToolsPanel } from "./components/SystemToolsPanel.js"
 import { classifyFoundationStartupFailure } from "./foundation/foundation-startup.js"
@@ -186,12 +185,6 @@ function AppScreen() {
   const backendStatus = useAppStore((state) => state.app.backendStatus)
   const foundationFailure = classifyFoundationStartupFailure(backendStatus)
 
-  // Once the app has been fully ready, never show startup screens again
-  const hasBeenReadyRef = useRef(false)
-  if (!foundationFailure && readiness.status === "ready") {
-    hasBeenReadyRef.current = true
-  }
-
   async function handleRecheck() {
     setReadinessChecking()
 
@@ -207,18 +200,6 @@ function AppScreen() {
     await window.ultraShell.retryBackendStartup()
   }
 
-  const showReadinessGate =
-    !hasBeenReadyRef.current &&
-    !foundationFailure &&
-    connectionStatus === "connected" &&
-    (readiness.status === "blocked" ||
-      readiness.status === "error" ||
-      readiness.status === "checking")
-  const gateStatus: "checking" | "blocked" | "error" =
-    readiness.status === "blocked" || readiness.status === "error"
-      ? readiness.status
-      : "checking"
-
   return (
     <>
       {foundationFailure ? (
@@ -229,18 +210,6 @@ function AppScreen() {
           }}
           onRetryStartup={() => {
             void handleRetryStartup()
-          }}
-        />
-      ) : showReadinessGate ? (
-        <EnvironmentReadinessGate
-          snapshot={readiness.snapshot}
-          status={gateStatus}
-          error={readiness.error}
-          onOpenSystemTools={() => {
-            setSystemToolsOpen(true)
-          }}
-          onRecheck={() => {
-            void handleRecheck()
           }}
         />
       ) : (

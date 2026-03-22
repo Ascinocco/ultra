@@ -1252,6 +1252,14 @@ button {
   color: var(--text-secondary);
 }
 
+.sidebar__settings-alert {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e54545;
+  flex-shrink: 0;
+}
+
 /* ── Project Group ────────────────────────────────────────── */
 
 .project-group {
