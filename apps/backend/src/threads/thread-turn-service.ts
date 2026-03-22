@@ -95,6 +95,8 @@ export class ThreadTurnService {
         )
       }
 
+      this.persistCoordinatorMessage(threadId, thread.projectId, result.finalText)
+
       this.updateThreadState(
         threadId,
         thread.projectId,
@@ -150,6 +152,8 @@ export class ThreadTurnService {
           )
         }
 
+        this.persistCoordinatorMessage(threadId, thread.projectId, result.finalText)
+
         this.updateThreadState(
           threadId,
           thread.projectId,
@@ -194,6 +198,8 @@ export class ThreadTurnService {
             result.vendorSessionId,
           )
         }
+
+        this.persistCoordinatorMessage(threadId, thread.projectId, result.finalText)
 
         this.updateThreadState(
           threadId,
@@ -275,6 +281,28 @@ export class ThreadTurnService {
       } catch {
         // Listener errors must not disrupt the coordinator session.
       }
+    }
+  }
+
+  private persistCoordinatorMessage(
+    threadId: ThreadId,
+    projectId: ProjectId,
+    finalText: string,
+  ): void {
+    if (!finalText) return
+
+    try {
+      this.threadService.appendMessage({
+        threadId,
+        projectId,
+        role: "coordinator",
+        messageType: "text",
+        contentText: finalText,
+        provider: COORDINATOR_CONFIG.provider,
+        model: COORDINATOR_CONFIG.model,
+      })
+    } catch {
+      // Message persistence failure must not break the coordinator flow.
     }
   }
 
