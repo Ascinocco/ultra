@@ -100,6 +100,34 @@ export async function cancelThreadCoordinator(
   await client.command("threads.cancel_coordinator", { thread_id: threadId })
 }
 
+export async function approveThread(
+  threadId: string,
+  client: WorkflowClient = ipcClient,
+): Promise<void> {
+  await client.command("threads.approve", { thread_id: threadId })
+}
+
+export async function archiveThread(
+  threadId: string,
+  client: WorkflowClient = ipcClient,
+): Promise<void> {
+  await client.command("threads.archive", { thread_id: threadId })
+}
+
+export async function unarchiveThread(
+  threadId: string,
+  client: WorkflowClient = ipcClient,
+): Promise<void> {
+  await client.command("threads.unarchive", { thread_id: threadId })
+}
+
+export async function retryThread(
+  threadId: string,
+  client: WorkflowClient = ipcClient,
+): Promise<void> {
+  await client.command("threads.retry", { thread_id: threadId })
+}
+
 type SubscribeMessagesActions = Pick<AppActions, "appendMessage">
 
 export async function subscribeToThreadMessages(
