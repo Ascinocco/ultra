@@ -186,6 +186,12 @@ function AppScreen() {
   const backendStatus = useAppStore((state) => state.app.backendStatus)
   const foundationFailure = classifyFoundationStartupFailure(backendStatus)
 
+  // Once the app has been fully ready, never show startup screens again
+  const hasBeenReadyRef = useRef(false)
+  if (!foundationFailure && readiness.status === "ready") {
+    hasBeenReadyRef.current = true
+  }
+
   async function handleRecheck() {
     setReadinessChecking()
 
@@ -202,12 +208,12 @@ function AppScreen() {
   }
 
   const showReadinessGate =
+    !hasBeenReadyRef.current &&
     !foundationFailure &&
     connectionStatus === "connected" &&
     (readiness.status === "blocked" ||
       readiness.status === "error" ||
-      // Only show "checking" on initial load (no snapshot yet), not on rechecks
-      (readiness.status === "checking" && !readiness.snapshot))
+      readiness.status === "checking")
   const gateStatus: "checking" | "blocked" | "error" =
     readiness.status === "blocked" || readiness.status === "error"
       ? readiness.status
