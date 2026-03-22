@@ -100,7 +100,14 @@ export async function startSocketServer(
     socket.on("close", () => {
       cleanupSubscriptions(subscriptionRuntime)
     })
-    socket.on("error", () => {
+    socket.on("error", (err) => {
+      // EPIPE/ECONNRESET happen when client disconnects — not fatal
+      const code = (err as NodeJS.ErrnoException).code
+      if (code === "EPIPE" || code === "ECONNRESET" || code === "ERR_STREAM_DESTROYED") {
+        logger.info(`[backend] socket client disconnected (${code})`)
+      } else {
+        logger.error(`[backend] socket error: ${err.message}`)
+      }
       cleanupSubscriptions(subscriptionRuntime)
     })
 
@@ -147,6 +154,11 @@ export async function startSocketServer(
       server.off("error", reject)
       resolve()
     })
+  })
+
+  // Prevent server-level errors from crashing the process
+  server.on("error", (err) => {
+    logger.error(`[backend] server error: ${err.message}`)
   })
 
   logger.info(`[backend] listening on socket ${socketPath}`)
