@@ -1438,6 +1438,15 @@ export class ChatTurnService {
             message: event.message,
           },
         }
+      case "task_update":
+        return {
+          eventType: "chat.turn_progress",
+          payload: {
+            stage: "task_update",
+            label: event.label,
+            metadata: event.metadata ?? null,
+          },
+        }
     }
   }
 
