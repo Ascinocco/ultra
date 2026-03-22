@@ -71,6 +71,7 @@ type ThreadRow = {
   last_activity_at: string | null
   approved_at: string | null
   completed_at: string | null
+  archived: number // SQLite boolean: 0 or 1
 }
 
 type ThreadSpecRefRow = {
@@ -180,6 +181,7 @@ function mapThreadRow(row: ThreadRow): ThreadSnapshot {
     lastActivityAt: row.last_activity_at,
     approvedAt: row.approved_at,
     completedAt: row.completed_at,
+    archived: Boolean(row.archived),
   }
 }
 
@@ -754,7 +756,8 @@ export class ThreadService {
             updated_at,
             last_activity_at,
             approved_at,
-            completed_at
+            completed_at,
+            archived
           FROM threads
           ORDER BY last_activity_at DESC, created_at DESC
         `,
@@ -802,7 +805,8 @@ export class ThreadService {
             updated_at,
             last_activity_at,
             approved_at,
-            completed_at
+            completed_at,
+            archived
           FROM threads
           WHERE project_id = ?
           ORDER BY last_activity_at DESC, created_at DESC
@@ -851,7 +855,8 @@ export class ThreadService {
             updated_at,
             last_activity_at,
             approved_at,
-            completed_at
+            completed_at,
+            archived
           FROM threads
           WHERE source_chat_id = ?
           ORDER BY last_activity_at DESC, created_at DESC
@@ -1119,6 +1124,51 @@ export class ThreadService {
         `,
       )
       .run(health, projectId)
+  }
+
+  approveThread(threadId: ThreadId): void {
+    const timestamp = this.now()
+    this.database
+      .prepare(
+        `UPDATE threads
+         SET execution_state = 'completed',
+             review_state = 'approved',
+             approved_at = ?,
+             completed_at = ?,
+             updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(timestamp, timestamp, timestamp, threadId)
+  }
+
+  archiveThread(threadId: ThreadId): void {
+    this.database
+      .prepare(
+        `UPDATE threads SET archived = 1, updated_at = ? WHERE id = ?`,
+      )
+      .run(this.now(), threadId)
+  }
+
+  unarchiveThread(threadId: ThreadId): void {
+    this.database
+      .prepare(
+        `UPDATE threads SET archived = 0, updated_at = ? WHERE id = ?`,
+      )
+      .run(this.now(), threadId)
+  }
+
+  retryThread(threadId: ThreadId): void {
+    this.database
+      .prepare(
+        `UPDATE threads
+         SET execution_state = 'queued',
+             review_state = 'not_ready',
+             failure_reason = NULL,
+             restart_count = restart_count + 1,
+             updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(this.now(), threadId)
   }
 
   listActiveCoordinatorThreadIds(projectId: ProjectId): ThreadId[] {
@@ -1453,7 +1503,8 @@ export class ThreadService {
               updated_at,
               last_activity_at,
               approved_at,
-              completed_at
+              completed_at,
+            archived
             FROM threads
             WHERE id = ?
           `,
@@ -1503,7 +1554,8 @@ export class ThreadService {
               updated_at,
               last_activity_at,
               approved_at,
-              completed_at
+              completed_at,
+            archived
             FROM threads
             WHERE created_by_message_id = ?
           `,
