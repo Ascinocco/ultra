@@ -35,11 +35,14 @@ export function useThreadTasks(
       }
     }
 
-    // Apply live turn events
+    // Apply live turn events — only SDK task lifecycle events, not agent dispatches
     for (const event of turnEvents) {
       if (event.eventType !== "task_update") continue
       const payload = event.payload as { label?: string; metadata?: Record<string, unknown> }
       if (!payload.label || !payload.metadata) continue
+      // Skip agent/subagent dispatch tasks — only show plan-level tasks
+      const taskType = payload.metadata.taskType as string | undefined
+      if (taskType === "agent" || taskType === "subprocess") continue
       applyTaskEvent(taskMap, payload.label, payload.metadata)
     }
 
