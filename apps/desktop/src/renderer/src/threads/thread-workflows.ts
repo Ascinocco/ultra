@@ -162,6 +162,11 @@ export async function subscribeToThreadTurnEvents(
     { thread_id: threadId },
     (event) => {
       const parsed = parseThreadsTurnEventsEvent(event)
+      if (parsed.payload.eventType === "coordinator_finished") {
+        // Coordinator is done — clear active state so UI updates
+        actions.setActiveThreadTurn(null)
+        return
+      }
       // Set active on first event — means coordinator is actually running
       actions.setActiveThreadTurn(threadId)
       actions.appendThreadTurnEvent(parsed.payload)

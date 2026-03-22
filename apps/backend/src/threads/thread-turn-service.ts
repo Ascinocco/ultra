@@ -118,6 +118,7 @@ export class ThreadTurnService {
     } finally {
       this.activeThreads.delete(threadId)
       this.abortControllers.delete(threadId)
+      this.emitFinished(threadId)
     }
   }
 
@@ -232,6 +233,7 @@ export class ThreadTurnService {
     } finally {
       this.activeThreads.delete(threadId)
       this.abortControllers.delete(threadId)
+      this.emitFinished(threadId)
     }
   }
 
@@ -351,6 +353,21 @@ export class ThreadTurnService {
       })
     } catch {
       // Message persistence failure must not break the coordinator flow.
+    }
+  }
+
+  private emitFinished(threadId: ThreadId): void {
+    const event: ThreadTurnEvent = {
+      threadId,
+      eventType: "coordinator_finished",
+      payload: {},
+    }
+    const listeners = this.listenersByThreadId.get(threadId)
+    if (!listeners) return
+    for (const listener of listeners) {
+      try {
+        listener(event)
+      } catch { /* ignore */ }
     }
   }
 
