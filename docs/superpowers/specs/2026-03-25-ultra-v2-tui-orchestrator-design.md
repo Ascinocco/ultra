@@ -106,9 +106,36 @@ A long-running background process. Starts automatically on `ultra`, the user nev
 - **Message broker:** Route messages between sessions in real-time via socket
 - **Process manager:** Spawn agent `claude` processes, track PIDs, detect exit
 - **Worktree manager:** Create/cleanup git worktrees for agents
-- **MCP server host:** Run coordinator and agent MCP servers in-process
+- **MCP process spawner:** Spawn MCP server child processes for each session (see MCP Connection Model below)
 
 **State persistence:** JSON file at `~/.ultra/state.json`, written on every mutation. On restart, daemon reads this file, checks which PIDs are still alive, and recovers. No SQLite.
+
+**`state.json` schema:**
+```json
+{
+  "sessions": {
+    "auth-agent": {
+      "name": "auth-agent",
+      "role": "agent",
+      "conversationId": "conv_abc123",
+      "worktree": "/Users/tony/Projects/myapp-ultra-worktrees/auth-agent",
+      "branch": "ultra/auth-agent",
+      "pid": 12345,
+      "status": "active",
+      "lastActivity": "2026-03-25T10:32:00Z",
+      "autoDiscovered": false
+    }
+  },
+  "pendingMessages": {
+    "coordinator": [
+      { "from": "auth-agent", "content": "OAuth module complete", "timestamp": "2026-03-25T10:32:00Z" }
+    ]
+  },
+  "daemonStartedAt": "2026-03-25T10:00:00Z",
+  "repoRoot": "/Users/tony/Projects/myapp",
+  "worktreeBase": "/Users/tony/Projects/myapp-ultra-worktrees"
+}
+```
 
 ```
 ~/.ultra/
@@ -162,9 +189,34 @@ type SessionInfo = {
 }
 ```
 
+#### MCP Connection Model
+
+Each MCP server (coordinator and agent) runs as a **separate child process** spawned by the daemon. Claude Code's MCP config uses stdio transport, meaning Claude Code spawns the MCP server command and communicates via stdin/stdout.
+
+The flow:
+1. Daemon generates a temp `.mcp.json` file:
+   ```json
+   {
+     "ultra-coordinator": {
+       "command": "node",
+       "args": ["/path/to/apps/cli/dist/coordinator-mcp.js"],
+       "env": { "ULTRA_DAEMON_SOCK": "/path/to/.ultra/daemon.sock", "ULTRA_SESSION_ID": "coord-xxx" }
+     }
+   }
+   ```
+2. Claude Code is launched with `--mcp-config <temp-file>`
+3. Claude Code spawns the MCP server as a stdio subprocess
+4. The MCP server process connects to the daemon via Unix socket on startup
+5. All daemon communication (message routing, agent state) flows over the socket
+6. The MCP server's stdin/stdout are owned by Claude Code for MCP protocol
+
+This means MCP servers are NOT inside the daemon process — they are standalone scripts that the daemon generates configs for, and Claude Code spawns. The daemon just needs to be running so they can connect to its socket.
+
+Agent MCP servers use the same pattern but with `agent-mcp.js` and an `ULTRA_AGENT_NAME` env var.
+
 #### 2. Coordinator MCP Server
 
-Runs inside the daemon process. Connected to the coordinator's Claude Code session via stdio transport (the daemon generates an MCP config file that Claude Code reads on launch).
+Runs as a standalone process spawned by Claude Code via stdio transport. Connects to the daemon socket on startup using `ULTRA_DAEMON_SOCK` env var.
 
 **Tools:**
 
@@ -181,7 +233,7 @@ Runs inside the daemon process. Connected to the coordinator's Claude Code sessi
 
 #### 3. Agent MCP Server
 
-One instance per agent, run inside the daemon process. Connected to the agent's Claude Code session via stdio transport.
+One instance per agent, spawned by Claude Code as a stdio subprocess. Connects to daemon socket on startup using `ULTRA_DAEMON_SOCK` and `ULTRA_AGENT_NAME` env vars.
 
 **Tools:**
 
@@ -204,8 +256,10 @@ You have access to tools to communicate with the coordinator:
 - mark_done: Signal that your task is complete
 
 Work autonomously. Report meaningful progress. When done, call mark_done with a summary.
-Check for messages periodically using check_messages — the coordinator may send guidance.
+Messages from the coordinator will be delivered to you automatically when you use any tool.
 ```
+
+**Conversation ID acquisition:** The agent MCP server obtains the conversation ID by reading Claude Code's internal state. When the MCP server process starts, it registers with the daemon using just its `ULTRA_AGENT_NAME`. The conversation ID is discovered by the daemon from Claude Code's output or by inspecting `~/.claude/projects/` for the most recent conversation in the agent's working directory. If the conversation ID cannot be determined immediately, the daemon tracks the session by name and PID; the conversation ID is populated lazily when available (e.g., when the user runs `ultra attach`, the daemon can resolve it at that time by scanning Claude's conversation storage).
 
 #### 4. CLI
 
@@ -231,7 +285,9 @@ ultra attach <name>      # Resume an agent's claude session in this terminal
 **`ultra attach <name>`:**
 1. Connect to daemon socket
 2. Look up agent by name → get `conversationId` and `worktree`
-3. Exec `claude --resume <conversationId> --cwd <worktree>`
+3. Daemon generates temp MCP config for agent MCP server (so agent tools remain available)
+4. Exec `claude --resume <conversationId> --cwd <worktree> --mcp-config <agent-mcp-config>`
+   (Claude Code supports `--resume` and `--mcp-config` together)
 
 ### Session Lifecycle
 
@@ -277,8 +333,17 @@ ultra attach <name>      # Resume an agent's claude session in this terminal
                     ▼
            ┌──────────────────┐
            │     crashed      │  (daemon detects via exit code)
+           └────────┬─────────┘
+                    │
+           dismiss_agent(cleanup: true)
+                    │
+                    ▼
+           ┌──────────────────┐
+           │    cleaned up    │  (worktree preserved unless explicitly cleaned)
            └──────────────────┘
 ```
+
+**Liveness:** Any MCP tool call from an agent updates its `lastActivity` timestamp. The coordinator can use `list_agents` to spot stale agents (active status but no activity for a long time).
 
 ### Worktree Management
 
@@ -299,18 +364,46 @@ On cleanup (`dismiss_agent` with `cleanup: true`):
 
 ### Auto-Discovery via Claude Code Hooks
 
-Ultra installs a hook that fires when Claude Code sessions start:
+Ultra installs a `SessionStart` hook in the user's Claude Code settings. This hook fires every time any Claude Code session starts (including startup, resume, clear, compact).
 
-**Hook location:** `~/.claude/hooks/session-start.sh` (or project-level equivalent)
+**Installation:** `ultra` adds this to `~/.claude/settings.json` on first run:
 
-**Hook behavior:**
-1. Check if ultra daemon is running (try `~/.ultra/daemon.sock`)
-2. If running, send a register message with the session's working directory and PID
-3. If not running, silently exit (ultra is not active, no-op)
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /path/to/apps/cli/dist/hooks/session-start.js",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
-This allows the coordinator to see manually-started Claude Code sessions without those sessions needing to know about Ultra. The hook is lightweight — a single socket write or silent exit.
+**Hook behavior (`session-start.js`):**
 
-Auto-discovered sessions appear in `list_agents` with an `autoDiscovered: true` flag. The coordinator can message them, but they won't have the agent MCP tools (no `report_to_coordinator`, etc.) unless they were spawned by Ultra.
+The hook receives JSON on stdin with `{ currentWorkingDirectory, agent_type }`:
+
+1. Check if ultra daemon is running (try connecting to `~/.ultra/daemon.sock`)
+2. If not running → exit 0 silently (ultra is not active, no-op)
+3. If running → send a register message with the session's `currentWorkingDirectory` and process PID (`process.ppid` — the Claude Code process that spawned this hook)
+4. Exit 0
+
+This is lightweight — a single socket write or silent exit within the 3s timeout.
+
+**Limitations of auto-discovered sessions:**
+- They appear in `list_agents` with `autoDiscovered: true`
+- The coordinator can see them but CANNOT message them (they have no agent MCP server)
+- They cannot report back to the coordinator
+- They are informational only: "hey, there's a Claude session working in /path/to/foo"
+- To make them fully orchestrated, the coordinator would need to spawn a new agent instead
 
 ### Context Passing
 
@@ -341,7 +434,7 @@ This uses Claude Code's `--system-prompt` and `--prompt` flags. The coordinator 
 1. Daemon detects coordinator disconnect
 2. Agents keep running — they are independent
 3. Daemon stays alive — user can `ultra list` or `ultra attach` later
-4. If no sessions remain and no coordinator connected for 5 minutes, daemon self-terminates
+4. If no sessions remain and no coordinator connected for `DAEMON_IDLE_TIMEOUT` (default 5 minutes, configurable in `config.ts`), daemon self-terminates
 
 **User Ctrl+C in coordinator:**
 - Claude Code handles this normally (its own interrupt behavior)
@@ -365,21 +458,23 @@ Lives in the existing Ultra monorepo at `apps/cli/`. Standalone — no shared pa
 apps/cli/
 ├── src/
 │   ├── cli.ts                  # Entry point, command parsing (~100 lines)
-│   ├── daemon.ts               # Daemon: registry, broker, process manager (~500 lines)
+│   ├── daemon.ts               # Daemon: registry, broker, process manager (~600 lines)
 │   ├── coordinator-mcp.ts      # Coordinator MCP server (~200 lines)
 │   ├── agent-mcp.ts            # Agent MCP server (~150 lines)
 │   ├── worktree-manager.ts     # Git worktree create/list/cleanup (~150 lines)
 │   ├── process-manager.ts      # Spawn/track claude processes (~200 lines)
 │   ├── protocol.ts             # Shared message types (~80 lines)
 │   ├── state.ts                # JSON state persistence (~80 lines)
-│   └── config.ts               # Paths, defaults, constants (~40 lines)
+│   ├── config.ts               # Paths, defaults, constants (~40 lines)
+│   └── hooks/
+│       └── session-start.ts    # Claude Code SessionStart hook (~50 lines)
 ├── package.json
 ├── tsconfig.json
 └── bin/
     └── ultra                   # Shebang entry point → src/cli.ts
 ```
 
-**Estimated total:** ~1500 lines for MVP.
+**Estimated total:** ~1650 lines for MVP.
 
 ## Scope Boundaries
 
