@@ -275,7 +275,7 @@ ultra attach <name>      # Resume an agent's claude session in this terminal
 1. Ensure daemon is running (start if needed)
 2. Daemon starts coordinator MCP server
 3. Generate temp MCP config file pointing to coordinator MCP
-4. Exec `claude --mcp-config <config> --system-prompt <coordinator-prompt>`
+4. Exec `claude --mcp-config <config> --system-prompt <coordinator-prompt>` (spawned with `cwd` set to current directory via `child_process.spawn` options)
 
 **`ultra list`:**
 1. Connect to daemon socket
@@ -286,8 +286,7 @@ ultra attach <name>      # Resume an agent's claude session in this terminal
 1. Connect to daemon socket
 2. Look up agent by name → get `conversationId` and `worktree`
 3. Daemon generates temp MCP config for agent MCP server (so agent tools remain available)
-4. Exec `claude --resume <conversationId> --cwd <worktree> --mcp-config <agent-mcp-config>`
-   (Claude Code supports `--resume` and `--mcp-config` together)
+4. Exec `claude --resume <conversationId> --mcp-config <agent-mcp-config>` (spawned with `cwd` set to worktree path via `child_process.spawn` options; Claude Code supports `--resume` and `--mcp-config` together)
 
 ### Session Lifecycle
 
@@ -353,8 +352,10 @@ When the coordinator calls `spawn_agent`:
 2. Determine branch: use provided `branch` param, or auto-generate `ultra/<agent-name>`
 3. Create worktree: `git worktree add <path> -b <branch>` (or `git worktree add <path> <branch>` if branch exists)
 4. Worktree path: `../<repo-name>-ultra-worktrees/<agent-name>/`
-5. Launch `claude --dangerously-skip-permissions --cwd <worktree-path> --system-prompt <agent-prompt> --mcp-config <agent-mcp-config>`
+5. Launch claude as an interactive process: `claude --dangerously-skip-permissions --system-prompt <agent-prompt> --mcp-config <agent-mcp-config> "Your task: {prompt}"` (spawned with `cwd` set to worktree path via `child_process.spawn` options). The task prompt is passed as a positional argument so Claude begins working immediately. The process runs interactively (NOT `--print` mode) so the agent can make multiple tool calls.
 6. Track PID, conversation ID, worktree path in daemon state
+
+**Note on `--cwd`:** Claude Code has no `--cwd` flag. The working directory is set via `child_process.spawn({ cwd: worktreePath })` at the OS level. Claude Code's built-in `--worktree` flag is intentionally NOT used because Ultra manages the worktree lifecycle directly (naming, branching, cleanup).
 
 On cleanup (`dismiss_agent` with `cleanup: true`):
 1. Kill the claude process if still running
@@ -413,7 +414,7 @@ When the coordinator spawns an agent, context is passed via the prompt:
 - **Relevant context:** File contents, design decisions, constraints — all inlined in the prompt
 - **System prompt:** Base agent template (see above) with the task injected
 
-This uses Claude Code's `--system-prompt` and `--prompt` flags. The coordinator is responsible for deciding what context to include — it's part of the coordinator's intelligence, not a feature we build.
+The task prompt is passed as a positional argument to `claude` (e.g., `claude "Your task: ..."`) and additional context is injected via `--system-prompt`. Claude Code has no `--prompt` flag — the positional argument is the initial message. The coordinator is responsible for deciding what context to include — it's part of the coordinator's intelligence, not a feature we build.
 
 ### Signal Handling and Shutdown
 
